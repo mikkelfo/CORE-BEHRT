@@ -16,7 +16,7 @@ class MLMDataset(Dataset):
         seq = self.codes[index]
         N = len(seq)
         masked_seq = [self.vocab['[CLS]']] + [0]*(N-1)
-        masked_pos = [-1] * N           # -1 is auto-ignored in loss function
+        masked_pos = [-100] * N           # -1 is auto-ignored in loss function
         
         for i in range(1, N):
             rng = random.random()

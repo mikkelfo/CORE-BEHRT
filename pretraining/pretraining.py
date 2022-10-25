@@ -30,7 +30,8 @@ def MLM_pretraining():
     train_dataset = MLMDataset(train_codes, train_segments, vocabulary)
     train_dataloader = DataLoader(train_dataset, batch_size=4, shuffle=True)
 
+    loss = torch.nn.CrossEntropyLoss(ignore_index=-100)
 
     for batch in train_dataloader:
-        codes, segments, masked = batch
-        output = model(input_ids=masked, token_type_ids=segments)
+        codes, segments, masked_seq, masked_pos = batch
+        output = model(input_ids=masked_seq, token_type_ids=segments)

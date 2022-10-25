@@ -5,7 +5,13 @@ class EHRTokenizer():
     def __init__(self, vocabulary=None):
         if vocabulary is None:
             self.new_vocab = True
-            self.vocabulary = {'pad_token': 0}
+            self.vocabulary = {
+                '[PAD]': 0,
+                '[CLS]': 1, 
+                '[SEP]': 2,
+                '[UNK]': 3,
+                '[MASK]': 4,
+            }
         else:
             self.new_vocab = False
             self.vocabulary = vocabulary
@@ -24,7 +30,7 @@ class EHRTokenizer():
             # Padding
             if padding:
                 difference = max_len - len(tokenized_seq)
-                padded_seq = tokenized_seq + [0] * difference
+                padded_seq = tokenized_seq + [self.vocabulary['[PAD]']] * difference
             # Truncating
             truncated_seq = padded_seq[:truncation]
 
@@ -38,7 +44,7 @@ class EHRTokenizer():
                 if code not in self.vocabulary:
                     self.vocabulary[code] = len(self.vocabulary)
 
-        return [self.vocabulary[code] for code in seq]
+        return [self.vocabulary['[CLS]']] + [self.vocabulary[code] for code in seq] + [self.vocabulary['[SEP]']]
 
     def save_vocab(self, dest):
         with open(dest, 'wb') as f:

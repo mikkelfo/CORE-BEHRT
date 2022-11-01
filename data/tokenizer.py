@@ -20,7 +20,8 @@ class EHRTokenizer():
         return self.batch_encode(seq)
 
     def batch_encode(self, seqs, padding=True, truncation=None):
-        max_len = max([len(seq) for seq in seqs])
+        if padding:
+            max_len = max([len(seq) for seq in seqs])
         
         output_seqs = []
 

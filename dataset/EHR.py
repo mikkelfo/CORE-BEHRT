@@ -1,5 +1,6 @@
 from torch.utils.data import Dataset
 import random
+import torch
 
 
 class EHRDataset(Dataset):
@@ -47,3 +48,15 @@ class EHRDataset(Dataset):
             
 
             return (self.codes[index], self.segments[index], self.attention_mask[index]), (masked_seq, target)
+
+    def set_masked(self, boolean: bool):
+        self.masked = boolean
+
+    def set_vocabulary(self, vocabulary):
+        if type(vocabulary) == str:
+            with open(vocabulary, 'rb') as f:
+                self.vocabulary = torch.load(f)
+        elif type(vocabulary) == dict:
+            self.vocabulary = vocabulary
+        else:
+            raise Exception('Unsupported vocabulary input')

@@ -4,52 +4,39 @@ import torch
 from tokenizer import EHRTokenizer
 
 
-def pickle_data(icd_file='data/20210526/Aktive_problemliste_diagnoser.csv'):
-    df = pd.read_csv(icd_file)
+def pickle_data(file='data/20210526/Aktive_problemliste_diagnoser.csv', identifier="Key", date_column="NOTED_DATE"):
+    df = pd.read_csv(file)
 
     # Remove NaN values and sort chronologically
-    chrono_df = df[~df['NOTED_DATE'].isna()].sort_values('NOTED_DATE')
+    chrono_df = df[~df[date_column].isna()].sort_values(date_column)
 
-    # Unwrap data into dicts
-    code_dic = {}
-    timestamps = {}
-    for key, code, stamp in chrono_df.values:
-        if key not in code_dic:
-            code_dic[key] = []
-            timestamps[key] = []
-        code_dic[key].append(code)
-        timestamps[key].append(stamp[:10])  # Only perserve year/month/day
-
-    # Create visit segments
-    visit_segments = {}
-    for key, values in timestamps.items():
-        segment = [0]
-        visit_count = 0
-        for i in range(1, len(values)):
-            if values[i-1] != values[i]:    # Check if the date has changed, if so increment the counter
-                visit_count += 1
-            segment.append(visit_count)
-        visit_segments[key] = segment
+    all_codes = []
+    for _, patient in chrono_df.groupby(identifier):
+        patient_codes = []
+        prev_date = None
+        for row in patient.itertuples():
+            # Create new segment if: No other segments are present OR the date has changed
+            if prev_date is None or prev_date != row.NOTED_DATE:
+                patient_codes.append([])            # Create new segment
+            prev_date = row.NOTED_DATE              # Set new previous date
+            patient_codes[-1].append(row.Code)      # Append to current segment
+        all_codes.append(patient_codes)
 
     # Tokenize
     tokenizer = EHRTokenizer()
-    tokenized_codes = tokenizer(list(code_dic.values()))
+    outputs = tokenizer(all_codes)
 
     # Save to file
     tokenizer.save_vocab('vocabulary.pt')
-    with open('tokenized_icd10.pt', 'wb') as f:
-        torch.save(tokenized_codes, f)
-    with open('visit_segments.pt', 'wb') as f:
-        torch.save(list(visit_segments.values()), f)
+    with open('tokenized_output.pt', 'wb') as f:
+        torch.save(outputs, f)
 
 
-def split_testsets(icd10="tokenized_icd10.pt", segments="visit_segments.pt", test_ratio=0.2):
-    with open(icd10, 'rb') as f:
-        codes = torch.load(f)
-    with open(segments, 'rb') as f:
-        segments = torch.load(f)
+def split_testsets(inputs="tokenized_output.pt", test_ratio=0.2):
+    with open(inputs, 'rb') as f:
+        inputs = torch.load(f)
 
-    N = len(codes)
+    N = len(inputs.input_ids)
     np.random.seed(0)
 
     indices = np.random.permutation(N)
@@ -58,18 +45,21 @@ def split_testsets(icd10="tokenized_icd10.pt", segments="visit_segments.pt", tes
     test_indices = indices[:N_test]
     train_indices = indices[N_test:]
 
-    test_codes = [codes[ind] for ind in test_indices]
-    train_codes = [codes[ind] for ind in train_indices]
+    test_codes = [inputs.input_ids[ind] for ind in test_indices]
+    train_codes = [inputs.input_ids[ind] for ind in train_indices]
 
-    test_segments = [segments[ind] for ind in test_indices]
-    train_segments = [segments[ind] for ind in train_indices]
+    test_segments = [inputs.visit_segments[ind] for ind in test_indices]
+    train_segments = [inputs.visit_segments[ind] for ind in train_indices]
+
+    test_mask = [inputs.attention_mask[ind] for ind in test_indices]
+    train_mask = [inputs.attention_mask[ind] for ind in train_indices]
 
     with open('features.train', 'wb') as f:
-        torch.save((train_codes, train_segments), f)
+        torch.save((train_codes, train_segments, train_mask), f)
     with open('features.test', 'wb') as f:
-        torch.save((test_codes, test_segments), f)
+        torch.save((test_codes, test_segments, test_mask), f)
 
-    return (train_codes, train_segments), (test_codes, test_segments)
+    return (train_codes, train_segments, train_mask), (test_codes, test_segments, test_mask)
 
 
 if __name__ == '__main__':

@@ -1,4 +1,5 @@
 import torch
+from transformers import BatchEncoding
 
 
 class EHRTokenizer():
@@ -19,25 +20,45 @@ class EHRTokenizer():
     def __call__(self, seq):
         return self.batch_encode(seq)
 
-    def batch_encode(self, seqs, padding=True, truncation=None):
+    def batch_encode(self, seqs, padding=True, truncation=None) -> BatchEncoding:
         if padding:
-            max_len = max([len(seq) for seq in seqs])
-        
-        output_seqs = []
+            max_len = max([len(sum(seq, [])) for seq in seqs])
+
+        data = {
+            'input_ids': [],
+            'visit_segments': [],
+            'attention_mask': [],
+        }
 
         for seq in seqs:
-            # Tokenizing
-            tokenized_seq = self.encode(seq)
+            tokenized_seq = [self.vocabulary['[CLS]']]
+            visit_segments = []
+
+            # Tokenize each visit
+            for i, codes in enumerate(seq):
+                tokenized_seq += self.encode(codes)     # Encode codes          (input_ids)
+                visit_segments += [i] * len(codes)      # Create visit segments (token_type_ids)
+            attention_mask = [1] * len(tokenized_seq)   # Create mask           (attention_mask) 
+            tokenized_seq.append(self.vocabulary['[SEP]'])
+
             # Padding
             if padding:
                 difference = max_len - len(tokenized_seq)
-                padded_seq = tokenized_seq + [self.vocabulary['[PAD]']] * difference
+                tokenized_seq += [self.vocabulary['[PAD]']] * difference
+                visit_segments += [0] * difference
+                attention_mask += [0] * difference
+
             # Truncating
-            truncated_seq = padded_seq[:truncation]
+            if truncation:
+                tokenized_seq = tokenized_seq[:truncation]
+                visit_segments = visit_segments[:truncation]
+                attention_mask = attention_mask[:truncation]
 
-            output_seqs.append(truncated_seq)
+            data['input_ids'].append(tokenized_seq)
+            data['visit_segments'].append(visit_segments)
+            data['attention_mask'].append(attention_mask)
 
-        return output_seqs
+        return BatchEncoding(data)
 
     def encode(self, seq):
         if self.new_vocab:
@@ -45,7 +66,7 @@ class EHRTokenizer():
                 if code not in self.vocabulary:
                     self.vocabulary[code] = len(self.vocabulary)
 
-        return [self.vocabulary['[CLS]']] + [self.vocabulary[code] for code in seq] + [self.vocabulary['[SEP]']]
+        return [self.vocabulary[code] for code in seq]
 
     def save_vocab(self, dest):
         with open(dest, 'wb') as f:

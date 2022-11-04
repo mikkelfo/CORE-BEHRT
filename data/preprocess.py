@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import torch
 from tokenizer import EHRTokenizer
+from dataset.EHR import EHRDataset
 
 
 def pickle_data(file='data/20210526/Aktive_problemliste_diagnoser.csv', identifier="Key", date_column="NOTED_DATE"):
@@ -54,12 +55,15 @@ def split_testsets(inputs="tokenized_output.pt", test_ratio=0.2):
     test_mask = [inputs.attention_mask[ind] for ind in test_indices]
     train_mask = [inputs.attention_mask[ind] for ind in train_indices]
 
-    with open('features.train', 'wb') as f:
-        torch.save((train_codes, train_segments, train_mask), f)
-    with open('features.test', 'wb') as f:
-        torch.save((test_codes, test_segments, test_mask), f)
+    train_set = EHRDataset(train_codes, train_segments, train_mask)
+    test_set = EHRDataset(test_codes, test_segments, test_mask)
 
-    return (train_codes, train_segments, train_mask), (test_codes, test_segments, test_mask)
+    with open('dataset.train', 'wb') as f:
+        torch.save(train_set, f)
+    with open('dataset.test', 'wb') as f:
+        torch.save(test_set, f)
+
+    return train_set, test_set
 
 
 if __name__ == '__main__':

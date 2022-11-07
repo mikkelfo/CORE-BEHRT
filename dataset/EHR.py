@@ -60,3 +60,6 @@ class EHRDataset(Dataset):
             self.vocabulary = vocabulary
         else:
             raise Exception('Unsupported vocabulary input')
+
+    def get_max_segments(self):
+        return max([max(segment) for segment in self.segments])

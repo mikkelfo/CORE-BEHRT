@@ -17,10 +17,10 @@ class EHRTokenizer():
             self.new_vocab = False
             self.vocabulary = vocabulary
 
-    def __call__(self, seq):
-        return self.batch_encode(seq)
+    def __call__(self, seq, padding=True, truncation=768):
+        return self.batch_encode(seq, padding, truncation)
 
-    def batch_encode(self, seqs, padding=True, truncation=None) -> BatchEncoding:
+    def batch_encode(self, seqs, padding=True, truncation=768) -> BatchEncoding:
         if padding:
             max_len = max([len(sum(seq, [])) for seq in seqs])
 

@@ -1,7 +1,7 @@
 import torch
 
 
-def load_features(train_file="featurxes.train", test_file="features.test"):
+def load_features(train_file="dataset.train", test_file="dataset.test"):
     with open(train_file) as f:
         train_set = torch.load(f)
     with open(test_file) as f:

@@ -1,6 +1,6 @@
 from transformers import BertConfig, BertForPreTraining
 
-from embeddings import EhrEmbeddings
+from model.embeddings import EhrEmbeddings
 
 
 class BertEHRModel(BertForPreTraining):

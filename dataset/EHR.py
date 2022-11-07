@@ -47,7 +47,7 @@ class EHRDataset(Dataset):
                     masked_seq[i] = seq[i]
             
 
-            return (self.codes[index], self.segments[index], self.attention_mask[index]), (masked_seq, target)
+            return (self.codes[index], self.segments[index], self.attention_mask[index]), (torch.tensor(masked_seq), torch.tensor(target))
 
     def set_masked(self, boolean: bool):
         self.masked = boolean

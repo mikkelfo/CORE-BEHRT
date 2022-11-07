@@ -22,7 +22,7 @@ class EHRTokenizer():
 
     def batch_encode(self, seqs, padding=True, truncation=768) -> BatchEncoding:
         if padding:
-            max_len = max([len(sum(seq, [])) for seq in seqs])
+            max_len = max([len(sum(seq, [])) for seq in seqs]) + 2
 
         data = {
             'input_ids': [],
@@ -32,14 +32,15 @@ class EHRTokenizer():
 
         for seq in seqs:
             tokenized_seq = [self.vocabulary['[CLS]']]
-            visit_segments = []
+            visit_segments = [0]
 
             # Tokenize each visit
             for i, codes in enumerate(seq):
                 tokenized_seq += self.encode(codes)     # Encode codes          (input_ids)
                 visit_segments += [i] * len(codes)      # Create visit segments (token_type_ids)
-            attention_mask = [1] * len(tokenized_seq)   # Create mask           (attention_mask) 
             tokenized_seq.append(self.vocabulary['[SEP]'])
+            attention_mask = [1] * len(tokenized_seq)   # Create mask           (attention_mask) 
+            visit_segments.append(i)
 
             # Padding
             if padding:
@@ -58,7 +59,8 @@ class EHRTokenizer():
             data['visit_segments'].append(visit_segments)
             data['attention_mask'].append(attention_mask)
 
-        return BatchEncoding(data)
+
+        return BatchEncoding(data, tensor_type="pt")
 
     def encode(self, seq):
         if self.new_vocab:

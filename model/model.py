@@ -1,9 +1,9 @@
-from transformers import BertConfig, BertForPreTraining
+from transformers import BertConfig, BertForMaskedLM
 
 from model.embeddings import EhrEmbeddings
 
 
-class BertEHRModel(BertForPreTraining):
+class BertEHRModel(BertForMaskedLM):
     def __init__(self, config):
         super(BertEHRModel, self).__init__(config)
         self.config = config

@@ -49,6 +49,10 @@ class EHRDataset(Dataset):
 
             return (self.codes[index], self.segments[index], self.attention_mask[index]), (torch.tensor(masked_seq), torch.tensor(target))
 
+    def setup_mlm(self, vocabulary):
+        self.set_masked(True)
+        self.set_vocabulary(vocabulary)
+
     def set_masked(self, boolean: bool):
         self.masked = boolean
 

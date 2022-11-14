@@ -3,38 +3,40 @@ import numpy as np
 import torch
 from tokenizer import EHRTokenizer
 from dataset.EHR import EHRDataset
+from utils.args import setup_preprocess
 
 
-def pickle_data(file='data/20210526/Aktive_problemliste_diagnoser.csv', identifier="Key", date_column="NOTED_DATE"):
-    df = pd.read_csv(file)
+def tokenize_data(args):
+    df = pd.read_csv(args.data_file)
+    key, code, date = args.identifiers
 
     # Remove NaN values and sort chronologically
-    chrono_df = df[~df[date_column].isna()].sort_values(date_column)
+    chrono_df = df[~df[date].isna()].sort_values(date)
 
     all_codes = []
-    for _, patient in chrono_df.groupby(identifier):
+    for _, patient in chrono_df.groupby(key):
         patient_codes = []
         prev_date = None
         for row in patient.itertuples():
             # Create new segment if: No other segments are present OR the date has changed
-            if prev_date is None or prev_date != row.NOTED_DATE:
+            if prev_date is None or prev_date != getattr(row, date):
                 patient_codes.append([])            # Create new segment
-            prev_date = row.NOTED_DATE              # Set new previous date
-            patient_codes[-1].append(row.Code)      # Append to current segment
+            prev_date = getattr(row, date)                   # Set new previous date
+            patient_codes[-1].append(getattr(row, code))     # Append to current segment
         all_codes.append(patient_codes)
 
     # Tokenize
-    tokenizer = EHRTokenizer()
+    tokenizer = EHRTokenizer(args.vocabulary)
     outputs = tokenizer(all_codes)
 
     # Save to file
-    tokenizer.save_vocab('vocabulary.pt')
-    with open('tokenized_output.pt', 'wb') as f:
+    tokenizer.save_vocab(args.vocabulary_file)
+    with open(args.tokenized_file, 'wb') as f:
         torch.save(outputs, f)
 
 
-def split_testsets(inputs="tokenized_output.pt", test_ratio=0.2):
-    with open(inputs, 'rb') as f:
+def split_data(args):
+    with open(args.tokenized_file, 'rb') as f:
         inputs = torch.load(f)
 
     N = len(inputs.input_ids)
@@ -42,7 +44,7 @@ def split_testsets(inputs="tokenized_output.pt", test_ratio=0.2):
 
     indices = np.random.permutation(N)
 
-    N_test = int(N*test_ratio)
+    N_test = int(N*args.test_ratio)
     test_indices = indices[:N_test]
     train_indices = indices[N_test:]
 
@@ -58,15 +60,16 @@ def split_testsets(inputs="tokenized_output.pt", test_ratio=0.2):
     train_set = EHRDataset(train_codes, train_segments, train_mask)
     test_set = EHRDataset(test_codes, test_segments, test_mask)
 
-    with open('dataset.train', 'wb') as f:
+    with open(args.train_file, 'wb') as f:
         torch.save(train_set, f)
-    with open('dataset.test', 'wb') as f:
+    with open(args.test_file, 'wb') as f:
         torch.save(test_set, f)
 
     return train_set, test_set
 
 
 if __name__ == '__main__':
-    pickle_data()       # Should only be done once
-    split_testsets()    # Should only be done once
+    args = setup_preprocess()
+    tokenize_data(args)         # Should only be done once
+    split_data(args)            # Should only be done once
 

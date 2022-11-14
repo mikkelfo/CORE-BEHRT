@@ -1,37 +1,60 @@
 import torch
 from transformers import BertConfig
+
 from torch.utils.data import DataLoader
-
-from data.preprocess import split_testsets
-from dataset.MLM import MLMDataset
 from model.model import BertEHRModel
+from utils.utils import load_features, load_vocabulary
+from utils.args import setup_training
+
+import matplotlib.pyplot as plt
 
 
-def MLM_pretraining():
-    train, test = split_testsets()
-    train_codes, train_segments = train
-    test_codes, test_segments = test
-
-    with open('vocabulary.pt', 'rb') as f:
-        vocabulary = torch.load(f)
+def MLM_pretraining(args):
+    train_set, test_set = load_features(train_file=args.train_set, test_file=args.test_set)
+    vocabulary = load_vocabulary(args.vocabulary)
 
     # Find max segments
-    max_segments = max(max([max(segment) for segment in train_segments]), max([max(segment) for segment in test_segments]))
+    max_segments = max(train_set.get_max_segments(), test_set.get_max_segments())
 
     config = BertConfig(
         vocab_size=len(vocabulary),              
-        max_position_embeddings=512,    # Change?
-        type_vocab_size=max_segments    # Should be smarter
+        max_position_embeddings=args.max_tokens,
+        type_vocab_size=max_segments
     )
 
     model = BertEHRModel(config)
-    
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
 
-    train_dataset = MLMDataset(train_codes, train_segments, vocabulary)
-    train_dataloader = DataLoader(train_dataset, batch_size=4, shuffle=True)
+    # Prepare train_set for training
+    train_set.setup_mlm(vocabulary)
 
-    loss = torch.nn.CrossEntropyLoss(ignore_index=-100)
+    train_dataloader = DataLoader(train_set, batch_size=args.batch_size)
 
-    for batch in train_dataloader:
-        codes, segments, masked_seq, masked_pos = batch
-        output = model(input_ids=masked_seq, token_type_ids=segments)
+    torch.save(args, 'args.pt')
+
+    all_loss = []
+    for epoch in range(args.epochs):
+        epoch_loss = 0
+        for idx, batch in enumerate(train_dataloader):
+            (codes, segments, attention_mask), (masked_seq, target) = batch
+            output = model(input_ids=masked_seq, attention_mask=attention_mask, token_type_ids=segments, labels=target)
+
+            epoch_loss += output.loss.item()
+
+            output.loss.backward()
+
+            if (idx-1) % 16 == 0 and idx != 1:
+                optimizer.step()
+        optimizer.step()
+        all_loss.append(epoch_loss / len(train_dataloader))
+        print(all_loss)
+        
+        torch.save(model.state_dict(), f'model_{epoch}.pt')
+    plt.plot(all_loss)
+    plt.savefig('loss.png')
+    plt.show()
+
+
+if __name__ == '__main__':
+    args = setup_training()
+    MLM_pretraining(args)

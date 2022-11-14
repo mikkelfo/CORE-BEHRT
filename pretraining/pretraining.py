@@ -42,9 +42,8 @@ def MLM_pretraining(args):
             epoch_loss += output.loss.item()
 
             output.loss.backward()
-
-            if (idx-1) % 16 == 0 and idx != 1:
-                optimizer.step()
+            optimizer.step()
+            
         optimizer.step()
         all_loss.append(epoch_loss / len(train_dataloader))
         print(all_loss)

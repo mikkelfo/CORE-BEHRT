@@ -25,32 +25,53 @@ def MLM_pretraining(args):
     model = BertEHRModel(config)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
 
-    # Prepare train_set for training
+    # Prepare datasets for training
     train_set.setup_mlm(vocabulary)
+    test_set.setup_mlm(vocabulary)
 
     train_dataloader = DataLoader(train_set, batch_size=args.batch_size)
+    test_dataloader = DataLoader(test_set, batch_size=args.batch_size)
 
     torch.save(args, 'args.pt')
 
-    all_loss = []
+    all_train_loss = []
+    all_test_loss = []
     for epoch in range(args.epochs):
-        epoch_loss = 0
-        for idx, batch in enumerate(train_dataloader):
+
+        # Training
+        model.train()
+        train_loss = 0
+        for batch in train_dataloader:
             (codes, segments, attention_mask), (masked_seq, target) = batch
             output = model(input_ids=masked_seq, attention_mask=attention_mask, token_type_ids=segments, labels=target)
 
-            epoch_loss += output.loss.item()
-
+            train_loss += output.loss.item()
             output.loss.backward()
             optimizer.step()
-            
-        optimizer.step()
-        all_loss.append(epoch_loss / len(train_dataloader))
-        print(all_loss)
+
+        all_train_loss.append(train_loss / len(train_dataloader))
+        print(f'Train loss {epoch}: {train_loss / len(train_dataloader)}')
+
+        # Testing
+        model.eval()
+        test_loss = 0
+        for batch in test_dataloader:
+            (codes, segments, attention_mask), (masked_seq, target) = batch
+            test_loss += model(input_ids=masked_seq, attention_mask=attention_mask, token_type_ids=segments, labels=target).loss.item()
+
+        all_test_loss.append(test_loss / len(test_dataloader))
+        print(f'Test loss {epoch}:', test_loss / len(test_dataloader))
         
         torch.save(model.state_dict(), f'model_{epoch}.pt')
-    plt.plot(all_loss)
-    plt.savefig('loss.png')
+
+    print(all_train_loss)
+    print(all_test_loss)
+    plt.plot(all_train_loss)
+    plt.savefig('train_loss.png')
+    plt.show()
+
+    plt.plot(all_test_loss)
+    plt.savefig('test_loss.png')
     plt.show()
 
 

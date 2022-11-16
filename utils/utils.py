@@ -14,3 +14,7 @@ def load_vocabulary(file="vocabulary.pt"):
         vocabulary = torch.load(f)
     return vocabulary
 
+def to_device(*tensors, device):
+    for tensor in tensors:
+        tensor.to(device)
+

@@ -3,7 +3,7 @@ from transformers import BertConfig
 
 from torch.utils.data import DataLoader
 from model.model import BertEHRModel
-from utils.utils import load_features, load_vocabulary
+from utils.utils import load_features, load_vocabulary, to_device
 from utils.args import setup_training
 
 import matplotlib.pyplot as plt
@@ -33,6 +33,7 @@ def MLM_pretraining(args):
     test_dataloader = DataLoader(test_set, batch_size=args.batch_size)
 
     torch.save(args, 'args.pt')
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     all_train_loss = []
     all_test_loss = []
@@ -43,6 +44,7 @@ def MLM_pretraining(args):
         train_loss = 0
         for batch in train_dataloader:
             (codes, segments, attention_mask), (masked_seq, target) = batch
+            to_device(segments, attention_mask, masked_seq, target, device=device)
             output = model(input_ids=masked_seq, attention_mask=attention_mask, token_type_ids=segments, labels=target)
 
             train_loss += output.loss.item()
@@ -57,6 +59,7 @@ def MLM_pretraining(args):
         test_loss = 0
         for batch in test_dataloader:
             (codes, segments, attention_mask), (masked_seq, target) = batch
+            to_device(segments, attention_mask, masked_seq, target, device=device)
             test_loss += model(input_ids=masked_seq, attention_mask=attention_mask, token_type_ids=segments, labels=target).loss.item()
 
         all_test_loss.append(test_loss / len(test_dataloader))

@@ -7,9 +7,9 @@ def setup_preprocess():
     parser.add_argument('-f', '--data_file', type=str)
     parser.add_argument('-v', '--vocabulary', type=str, default=None)
 
-    parser.add_argument('-i', '--identifiers', type=str, default=['Key', 'Code', 'NOTED_DATE'], nargs=3, help="Identifiers order by 'Key', 'Code', 'Time stamp'")
+    parser.add_argument('-i', '--identifiers', type=str, default=['Key', 'CURRENT_ICD10_LIST', 'NOTED_DATE'], nargs=3, help="Identifiers order by 'Key', 'Code', 'Time stamp'")
     
-    parser.add_argument('-v', '--vocabulary_file', type=str, default="vocabulary.pt")
+    parser.add_argument('--vocabulary_file', type=str, default="vocabulary.pt")
     parser.add_argument('--tokenized_file', type=str, default="tokenized_output.pt")
 
     parser.add_argument('-r', '--test_ratio', type=float, default=0.2)
@@ -40,9 +40,3 @@ def setup_training():
 
     return args
 
-
-if __name__ == '__main__':
-    args1 = setup_preprocess()
-    args2 = setup_training()
-    print(args1)
-    print(args2)

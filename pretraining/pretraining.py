@@ -7,6 +7,11 @@ from utils.utils import load_features, load_vocabulary, to_device
 from utils.args import setup_training
 
 import matplotlib.pyplot as plt
+from tqdm import tqdm
+
+# Specific for computerome
+import matplotlib
+matplotlib.use('TkAgg')
 
 
 def MLM_pretraining(args):
@@ -14,7 +19,7 @@ def MLM_pretraining(args):
     vocabulary = load_vocabulary(args.vocabulary)
 
     # Find max segments
-    max_segments = max(train_set.get_max_segments(), test_set.get_max_segments())
+    max_segments = max(train_set.get_max_segments(), test_set.get_max_segments()) + 1
 
     config = BertConfig(
         vocab_size=len(vocabulary),              
@@ -42,17 +47,19 @@ def MLM_pretraining(args):
         # Training
         model.train()
         train_loss = 0
-        for batch in train_dataloader:
+        for i, batch in tqdm(enumerate(train_dataloader)):
             (codes, segments, attention_mask), (masked_seq, target) = batch
             to_device(segments, attention_mask, masked_seq, target, device=device)
             output = model(input_ids=masked_seq, attention_mask=attention_mask, token_type_ids=segments, labels=target)
 
             train_loss += output.loss.item()
+            print(f'  Epoch {epoch}.{i}: {output.loss.item()}')
             output.loss.backward()
             optimizer.step()
 
         all_train_loss.append(train_loss / len(train_dataloader))
         print(f'Train loss {epoch}: {train_loss / len(train_dataloader)}')
+        print()
 
         # Testing
         model.eval()

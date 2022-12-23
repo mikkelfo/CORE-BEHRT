@@ -4,66 +4,89 @@ import torch
 
 
 class EHRDataset(Dataset):
-    def __init__(self, codes, segments, attention_mask, vocabulary=None, masked=False):
-        self.codes = codes
-        self.segments = segments
-        self.attention_mask = attention_mask
+    def __init__(self, data, vocabulary=None, masked=False, masked_ratio=0.3):
+        self.data = data
 
         self.vocabulary = vocabulary
         self.masked = masked
+        self.masked_ratio = masked_ratio
 
     def __len__(self):
-        return len(self.codes)
+        return len(self.data['events'])
 
     def __getitem__(self, index):
         '''
             Returns tuple of
-                (outputs, None)             if masked=False
-                (outputs, masked_outputs)   if masked=True
+                events, attention mask, None, None              if masked=False
+                events, attention mask, masked events, target   if masked=True
         '''
+        events, mask = self.data['events'][index], self.data['attention_mask'][index]
         if not self.masked:
-            return (self.codes[index], self.segments[index], self.attention_mask[index]), (None, None)
-
+            masked_events, target = torch.empty(0), torch.empty(0)
         else:
-            seq = self.codes[index]
-            N = len(seq)
-            masked_seq = [self.vocabulary['[CLS]']] + [0]*(N-2) + [self.vocabulary['[SEP]']]
-            target = [-100] * N             # -100 is auto-ignored in loss function
+            N = len(events)
+            N_nomask = len(mask[mask==1])
             
-            for i in range(1, N-1):
+            masked_events = torch.clone(events)
+            target = torch.ones(N) * -100
+            target = torch.tensor([-100] * N)           # -100 is auto-ignored in loss function
+            
+            for i in range(1, N_nomask-1):              # Only mask non-PAD tokens
                 rng = random.random()
-                if rng < 0.15:              # Select 15% of the tokens
-                    rng /= 0.15             # Fix ratio to 0-100 interval
-                    if rng < 0.8:           # 80% - Mask token
-                        masked_seq[i] = self.vocabulary['[MASK]']
-                    elif 0.8 <= rng < 0.9:  # 10% - replace with random word
-                        masked_seq[i] = random.randint(5, max(self.vocabulary.values()))
-                    else:                   # 10% - Do nothing        
-                        masked_seq[i] = seq[i]
+                if rng < self.masked_ratio:             # Select set % of the tokens
+                    rng /= self.masked_ratio            # Fix ratio to 0-100 interval
+                    if rng < 0.8:                       # 80% - Mask token
+                        masked_events[i][0] = self.vocabulary['[MASK]']
+                    elif 0.8 <= rng < 0.9:              # 10% - replace with random word
+                        masked_events[i][0] = random.randint(5, max(self.vocabulary.values()))
+                    else:                               # 10% - Do nothing        
+                        masked_events[i][0] = events[i][0]
 
-                    target[i] = seq[i]      # Set "true" token
-
-                else:
-                    masked_seq[i] = seq[i]
+                    target[i] = events[i][0]            # Set "true" token
             
 
-            return (self.codes[index], self.segments[index], self.attention_mask[index]), (torch.tensor(masked_seq), torch.tensor(target))
+        return events, mask, masked_events, target
 
-    def setup_mlm(self, vocabulary):
+    def split(self, test_ratio):
+        N = len(self.data['events'])
+        torch.manual_seed(0)
+        indices = torch.randperm(N)
+        N_test = int(N*test_ratio)
+
+        train_indicies = indices[N_test:]
+        test_indices = indices[:N_test]
+
+        train_data = {}
+        test_data = {}
+        
+        for key, value in self.data.items():
+            train_data[key] = [value[i] for i in train_indicies]
+            test_data[key] = [value[i] for i in test_indices]
+        
+        train_set = EHRDataset(train_data)
+        test_set = EHRDataset(test_data)
+
+        return train_set, test_set
+
+    def setup_mlm(self, args):
         self.set_masked(True)
-        self.set_vocabulary(vocabulary)
+        self.set_vocabulary(args.vocabulary)
+        self.set_masked_ratio(args.masked_ratio)
 
     def set_masked(self, boolean: bool):
         self.masked = boolean
 
     def set_vocabulary(self, vocabulary):
-        if type(vocabulary) == str:
+        if isinstance(vocabulary, str):
             with open(vocabulary, 'rb') as f:
                 self.vocabulary = torch.load(f)
-        elif type(vocabulary) == dict:
+        elif isinstance(vocabulary, dict):
             self.vocabulary = vocabulary
         else:
-            raise Exception('Unsupported vocabulary input')
+            raise TypeError(f'Unsupported vocabulary input {type(vocabulary)}')
+
+    def set_masked_ratio(self, ratio: float):
+        self.masked_ratio = ratio
 
     def get_max_segments(self):
-        return max([max(segment) for segment in self.segments])
+        return max([event[3] for patient in self.data['events'] for event in patient])

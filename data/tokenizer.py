@@ -1,5 +1,4 @@
 import torch
-from transformers import BatchEncoding
 
 
 class EHRTokenizer():
@@ -20,57 +19,59 @@ class EHRTokenizer():
     def __call__(self, seq, padding=True, truncation=768):
         return self.batch_encode(seq, padding, truncation)
 
-    def batch_encode(self, seqs, padding=True, truncation=768) -> BatchEncoding:
+    def batch_encode(self, seqs, padding=True, truncation=768):
         if padding:
-            max_len = max([len(sum(seq, [])) for seq in seqs]) + 2
+            max_len = truncation
 
         data = {
-            'input_ids': [],
-            'visit_segments': [],
-            'attention_mask': [],
+            'events': [],
+            'attention_mask': []
         }
 
         for seq in seqs:
-            tokenized_seq = [self.vocabulary['[CLS]']]
-            visit_segments = [0]
+            seq = self.insert_special_tokens(seq)
 
-            # Tokenize each visit
-            for i, codes in enumerate(seq):
-                tokenized_seq += self.encode(codes)     # Encode codes          (input_ids)
-                visit_segments += [i] * len(codes)      # Create visit segments (token_type_ids)
-            tokenized_seq.append(self.vocabulary['[SEP]'])
-            attention_mask = [1] * len(tokenized_seq)   # Create mask           (attention_mask) 
-            visit_segments.append(i)
+            # Truncation
+            if truncation and len(seq) > truncation:
+                seq = [seq[0]] + seq[-(truncation-1):]    # Keep CLS and newest events
+
+            # Created after truncation for effiency
+            attention_mask = [1] * len(seq)
 
             # Padding
             if padding:
-                difference = max_len - len(tokenized_seq)
-                tokenized_seq += [self.vocabulary['[PAD]']] * difference
-                visit_segments += [0] * difference
+                difference = max_len - len(seq)
+                seq += [('[PAD]', 0, 0, 0)] * difference
                 attention_mask += [0] * difference
 
-            # Truncating
-            if truncation:
-                tokenized_seq = tokenized_seq[:truncation]
-                visit_segments = visit_segments[:truncation]
-                attention_mask = attention_mask[:truncation]
+            # Tokenization
+            tokenized_seq = self.encode(seq)
 
-            data['input_ids'].append(tokenized_seq)
-            data['visit_segments'].append(visit_segments)
-            data['attention_mask'].append(attention_mask)
+            data['events'].append(torch.tensor(tokenized_seq, dtype=torch.int))
+            data['attention_mask'].append(torch.tensor(attention_mask, dtype=torch.int))
 
-
-        return BatchEncoding(data, tensor_type="pt")
+        return data
 
     def encode(self, seq):
         if self.new_vocab:
-            for code in seq:
-                if code not in self.vocabulary:
-                    self.vocabulary[code] = len(self.vocabulary)
+            for event in seq:
+                concept = event[0]
+                if concept not in self.vocabulary:
+                    self.vocabulary[concept] = len(self.vocabulary)
 
-        return [self.vocabulary[code] for code in seq]
+        return [(self.vocabulary[concept], age, abspos, segment) for concept, age, abspos, segment in seq]
 
     def save_vocab(self, dest):
         with open(dest, 'wb') as f:
             torch.save(self.vocabulary, f)
+
+    def insert_special_tokens(self, seq):
+        new_seq = [('[CLS]', 0, 0, 0)]
+        for i, (token, age, abspos, segment) in enumerate(seq):
+            new_seq.append((token, age, abspos, segment))
+            #     End of seq     OR   age[i]  !=  age[i+1]      -> Insert SEP token
+            if i == len(seq) - 1 or seq[i][1] != seq[i+1][1]:
+                new_seq.append(('[SEP]', age, abspos, segment))
+
+        return new_seq
 

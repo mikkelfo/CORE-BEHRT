@@ -1,13 +1,13 @@
 import torch
+import os
+import matplotlib.pyplot as plt
+from tqdm import tqdm
 from transformers import BertConfig
-
 from torch.utils.data import DataLoader
+
 from model.model import BertEHRModel
 from utils.utils import load_features, load_vocabulary, to_device
 from utils.args import setup_training
-
-import matplotlib.pyplot as plt
-from tqdm import tqdm
 
 # Specific for computerome
 import matplotlib
@@ -31,13 +31,16 @@ def MLM_pretraining(args):
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
 
     # Prepare datasets for training
-    train_set.setup_mlm(vocabulary)
-    test_set.setup_mlm(vocabulary)
+    train_set.setup_mlm(args)
+    test_set.setup_mlm(args)
 
-    train_dataloader = DataLoader(train_set, batch_size=args.batch_size)
-    test_dataloader = DataLoader(test_set, batch_size=args.batch_size)
+    train_dataloader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True)
+    test_dataloader = DataLoader(test_set, batch_size=args.batch_size, shuffle=True)
 
-    torch.save(args, 'args.pt')
+    # Create seperate folder for output
+    os.mkdir(args.experiment_name)
+
+    torch.save(args, f'{args.experiment_name}/args.pt')
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     all_train_loss = []
@@ -48,14 +51,17 @@ def MLM_pretraining(args):
         model.train()
         train_loss = 0
         for i, batch in tqdm(enumerate(train_dataloader)):
-            (codes, segments, attention_mask), (masked_seq, target) = batch
-            to_device(segments, attention_mask, masked_seq, target, device=device)
-            output = model(input_ids=masked_seq, attention_mask=attention_mask, token_type_ids=segments, labels=target)
+            events, attention_mask, masked_events, target = batch
+            to_device(*batch, device=device)
+
+            masked_concepts, age, abspos, segments = masked_events.permute((2, 0, 1))
+            output = model(input_ids=masked_concepts, attention_mask=attention_mask, labels=target)
 
             train_loss += output.loss.item()
             print(f'  Epoch {epoch}.{i}: {output.loss.item()}')
-            output.loss.backward()
-            optimizer.step()
+            if (i+1) % args.grad_accumulation == 0:
+                output.loss.backward()
+                optimizer.step()
 
         all_train_loss.append(train_loss / len(train_dataloader))
         print(f'Train loss {epoch}: {train_loss / len(train_dataloader)}')
@@ -65,23 +71,25 @@ def MLM_pretraining(args):
         model.eval()
         test_loss = 0
         for batch in test_dataloader:
-            (codes, segments, attention_mask), (masked_seq, target) = batch
-            to_device(segments, attention_mask, masked_seq, target, device=device)
-            test_loss += model(input_ids=masked_seq, attention_mask=attention_mask, token_type_ids=segments, labels=target).loss.item()
+            events, attention_mask, masked_events, target = batch
+            to_device(*batch, device=device)
+
+            masked_concepts, age, abspos, segments = masked_events.permute((2, 0, 1))
+            test_loss += model(input_ids=masked_concepts, attention_mask=attention_mask, labels=target).loss.item()
 
         all_test_loss.append(test_loss / len(test_dataloader))
         print(f'Test loss {epoch}:', test_loss / len(test_dataloader))
         
-        torch.save(model.state_dict(), f'model_{epoch}.pt')
+        torch.save(model.state_dict(), f'{args.experiment_name}/model_{epoch}.pt')
 
     print(all_train_loss)
     print(all_test_loss)
     plt.plot(all_train_loss)
-    plt.savefig('train_loss.png')
+    plt.savefig(f'{args.experiment_name}/train_loss.png')
     plt.show()
 
     plt.plot(all_test_loss)
-    plt.savefig('test_loss.png')
+    plt.savefig(f'{args.experiment_name}/test_loss.png')
     plt.show()
 
 

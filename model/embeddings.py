@@ -1,4 +1,3 @@
-import torch
 import torch.nn as nn
 
 
@@ -6,8 +5,11 @@ class EhrEmbeddings(nn.Module):
     def __init__(self, config):
         super(EhrEmbeddings, self).__init__()
         self.config = config
-        self.code_embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
-        self.position_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size)
+        self.concept_embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
+
+        self.age_embeddings = nn.Embedding(100, config.hidden_size) # Swap for Time2Vec
+        self.abspos_embeddings = nn.Embedding(10000, config.hidden_size) # Swap for Time2Vec
+        
         self.segment_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size)
 
         self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
@@ -15,23 +17,29 @@ class EhrEmbeddings(nn.Module):
 
     def forward(
         self,
-        code_ids,
-        position_ids=None,
-        segment_ids=None,
+        concepts,
+        ages=None,
+        abspos=None,
+        segments=None,
     ):
-        code_embedded = self.code_embeddings(code_ids)
+        concepts_embedded = self.concept_embeddings(concepts)
 
-        # Position ids are constructed if not present
-        if position_ids is None:
-            position_ids = torch.arange(self.config.max_position_embeddings).expand((1, -1))
-        position_embedded = self.position_embeddings(position_ids)
+        if ages is None:
+            ages_embedded = 0
+        else:
+            ages_embedded = self.age_embeddings(ages)
 
-        # If no segment_ids are provided, all code_ids are assumed to belong to a single visit
-        if segment_ids is None:
-            segment_ids = torch.zeros_like(code_ids)
-        segment_embedded = self.segment_embeddings(segment_ids)
+        if abspos is None:
+            abspos_embedded = 0
+        else:
+            abspos_embedded = self.abspos_embeddings(abspos)
+
+        if segments is None:
+            segments_embedded = 0
+        else:
+            segments_embedded = self.segment_embeddings(abspos)
         
-        embeddings = code_embedded + position_embedded + segment_embedded
+        embeddings = concepts_embedded + ages_embedded + abspos_embedded + segments_embedded
 
         embeddings = self.LayerNorm(embeddings)
         embeddings = self.dropout(embeddings)

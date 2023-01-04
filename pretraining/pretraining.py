@@ -41,6 +41,7 @@ def MLM_pretraining(args):
     os.mkdir(args.experiment_name)
 
     torch.save(args, f'{args.experiment_name}/args.pt')
+    torch.save(config, f'{args.experiment_name}/config.pt')
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     all_train_loss = []
@@ -58,8 +59,8 @@ def MLM_pretraining(args):
             output = model(input_ids=masked_concepts, attention_mask=attention_mask, labels=target)
 
             train_loss += output.loss.item()
-            print(f'  Epoch {epoch}.{i}: {output.loss.item()}')
             if (i+1) % args.grad_accumulation == 0:
+                print(f'  Epoch {epoch}.{i}: {output.loss.item()}')
                 output.loss.backward()
                 optimizer.step()
 

@@ -1,0 +1,90 @@
+concepts:
+    icd:
+        filename: Aktive_problemliste_diagnoser.csv
+        names: [Key.Patient, CONCEPT, TIMESTAMP]
+        date_columns: [TIMESTAMP]
+        converters: {
+            CONCEPT: {
+                _partial_: true,
+                _target_: utils.utils.prepend,
+                prepend_token: ICD_,
+                slice_start: 1
+                }, 
+            TIMESTAMP: {
+                _partial_: true,
+                _target_: utils.utils.slice_wrapper,
+                end: 10
+            }
+        }
+            
+    atca:
+        filename: AdministreretMedicin.csv
+        names: [Key.Patient, Key.Admission, TIMESTAMP, CONCEPT]
+        usecols: [0, 1, 2, 3]
+        date_columns: [TIMESTAMP]
+        converters: {
+            CONCEPT: {
+                _partial_: true,
+                _target_: utils.utils.prepend,
+                prepend_token: ATCA_
+                }, 
+            TIMESTAMP: {
+                _partial_: true,
+                _target_: utils.utils.slice_wrapper,
+                end: 10
+            }
+        }
+    atco:
+        filename: OrdineretMedicin.csv
+        names: [Key.Patient, TIMESTAMP, CONCEPT]
+        usecols: [0, 1, 5]
+        date_columns: [TIMESTAMP]
+        converters: {
+            CONCEPT: {
+                _partial_: true,
+                _target_: utils.utils.prepend,
+                prepend_token: ATCO_
+                }, 
+            TIMESTAMP: {
+                _partial_: true,
+                _target_: utils.utils.slice_wrapper,
+                end: 10
+            }
+        }
+demographics:
+    filename: Patienter_og_Koen.csv
+    names: [Key.Patient, GENDER, BMI]
+    usecols: [0, 1, 4]
+    converters: {
+        BMI: {
+            _partial_: true,
+            _target_: data.utils.categorize_bmi
+        }
+    }
+
+    
+ages:
+    filename: ADT_haendelser.csv
+    names: [Key.Patient, TIMESTAMP, AGE]
+    usecols: [0, 3, 11]
+    date_columns: [TIMESTAMP]
+    converters: {
+            TIMESTAMP: {
+                _partial_: true,
+                _target_: utils.utils.slice_wrapper,
+                end: 10
+            }
+        }
+    covid_tests:
+        filename: COVID.19_positive_proevesvar.csv
+        names: [Key.Admission, TIMESTAMP]
+        usecols: [2, 4]
+        date_columns: [TIMESTAMP]
+
+abspos:
+    year: 2020
+    month: 1
+    day: 26
+
+segments:
+        

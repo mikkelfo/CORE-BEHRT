@@ -30,8 +30,8 @@ def load_dataframe(info: dict):
     return df
 
 def calculate_age(patient, birthdates):
-    if patient['Key.Patient'] in birthdates:
-        return (patient['TIMESTAMP'] - birthdates[patient['Key.Patient']]['BIRTHDATE']).year
+    if patient['PID'] in birthdates:
+        return (patient['TIMESTAMP'] - birthdates[patient['PID']]['BIRTHDATE']).dt.days // 365.25
     else:
         return np.nan
 
@@ -74,15 +74,15 @@ def create_age_features(age_info: dict, concepts: pd.DataFrame):
     ages = load_dataframe(age_info)
     # Filling in NaN values
     if ages.covid_tests:
-        tests = load_dataframe(age_info.covid_tests).drop_duplicates('Key.Admission')
-        test_dict = {k: v for k,v in tests.values}  # Create dict of (Key.Admission: timestamp)
+        tests = load_dataframe(age_info.covid_tests).drop_duplicates('ADMISSION_ID')
+        test_dict = {k: v for k,v in tests.values}  # Create dict of (ADMISSION_ID: timestamp)
         age_notime = ages[ages['TIMESTAMP'].isna()] # We only want to fill in the NaN times
-        new_timestamps = age_notime['Key.Patient'].map(lambda key: test_dict.get(key, np.nan))
+        new_timestamps = age_notime['PID'].map(lambda key: test_dict.get(key, np.nan))
         ages.loc[new_timestamps, 'TIMESTAMP'] = new_timestamps.values   # Overwrite NaN values with covid test timestamps
 
-    ages = ages.dropna().drop_duplicates('Key.Patient', keep='last')    # Dropping duplicates (we only need one birthdate per patient)
+    ages = ages.dropna().drop_duplicates('PID', keep='last')    # Dropping duplicates (we only need one birthdate per patient)
     ages['BIRTHDATE'] = ages['TIMESTAMP'] - ages['AGE'].map(lambda years: pd.Timedelta(years*365.25, 'D'))  # Calculate an approximate birthdate from their current age
-    birthdates = ages.set_index('Key.Patient', verify_integrity=False).to_dict('index')     # Create dict of (Key, birthdate)
+    birthdates = ages.set_index('PID', verify_integrity=False).to_dict('index')     # Create dict of (Key, birthdate)
     return concepts.apply(lambda patient: calculate_age(patient, birthdates), axis=1)
 
 def create_abspos_features(abspos_info: dict, concepts: pd.DataFrame):
@@ -91,18 +91,18 @@ def create_abspos_features(abspos_info: dict, concepts: pd.DataFrame):
     return (concepts['TIMESTAMP'] - origin_point).days
 
 def create_segment_features(segment_info: dict, concepts: pd.DataFrame):
-    mask = concepts['Key.Admission'].isna()
-    concepts.loc[mask, 'Key.Admission'] = concepts[mask]['TIMESTAMP'].map(lambda timestamp: f'visit_{timestamp}').values
+    mask = concepts['ADMISSION_ID'].isna()
+    concepts.loc[mask, 'ADMISSION_ID'] = concepts[mask]['TIMESTAMP'].map(lambda timestamp: f'visit_{timestamp}').values
 
     segment_dict = {}
-    concepts.apply(lambda entry: construct_segment_dict(entry['Key.Patient'], entry['Key.Admission'], segment_dict), axis=1)
+    concepts.apply(lambda entry: construct_segment_dict(entry['PID'], entry['ADMISSION_ID'], segment_dict), axis=1)
 
-    return concepts.apply(lambda entry: segment_dict[entry['Key.Patient']][entry['Key.Admission']], axis=1)
+    return concepts.apply(lambda entry: segment_dict[entry['PID']][entry['ADMISSION_ID']], axis=1)
 
 def create_demographics(demographics_info: dict, ages=False, abspos=False, segments=False):
     demo = load_dataframe(demographics_info)
     background = {
-        'Key.Patient': demo['Key.Patient'].tolist() * 2,
+        'PID': demo['PID'].tolist() * 2,
         'CONCEPTS': demo['GENDER'].tolist() + demo['BMI'].tolist()
     }
 

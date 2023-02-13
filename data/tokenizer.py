@@ -81,7 +81,7 @@ class EHRTokenizer():
     def insert_special_tokens(self, seq: dict(str, list)):
         
         # Insert SEP tokens
-        if self.config.sep_tokens and 'segment' in seq:     # Check if SEP tokens are enabled
+        if self.config.sep_tokens:                          # Check if SEP tokens are enabled
             seq = self.insert_sep_tokens(seq)
 
         # Insert CLS token

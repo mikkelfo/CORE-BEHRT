@@ -1,0 +1,19 @@
+data_dir: data/fakedata
+features_file: foo.pt
+concepts: [
+  diagnosis,
+  medication,
+  lab tests,
+  chart events,
+  procedures,
+  custom events
+]
+patients_info: patients_info.csv
+
+ages: 
+abspos:
+  year: 2020
+  month: 1
+  day: 26
+segments:
+demographics:

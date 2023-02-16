@@ -1,6 +1,7 @@
 import pandas as pd
 from datetime import datetime
 import glob
+import itertools
 
 class BaseCreator():
     def __init__(self, config):
@@ -22,6 +23,7 @@ class BaseCreator():
             return pd.read_parquet(file_path)
 
 class ConceptCreator(BaseCreator):
+    feature = 'CONCEPT'
     def create(self, concepts):
         # Get all concept files
         path = glob.glob('concept.*', root_dir=self.config.data_dir)
@@ -39,6 +41,7 @@ class ConceptCreator(BaseCreator):
         return concepts
 
 class AgeCreator(BaseCreator):
+    feature = 'AGE'
     def create(self, concepts):
         patients_info = self.read_file(self.config, 'patients_info.csv')
         # Create PID -> BIRTHDATE dict
@@ -50,6 +53,7 @@ class AgeCreator(BaseCreator):
         return concepts
 
 class AbsposCreator(BaseCreator):
+    feature = 'ABSPOS'
     def create(self, concepts):
         year, month, day = self.config.abspos['year'], self.config.abspos['month'], self.config.abspos['day']
         origin_point = datetime(year, month, day)
@@ -59,6 +63,7 @@ class AbsposCreator(BaseCreator):
         return concepts
 
 class SegmentCreator(BaseCreator):
+    feature = 'SEGMENT'
     def create(self, concepts):
         concepts['ADMISSION_ID'] = self._infer_admission_id(concepts)
 
@@ -76,17 +81,15 @@ class SegmentCreator(BaseCreator):
         return bf['ADMISSION_ID']
 
 class DemographicsCreator(BaseCreator):
+    feature = 'BACKGROUND'
     def create(self, concepts):
         patients_info = self.read_file(self.config, 'patients_info.csv')
-        if self.config.demographics == 'all':
-            columns = patients_info.columns
-        else:
-            columns = self.config.demographics
+        columns = self.config.demographics
 
         background = {
             'PID': patients_info['PID'].tolist() * len(columns),
         }
-        background['CONCEPT'] = sum([patients_info[col] for col in columns], [])
+        background['CONCEPT'] = itertools.chain.from_iterable([patients_info[col].tolist() for col in columns])
         if self.config.ages: background['AGE'] = 0
         if self.config.abspos: background['ABSPOS'] = 0
         if self.config.segments: background['SEGMENT'] = 0
@@ -95,4 +98,3 @@ class DemographicsCreator(BaseCreator):
 
         return pd.concat([background, concepts])
         
-

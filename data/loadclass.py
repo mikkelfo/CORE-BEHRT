@@ -2,9 +2,8 @@ from creators import ConceptCreator, AgeCreator, AbsposCreator, SegmentCreator, 
 
 
 class FeatureMaker():
-    def __init__(self, config, tokenizer):
+    def __init__(self, config):
         self.config = config
-        self.tokenizer = tokenizer
 
         self.features = {}
 

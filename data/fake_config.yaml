@@ -1,19 +1,18 @@
-data_dir: data/fakedata
+data_dir: ./
 features_file: foo.pt
 concepts: [
-  diagnosis,
+  diagnose,
   medication,
-  lab tests,
-  chart events,
-  procedures,
-  custom events
+  labtests,
+  chartevents,
+  custom_events
 ]
 patients_info: patients_info.csv
 
-ages: 
+ages: true
 abspos:
   year: 2020
   month: 1
   day: 26
-segments:
-demographics:
+segments: true
+demographics: ['GENDER', 'DATE_OF_DEATH']

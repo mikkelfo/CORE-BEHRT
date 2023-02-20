@@ -35,8 +35,8 @@ class ConceptCreator(BaseCreator):
         # Load concepts
         concepts = pd.concat([self.read_file(self.config, p) for p in path]).reset_index(drop=True)
         
-        concepts = concepts.sort_values('TIMESTAMP')
         concepts['TIMESTAMP'] = pd.to_datetime(concepts['TIMESTAMP'].str.slice(stop=10))
+        concepts = concepts.sort_values('TIMESTAMP')
 
         return concepts
 
@@ -80,7 +80,7 @@ class SegmentCreator(BaseCreator):
         
         return bf['ADMISSION_ID']
 
-class DemographicsCreator(BaseCreator):
+class BackgroundCreator(BaseCreator):
     feature = 'BACKGROUND'
     def create(self, concepts):
         patients_info = self.read_file(self.config, 'patients_info.csv')
@@ -90,9 +90,11 @@ class DemographicsCreator(BaseCreator):
             'PID': patients_info['PID'].tolist() * len(columns),
         }
         background['CONCEPT'] = itertools.chain.from_iterable([patients_info[col].tolist() for col in columns])
-        if self.config.ages: background['AGE'] = 0
-        if self.config.abspos: background['ABSPOS'] = 0
-        if self.config.segments: background['SEGMENT'] = 0
+
+        # TODO: Generalize this
+        if self.config.features.age: background['AGE'] = 0
+        if self.config.features.abspos: background['ABSPOS'] = 0
+        if self.config.features.segment: background['SEGMENT'] = 0
 
         background = pd.DataFrame(background)
 

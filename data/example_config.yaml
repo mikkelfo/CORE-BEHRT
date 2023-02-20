@@ -9,10 +9,11 @@ concepts: [
 ]
 patients_info: patients_info.csv
 
-ages: true
-abspos:
-  year: 2020
-  month: 1
-  day: 26
-segments: true
-demographics: ['GENDER', 'DATE_OF_DEATH']
+features: 
+  age: true
+  abspos:
+    year: 2020
+    month: 1
+    day: 26
+  segment: true
+  background: ['GENDER', 'DATE_OF_DEATH']

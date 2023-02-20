@@ -1,4 +1,4 @@
-from creators import ConceptCreator, AgeCreator, AbsposCreator, SegmentCreator, DemographicsCreator
+from creators import BaseCreator, ConceptCreator, BackgroundCreator
 
 
 class FeatureMaker():
@@ -19,28 +19,28 @@ class FeatureMaker():
         return features
     
     def create_pipeline(self):
+        # Start pipeline with Concepts (always)
         pipeline = [ConceptCreator(self.config)]
         self.features['CONCEPT'] = []
 
-        if 'ages' in self.config:
-            pipeline.append(AgeCreator(self.config))
-            self.features['AGE'] = []
-        if 'abspos' in self.config:
-            pipeline.append(AbsposCreator(self.config))
-            self.features['ABSPOS'] = []
-        if 'segments' in self.config:
-            pipeline.append(SegmentCreator(self.config))
-            self.features['SEGMENT'] = []
-        if 'demographics' in self.config:
-            pipeline.append(DemographicsCreator(self.config))
+        creators = BaseCreator.__subclasses__()
 
+        # Add all other features (age, abspos, segment, etc.)
+        for creator in creators:
+            if creator.feature.lower() in self.config.features:
+                pipeline.append(creator(self.config))
+                self.features[creator.feature] = []
+
+        # Last (optional) step is to create background - not its own feature
+        if 'background' in self.config.features:
+            pipeline.append(BackgroundCreator(self.config))
 
         return pipeline
 
     def create_features(self, concepts):
         def add_to_features(patient):
-            for feature in self.features.keys():
-                self.features[feature].append(patient[feature].tolist())
+            for feature, value in self.features.items():
+                value.append(patient[feature].tolist())
         concepts.groupby('PID').apply(add_to_features)
 
         return self.features

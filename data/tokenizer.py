@@ -18,99 +18,107 @@ class EHRTokenizer():
             self.new_vocab = False
             self.vocabulary = vocabulary
 
-    def __call__(self, seqs: dict(str, list), padding=True, truncation=768):
-        return self.batch_encode(seqs, padding, truncation)
+    def __call__(self, features: dict(str, list(list)), padding=True, truncation=768):
+        return self.batch_encode(features, padding, truncation)
 
     def batch_encode(self, features: dict(str, list(list)), padding=True, truncation=768):
-        if padding or truncation:
-            max_len = truncation
-
-        data = {key: [] for key in features.keys()}
+        data = {key: [] for key in features}
         data['attention_mask'] = []
 
-        N_features = len(features['concept'])
-        for i in range(N_features):
-            seq = {key: value[i] for key, value in features.items()}
-            seq = self.insert_special_tokens(seq)
+        for patient in self._patient_iterator(features):
+            patient = self.insert_special_tokens(patient)                   # Insert SEP and CLS tokens
 
-            # Truncation
-            if truncation and len(seq['concept']) > truncation:
-                seq = self.truncate(seq, max_len=max_len)
+            if truncation and len(patient['concept']) > truncation:
+                patient = self.truncate(patient, max_len=truncation)        # Truncate patient to max_len
             
             # Created after truncation for efficiency
-            seq['attention_mask'] = [1] * len(seq['concept'])
+            patient['attention_mask'] = [1] * len(patient['concept'])       # Initialize attention mask
 
-            # Padding
-            if padding and len(seq) < max_len:
-                seq = self.pad(seq, max_len=max_len)
+            patient['concept'] = self.encode(patient['concept'])            # Encode concepts
 
-            # Encode concepts
-            seq['concept'] = self.encode(seq['concept'])
-
-            for key, value in seq.items():
+            for key, value in patient.items():
                 data[key].append(value)
+
+        if padding:
+            longest_seq = max([len(s) for s in data['concept']])            # Find longest sequence
+            max_len = min(longest_seq, truncation)                          # Find min of longest sequence and truncation length
+            data = self.pad(data, max_len=max_len)                          # Pad sequences to max_len
 
         return BatchEncoding(data, tensor_type="pt")
 
-    def encode(self, seq):
+    def encode(self, concepts: list):
         if self.new_vocab:
-            for concept in seq:
+            for concept in concepts:
                 if concept not in self.vocabulary:
                     self.vocabulary[concept] = len(self.vocabulary)
 
-        return [self.vocabulary[concept] for concept in seq]
+        return [self.vocabulary[concept] for concept in concepts]
 
-    def truncate(self, seq, max_len):
-        truncation_length = max_len - 1 - self.config.background_length
+    def truncate(self, patient: dict(str, list), max_len: int):
+        # Find length of background sentence (including CLS token) - segment 0      # TODO: What is only concepts?
+        background_length = len([x for x in patient.get('segment', []) if x == 0]) 
+        truncation_length = max_len - background_length
         
-        if seq['concept'][-truncation_length] == '[SEP]':
+        # Do not start seq with SEP token
+        if patient['concept'][-truncation_length] == '[SEP]':
             truncation_length += 1
 
-        for key, value in seq.items():
-            seq[key] = value[1+self.config.background_length] + value[-(truncation_length):]    # Keep CLS, background sentence and newest information
+        for key, value in patient.items():
+            patient[key] = value[:background_length] + value[-truncation_length:]    # Keep CLS, background sentence and newest information
 
-        return seq
+        return patient
 
-    def pad(self, seq, max_len):
-        difference = max_len - len(seq)
-        for key, value in seq.items():
-            token = '[PAD]' if key == 'concept' else 0
-            seq[key] = value + [token] * difference
-        return seq
+    def pad(self, features: dict(str, list(list)), max_len: int):
+        padded_data = {key: [] for key in features}
+        for patient in self._patient_iterator(features):
+            difference = max_len - len(patient['concept'])
 
-    def insert_special_tokens(self, seq: dict(str, list)):
+            for key, values in patient.items():
+                token = '[PAD]' if key == 'concept' else 0
+                padded_data[key].append(values + [token] * difference)
+
+        return padded_data
+
+    def insert_special_tokens(self, patient: dict(str, list)):
+        if self.config.sep_tokens:
+            if 'segment' not in patient:
+                raise Exception('Cannot insert SEP tokens without segment information')
+            patient = self.insert_sep_tokens(patient)
+
+        if self.config.cls_token:
+            patient = self.insert_cls_token(patient)
         
-        # Insert SEP tokens
-        if self.config.sep_tokens:                          # Check if SEP tokens are enabled
-            seq = self.insert_sep_tokens(seq)
+        return patient
 
-        # Insert CLS token
-        if self.config.cls_token:                           # Check if CLS tokens are enabled
-            seq = self.insert_cls_token(seq)
-        
-        return seq
+    def insert_sep_tokens(self, patient: dict(str, list)):
+        def _insert_sep_tokens(seq: list):
+            new_seq = []
+            for i in range(len(seq)):
+                new_seq.append(seq[i])
 
-    def insert_sep_tokens(self, seq):
-        new_seq = {key: [] for key in seq.keys()}
-        for i in range(len(seq['concept'])):                # Iterate over each entry
-            for key, value in seq.items():                  # Iterate over all features
-                new_seq[key].append(value[i])               # Copy the seq
-                
                 # Insert SEP token if segment changes
-                if seq['segment'][i] != seq['segment'][i]:  # If segment changes
-                    if key == 'concept':
-                        new_seq[key].append('[SEP]')        # Insert SEP token
-                    else:
-                        new_seq[key].append(value[i])       # Copy feature value
-        return new_seq
+                if padded_segment[i] != padded_segment[i+1]:
+                    new_seq.append(token)
+            return new_seq
+        padded_segment = patient['segment'] + [None]                # Add None to last entry to avoid index out of range
 
-    def insert_cls_token(self, seq):
-        for key, value in seq.items():
-            token = '[CLS]' if key == 'concept' else 0      # Determine token value (CLS for concepts, 0 for rest)
-            seq[key] = [token] + value
-        return seq
+        for key, values in patient.items():
+            token = '[SEP]' if key == 'concept' else 0
+            patient[key] = [_insert_sep_tokens(val) for val in values]
 
-    def save_vocab(self, dest):
+        return patient
+
+    def insert_cls_token(self, patient: dict(str, list)):
+        for key, value in patient.items():
+            token = '[CLS]' if key == 'concept' else 0          # Determine token value (CLS for concepts, 0 for rest)
+            patient[key] = [token] + value
+        return patient
+
+    def save_vocab(self, dest: str):
         with open(dest, 'wb') as f:
             torch.save(self.vocabulary, f)
+
+    def _patient_iterator(self, features: dict(str, list(list))):
+        for i in range(len(features['concept'])):
+            yield {key: values[i] for key, values in features.items()}
 

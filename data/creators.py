@@ -99,4 +99,25 @@ class BackgroundCreator(BaseCreator):
         background = pd.DataFrame(background)
 
         return pd.concat([background, concepts])
+
+
+""" EXAMPLES """
+class SimpleValueCreator(BaseCreator):
+    feature = 'value'
+    def create(self, concepts):
+        concepts['CONCEPT'] = concepts['CONCEPT'] + '_' + concepts['VALUE'].astype(str)
+
+        return concepts
         
+class QuartileValueCreator(BaseCreator):
+    feature = 'quartile_value'
+    def create(self, concepts):
+        quartiles = concepts.groupby('CONCEPT')['value'].transform(lambda x: pd.qcut(x, 4, labels=False))
+        concepts['CONCEPT'] = concepts['CONCEPT'] + '_' + quartiles.astype(str)
+
+        return concepts
+
+    def _create_quartile_concepts(self, df):
+        quartiles = pd.qcut(df['VALUE'], 4, labels=False)
+        
+        return df['CONCEPT'] + '_' + quartiles.astype(str)

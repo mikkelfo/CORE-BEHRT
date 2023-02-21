@@ -7,7 +7,7 @@ class BaseCreator():
     def __init__(self, config):
         self.config: dict = config
 
-    def __call__(self, concepts=None):
+    def __call__(self, concepts):
         return self.create(concepts)
 
     def create(self):
@@ -23,7 +23,7 @@ class BaseCreator():
             return pd.read_parquet(file_path)
 
 class ConceptCreator(BaseCreator):
-    feature = 'CONCEPT'
+    feature = 'concept'
     def create(self, concepts):
         # Get all concept files
         path = glob.glob('concept.*', root_dir=self.config.data_dir)
@@ -41,30 +41,32 @@ class ConceptCreator(BaseCreator):
         return concepts
 
 class AgeCreator(BaseCreator):
-    feature = 'AGE'
+    feature = 'age'
     def create(self, concepts):
         patients_info = self.read_file(self.config, 'patients_info.csv')
         # Create PID -> BIRTHDATE dict
         birthdates = pd.Series(patients_info['BIRTHDATE'].values, index=patients_info['PID']).to_dict()
         # Calculate approximate age
-        ages = (concepts['TIMESTAMP'] - concepts['Key.Patient'].map(birthdates)).dt.days // 365.25
+        ages = (concepts['TIMESTAMP'] - concepts['PID'].map(birthdates)).dt.days // 365.25
 
         concepts['AGE'] = ages
         return concepts
 
 class AbsposCreator(BaseCreator):
-    feature = 'ABSPOS'
+    feature = 'abspos'
     def create(self, concepts):
-        year, month, day = self.config.abspos['year'], self.config.abspos['month'], self.config.abspos['day']
-        origin_point = datetime(year, month, day)
+        abspos = self.config.abspos
+        origin_point = datetime(abspos.year, abspos.month, abspos.day)
+        # Calculate days since origin point
         abspos = (concepts['TIMESTAMP'] - origin_point).dt.days
 
         concepts['ABSPOS'] = abspos
         return concepts
 
 class SegmentCreator(BaseCreator):
-    feature = 'SEGMENT'
+    feature = 'segment'
     def create(self, concepts):
+        # Infer NaNs in ADMISSION_ID
         concepts['ADMISSION_ID'] = self._infer_admission_id(concepts)
 
         segments = concepts.groupby('PID')['ADMISSION_ID'].transform(lambda x: pd.factorize(x)[0]+1)
@@ -74,27 +76,25 @@ class SegmentCreator(BaseCreator):
 
     def _infer_admission_id(self, df):
         bf = df.sort_values('PID')
-        mask = bf['ADMISSION_ID'].fillna(method='ffill') != bf['ADMISSION_ID'].fillna(method='bfill')
-        bf.loc[mask, 'ADMISSION_ID'] = bf.loc[mask, 'ADMISSION_ID'].map(lambda x: 'unq_') + list(map(str, range(mask.sum())))
-        bf['ADMISSION_ID'] = bf['ADMISSION_ID'].fillna(method='ffill')
+        mask = bf['ADMISSION_ID'].fillna(method='ffill') != bf['ADMISSION_ID'].fillna(method='bfill')   # Find NaNs between similar admission IDs
+        bf.loc[mask, 'ADMISSION_ID'] = bf.loc[mask, 'ADMISSION_ID'].map(lambda x: 'unq_') + list(map(str, range(mask.sum())))   # Assign unique IDs to non-inferred NaNs
+        bf['ADMISSION_ID'] = bf['ADMISSION_ID'].fillna(method='ffill')  # Assign neighbour IDs to inferred NaNs
         
         return bf['ADMISSION_ID']
 
 class BackgroundCreator(BaseCreator):
-    feature = 'BACKGROUND'
+    feature = 'background'
     def create(self, concepts):
         patients_info = self.read_file(self.config, 'patients_info.csv')
-        columns = self.config.demographics
 
         background = {
-            'PID': patients_info['PID'].tolist() * len(columns),
+            'PID': patients_info['PID'].tolist() * len(self.config.background),
+            'CONCEPT': itertools.chain.from_iterable([patients_info[col].tolist() for col in self.config.background])
         }
-        background['CONCEPT'] = itertools.chain.from_iterable([patients_info[col].tolist() for col in columns])
 
-        # TODO: Generalize this
-        if self.config.features.age: background['AGE'] = 0
-        if self.config.features.abspos: background['ABSPOS'] = 0
-        if self.config.features.segment: background['SEGMENT'] = 0
+        for feature in self.config.features:
+            if feature != self.feature:
+                background[feature.upper()] = 0
 
         background = pd.DataFrame(background)
 

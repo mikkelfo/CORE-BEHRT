@@ -1,4 +1,4 @@
-from creators import BaseCreator, ConceptCreator, BackgroundCreator
+from creators import BaseCreator
 
 
 class FeatureMaker():
@@ -19,28 +19,26 @@ class FeatureMaker():
         return features
     
     def create_pipeline(self):
-        # Start pipeline with Concepts (always)
-        pipeline = [ConceptCreator(self.config)]
-        self.features['CONCEPT'] = []
+        features = list(self.config.features.keys())[0]
+        if features[0] != 'concept':
+            raise ValueError('Concept must be first feature')
+        if 'background' in features and features[-1] != 'background':
+            raise ValueError('Background must be last feature')
 
-        creators = BaseCreator.__subclasses__()
+        creators = {creator.feature: creator for creator in BaseCreator.__subclasses__()}
 
-        # Add all other features (age, abspos, segment, etc.)
-        for creator in creators:
-            if creator.feature.lower() in self.config.features:
-                pipeline.append(creator(self.config))
-                self.features[creator.feature] = []
-
-        # Last (optional) step is to create background - not its own feature
-        if 'background' in self.config.features:
-            pipeline.append(BackgroundCreator(self.config))
+        pipeline = []
+        for feature in self.config.features:
+            pipeline.append(creators[feature](self.config))
+            if feature != 'background':
+                self.features.setdefault(feature, [])
 
         return pipeline
 
     def create_features(self, concepts):
         def add_to_features(patient):
             for feature, value in self.features.items():
-                value.append(patient[feature].tolist())
+                value.append(patient[feature.upper()].tolist())
         concepts.groupby('PID').apply(add_to_features)
 
         return self.features

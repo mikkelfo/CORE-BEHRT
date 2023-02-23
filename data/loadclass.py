@@ -9,6 +9,11 @@ class FeatureMaker():
 
         self.pipeline = self.create_pipeline()
 
+        self.order = {
+            'concept': 0,
+            'background': -1
+        }
+
     def __call__(self):
         concepts = None
         for creator in self.pipeline:
@@ -19,19 +24,21 @@ class FeatureMaker():
         return features
     
     def create_pipeline(self):
-        features = list(self.config.features.keys())[0]
-        if features[0] != 'concept':
-            raise ValueError('Concept must be first feature')
-        if 'background' in features and features[-1] != 'background':
-            raise ValueError('Background must be last feature')
-
         creators = {creator.feature: creator for creator in BaseCreator.__subclasses__()}
 
+        # Pipeline creation
         pipeline = []
         for feature in self.config.features:
             pipeline.append(creators[feature](self.config))
             if feature != 'background':
                 self.features.setdefault(feature, [])
+
+        # Reordering
+        pipeline_creators = [creator.feature for creator in pipeline]
+        for feature, pos in self.order.items():
+            if feature in pipeline_creators:
+                creator = pipeline.pop(pipeline_creators.index(feature))
+                pipeline.insert(pos, creator)
 
         return pipeline
 

@@ -11,7 +11,7 @@ class BaseCreator():
     def __call__(self, concepts):
         return self.create(concepts)
 
-    def create(self):
+    def create(self, concepts):
         raise NotImplementedError
 
     def read_file(self, cfg, file_path) -> pd.DataFrame:
@@ -43,7 +43,7 @@ class BaseCreator():
         return date_columns
 
 class ConceptCreator(BaseCreator):
-    feature = 'concept'
+    feature = id = 'concept'
     def create(self, concepts):
         # Get all concept files
         path = glob.glob('concept.*', root_dir=self.config.data_dir)
@@ -60,7 +60,7 @@ class ConceptCreator(BaseCreator):
         return concepts
 
 class AgeCreator(BaseCreator):
-    feature = 'age'
+    feature = id = 'age'
     def create(self, concepts):
         patients_info = self.read_file(self.config, 'patients_info.csv')
         # Create PID -> BIRTHDATE dict
@@ -72,7 +72,7 @@ class AgeCreator(BaseCreator):
         return concepts
 
 class AbsposCreator(BaseCreator):
-    feature = 'abspos'
+    feature = id = 'abspos'
     def create(self, concepts):
         abspos = self.config.abspos
         origin_point = datetime(abspos.year, abspos.month, abspos.day)
@@ -83,7 +83,7 @@ class AbsposCreator(BaseCreator):
         return concepts
 
 class SegmentCreator(BaseCreator):
-    feature = 'segment'
+    feature = id = 'segment'
     def create(self, concepts):
         # Infer NaNs in ADMISSION_ID
         concepts['ADMISSION_ID'] = self._infer_admission_id(concepts)
@@ -102,17 +102,19 @@ class SegmentCreator(BaseCreator):
         return bf['ADMISSION_ID']
 
 class BackgroundCreator(BaseCreator):
-    feature = 'background'
+    id = 'background'
+    prepend_token = "B_"
     def create(self, concepts):
         patients_info = self.read_file(self.config, 'patients_info.csv')
 
         background = {
             'PID': patients_info['PID'].tolist() * len(self.config.background),
-            'CONCEPT': itertools.chain.from_iterable([patients_info[col].tolist() for col in self.config.background])
+            'CONCEPT': itertools.chain.from_iterable(
+                [(self.prepend_token + patients_info[col].astype(str)).tolist() for col in self.config.background])
         }
 
         for feature in self.config.features:
-            if feature != self.feature:
+            if feature in ['age', 'abspos', 'segment']:
                 background[feature.upper()] = 0
 
         background = pd.DataFrame(background)
@@ -120,16 +122,16 @@ class BackgroundCreator(BaseCreator):
         return pd.concat([background, concepts])
 
 
-""" EXAMPLES """
+""" SIMPLE EXAMPLES """
 class SimpleValueCreator(BaseCreator):
-    feature = 'value'
+    id = 'value'
     def create(self, concepts):
         concepts['CONCEPT'] = concepts['CONCEPT'] + '_' + concepts['VALUE'].astype(str)
 
         return concepts
         
 class QuartileValueCreator(BaseCreator):
-    feature = 'quartile_value'
+    id = 'quartile_value'
     def create(self, concepts):
         quartiles = concepts.groupby('CONCEPT')['value'].transform(lambda x: pd.qcut(x, 4, labels=False))
         concepts['CONCEPT'] = concepts['CONCEPT'] + '_' + quartiles.astype(str)

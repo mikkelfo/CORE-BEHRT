@@ -24,14 +24,15 @@ class FeatureMaker():
         return features
     
     def create_pipeline(self):
-        creators = {creator.feature: creator for creator in BaseCreator.__subclasses__()}
+        creators = {creator.id: creator for creator in BaseCreator.__subclasses__()}
 
         # Pipeline creation
         pipeline = []
-        for feature in self.config.features:
-            pipeline.append(creators[feature](self.config))
-            if feature != 'background':
-                self.features.setdefault(feature, [])
+        for id in self.config.features:
+            creator = creators[id](self.config)
+            pipeline.append(creator)
+            if creator.get('feature') is not None:
+                self.features[creator.feature] = []
 
         # Reordering
         pipeline_creators = [creator.feature for creator in pipeline]

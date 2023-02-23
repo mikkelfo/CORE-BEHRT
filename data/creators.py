@@ -2,6 +2,7 @@ import pandas as pd
 from datetime import datetime
 import glob
 import itertools
+from dateutil.parser import parse
 
 class BaseCreator():
     def __init__(self, config):
@@ -18,9 +19,28 @@ class BaseCreator():
 
         file_type = file_path.split(".")[-1]
         if file_type == 'csv':
-            return pd.read_csv(file_path)
+            df = pd.read_csv(file_path)
         elif file_type == 'parquet':
-            return pd.read_parquet(file_path)
+            df = pd.read_parquet(file_path)
+
+        for col in self._detect_date_columns(df):
+            df[col] = pd.to_datetime(df[col], errors='coerce')
+
+        return df
+
+    def _detect_date_columns(self, df):
+        date_columns = []
+        for col in df.columns:
+            if isinstance(df[col], datetime):
+                continue
+            if 'TIME' in col.upper() or 'DATE' in col.upper():
+                try:
+                    first_non_na = df.loc[df[col].notna(), col].iloc[0]
+                    parse(first_non_na)
+                    date_columns.append(col)
+                except:
+                    continue
+        return date_columns
 
 class ConceptCreator(BaseCreator):
     feature = 'concept'
@@ -35,7 +55,6 @@ class ConceptCreator(BaseCreator):
         # Load concepts
         concepts = pd.concat([self.read_file(self.config, p) for p in path]).reset_index(drop=True)
         
-        concepts['TIMESTAMP'] = pd.to_datetime(concepts['TIMESTAMP'].str.slice(stop=10))
         concepts = concepts.sort_values('TIMESTAMP')
 
         return concepts

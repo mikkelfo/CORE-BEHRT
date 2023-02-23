@@ -5,7 +5,9 @@ class FeatureMaker():
     def __init__(self, config):
         self.config = config
 
-        self.features = {}
+        self.features = {
+            'concept': [],
+        }
 
         self.pipeline = self.create_pipeline()
 
@@ -27,7 +29,7 @@ class FeatureMaker():
         creators = {creator.id: creator for creator in BaseCreator.__subclasses__()}
 
         # Pipeline creation
-        pipeline = []
+        pipeline = [BaseCreator(self.config)]
         for id in self.config.features:
             creator = creators[id](self.config)
             pipeline.append(creator)

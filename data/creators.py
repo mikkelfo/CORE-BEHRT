@@ -11,8 +11,20 @@ class BaseCreator():
     def __call__(self, concepts):
         return self.create(concepts)
 
-    def create(self, concepts):
-        raise NotImplementedError
+    def create(self, concepts=None):
+        # Get all concept files
+        path = glob.glob('concept.*', root_dir=self.config.data_dir)
+
+        # Filter out concepts files
+        if self.config.get('concepts') is not None:
+            path = [p for p in path if p.split('.')[1] in self.config.concepts]
+        
+        # Load concepts
+        concepts = pd.concat([self.read_file(self.config, p) for p in path]).reset_index(drop=True)
+        
+        concepts = concepts.sort_values('TIMESTAMP')
+
+        return concepts
 
     def read_file(self, cfg, file_path) -> pd.DataFrame:
         file_path = f'{cfg.data_dir}/{file_path}'
@@ -41,23 +53,6 @@ class BaseCreator():
                 except:
                     continue
         return date_columns
-
-class ConceptCreator(BaseCreator):
-    feature = id = 'concept'
-    def create(self, concepts):
-        # Get all concept files
-        path = glob.glob('concept.*', root_dir=self.config.data_dir)
-
-        # Filter out concepts files
-        if self.config.get('concepts') is not None:
-            path = [p for p in path if p.split('.')[1] in self.config.concepts]
-        
-        # Load concepts
-        concepts = pd.concat([self.read_file(self.config, p) for p in path]).reset_index(drop=True)
-        
-        concepts = concepts.sort_values('TIMESTAMP')
-
-        return concepts
 
 class AgeCreator(BaseCreator):
     feature = id = 'age'

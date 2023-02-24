@@ -18,10 +18,10 @@ class EHRTokenizer():
             self.new_vocab = False
             self.vocabulary = vocabulary
 
-    def __call__(self, features: dict(str, list(list)), padding=True, truncation=768):
+    def __call__(self, features: dict[str, list[list]], padding=True, truncation=768):
         return self.batch_encode(features, padding, truncation)
 
-    def batch_encode(self, features: dict(str, list(list)), padding=True, truncation=768):
+    def batch_encode(self, features: dict[str, list[list]], padding=True, truncation=768):
         data = {key: [] for key in features}
         data['attention_mask'] = []
 
@@ -54,7 +54,7 @@ class EHRTokenizer():
 
         return [self.vocabulary[concept] for concept in concepts]
 
-    def truncate(self, patient: dict(str, list), max_len: int):
+    def truncate(self, patient: dict[str, list], max_len: int):
         # Find length of background sentence (including CLS token) - segment 0      # TODO: What is only concepts?
         background_length = len([x for x in patient.get('segment', []) if x == 0]) 
         truncation_length = max_len - background_length
@@ -68,7 +68,7 @@ class EHRTokenizer():
 
         return patient
 
-    def pad(self, features: dict(str, list(list)), max_len: int):
+    def pad(self, features: dict[str, list[list]],  max_len: int):
         padded_data = {key: [] for key in features}
         for patient in self._patient_iterator(features):
             difference = max_len - len(patient['concept'])
@@ -79,7 +79,7 @@ class EHRTokenizer():
 
         return padded_data
 
-    def insert_special_tokens(self, patient: dict(str, list)):
+    def insert_special_tokens(self, patient: dict[str, list]):
         if self.config.sep_tokens:
             if 'segment' not in patient:
                 raise Exception('Cannot insert SEP tokens without segment information')
@@ -90,7 +90,7 @@ class EHRTokenizer():
         
         return patient
 
-    def insert_sep_tokens(self, patient: dict(str, list)):
+    def insert_sep_tokens(self, patient: dict[str, list]):
         def _insert_sep_tokens(seq: list):
             new_seq = []
             for i in range(len(seq)):
@@ -108,7 +108,7 @@ class EHRTokenizer():
 
         return patient
 
-    def insert_cls_token(self, patient: dict(str, list)):
+    def insert_cls_token(self, patient: dict[str, list]):
         for key, value in patient.items():
             token = '[CLS]' if key == 'concept' else 0          # Determine token value (CLS for concepts, 0 for rest)
             patient[key] = [token] + value
@@ -118,7 +118,7 @@ class EHRTokenizer():
         with open(dest, 'wb') as f:
             torch.save(self.vocabulary, f)
 
-    def _patient_iterator(self, features: dict(str, list(list))):
+    def _patient_iterator(self, features: dict[str, list[list]]):
         for i in range(len(features['concept'])):
             yield {key: values[i] for key, values in features.items()}
 

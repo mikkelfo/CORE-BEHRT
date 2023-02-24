@@ -1,25 +1,21 @@
-from torch.utils.data import Dataset
 import torch
+from base import BaseDataset
 
 
-class EHRDataset(Dataset):
-    def __init__(self, features: dict[str, torch.LongTensor], vocabulary=None, masked=False, masked_ratio=0.3):
-        self.features = features
+class MLMDataset(BaseDataset):
+    def __init__(self, features: dict[str, torch.LongTensor], **kwargs):
+        super().__init__(features, **kwargs)
 
-        self.vocabulary = vocabulary
-        self.masked = masked
-        self.masked_ratio = masked_ratio
-
-    def __len__(self):
-        return self.data['concept']
+        self.vocabulary = self.load_vocabulary(self.kwargs['vocabulary'])
+        self.masked_ratio = self.kwargs.get('masked_ratio', 0.3)
 
     def __getitem__(self, index):
-        patient = {key: values[index] for key, values in self.features.items()}
-        if self.masked:
-            masked_concepts, target = self._mask(patient)
-            patient['masked_concepts'] = masked_concepts
-            patient['target'] = target
-        
+        patient = super().__getitem__(index)
+
+        masked_concepts, target = self._mask(patient)
+        patient['masked_concepts'] = masked_concepts
+        patient['target'] = target
+    
         return patient
 
     def _mask(self, patient: dict[str, torch.LongTensor]):
@@ -58,42 +54,7 @@ class EHRDataset(Dataset):
 
         return masked_concepts, target
 
-    def split(self, ratios: list = [0.7, 0.1, 0.2]):
-        if round(sum(ratios), 5) != 1:
-            raise ValueError(f'Sum of ratios ({ratios}) != 1 ({round(sum(ratios), 5)})')
-        torch.manual_seed(0)
-
-        N = len(self.features['concept'])
-
-        splits = self._split_indices(N, ratios)
-
-        for split in splits:
-            yield EHRDataset({key: values[split] for key, values in self.features.items()})
-
-    def _split_indices(self, N: int, ratios: list):
-        indices = torch.randperm(N)
-        splits = []
-        for ratio in ratios:
-            N_split = round(N * ratio)
-            splits.append(indices[:N_split])
-            indices = indices[N_split:]
-
-        # Add remaining indices to last split - incase of rounding error
-        if len(indices) > 0:
-            splits[-1] = torch.cat((splits[-1], indices))
-
-        print(f'Resulting split ratios: {[round(len(s) / N, 2) for s in splits]}')
-        return splits
-
-    def setup_mlm(self, vocabulary, masked_ratio):
-        self.set_masked(True)
-        self.set_vocabulary(vocabulary)
-        self.set_masked_ratio(masked_ratio)
-
-    def set_masked(self, boolean: bool):
-        self.masked = boolean
-
-    def set_vocabulary(self, vocabulary):
+    def load_vocabulary(self, vocabulary):
         if isinstance(vocabulary, str):
             with open(vocabulary, 'rb') as f:
                 self.vocabulary = torch.load(f)
@@ -101,12 +62,4 @@ class EHRDataset(Dataset):
             self.vocabulary = vocabulary
         else:
             raise TypeError(f'Unsupported vocabulary input {type(vocabulary)}')
-
-    def set_masked_ratio(self, ratio: float):
-        self.masked_ratio = ratio
-
-    def get_max_segments(self):
-        if 'segment' not in self.data:
-            raise ValueError('No segment data found. Please add segment data to dataset')
-        return max([max(segment) for segment in self.data['segment']])
 

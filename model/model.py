@@ -1,6 +1,5 @@
 from transformers import BertConfig, BertForMaskedLM
-
-from model.embeddings import EhrEmbeddings
+from embeddings.ehr import EhrEmbeddings
 
 
 class BertEHRModel(BertForMaskedLM):
@@ -8,7 +7,7 @@ class BertEHRModel(BertForMaskedLM):
         super(BertEHRModel, self).__init__(config)
         self.config = config
 
-        self.embeddings = EhrEmbeddings(config)
+        self.bert.embeddings = EhrEmbeddings(config)
 
 
 if __name__ == '__main__':

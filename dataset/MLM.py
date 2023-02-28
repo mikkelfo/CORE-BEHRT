@@ -13,7 +13,7 @@ class MLMDataset(BaseDataset):
         patient = super().__getitem__(index)
 
         masked_concepts, target = self._mask(patient)
-        patient['masked_concepts'] = masked_concepts
+        patient['concept'] = masked_concepts
         patient['target'] = target
     
         return patient

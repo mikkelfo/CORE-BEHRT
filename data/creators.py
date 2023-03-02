@@ -14,22 +14,21 @@ class BaseCreator():
 
     def create(self, concepts=None):
         # Get all concept files
-        path = glob.glob('concept.*', root_dir=self.config.data_dir)
+        concept_paths = os.path.join(self.config.data_dir, 'concept.*')
+        path = glob.glob(concept_paths)
 
         # Filter out concepts files
         if self.config.get('concepts') is not None:
             path = [p for p in path if p.split('.')[1] in self.config.concepts]
         
         # Load concepts
-        concepts = pd.concat([self.read_file(self.config, p) for p in path]).reset_index(drop=True)
+        concepts = pd.concat([self.read_file(p) for p in path]).reset_index(drop=True)
         
         concepts = concepts.sort_values('TIMESTAMP')
 
         return concepts
 
-    def read_file(self, cfg, file_path) -> pd.DataFrame:
-        file_path = os.path.join(cfg.data_dir, file_path)
-
+    def read_file(self, file_path) -> pd.DataFrame:
         file_type = file_path.split(".")[-1]
         if file_type == 'csv':
             df = pd.read_csv(file_path)
@@ -38,6 +37,7 @@ class BaseCreator():
 
         for col in self._detect_date_columns(df):
             df[col] = pd.to_datetime(df[col], errors='coerce')
+            df[col] = df[col].dt.tz_localize(None)
 
         return df
 
@@ -58,7 +58,8 @@ class BaseCreator():
 class AgeCreator(BaseCreator):
     feature = id = 'age'
     def create(self, concepts):
-        patients_info = self.read_file(self.config, 'patients_info.csv')
+        pi_info_path = os.path.join(self.config.data_dir, 'patients_info.csv')
+        patients_info = self.read_file(pi_info_path)
         # Create PID -> BIRTHDATE dict
         birthdates = pd.Series(patients_info['BIRTHDATE'].values, index=patients_info['PID']).to_dict()
         # Calculate approximate age
@@ -70,7 +71,7 @@ class AgeCreator(BaseCreator):
 class AbsposCreator(BaseCreator):
     feature = id = 'abspos'
     def create(self, concepts):
-        abspos = self.config.abspos
+        abspos = self.config.features.abspos
         origin_point = datetime(abspos.year, abspos.month, abspos.day)
         # Calculate days since origin point
         abspos = (concepts['TIMESTAMP'] - origin_point).dt.days
@@ -101,12 +102,13 @@ class BackgroundCreator(BaseCreator):
     id = 'background'
     prepend_token = "B_"
     def create(self, concepts):
-        patients_info = self.read_file(self.config, 'patients_info.csv')
+        pi_info_path = os.path.join(self.config.data_dir, 'patients_info.csv')
+        patients_info = self.read_file(pi_info_path)
 
         background = {
-            'PID': patients_info['PID'].tolist() * len(self.config.background),
+            'PID': patients_info['PID'].tolist() * len(self.config.features.background),
             'CONCEPT': itertools.chain.from_iterable(
-                [(self.prepend_token + patients_info[col].astype(str)).tolist() for col in self.config.background])
+                [(self.prepend_token + patients_info[col].astype(str)).tolist() for col in self.config.features.background])
         }
 
         for feature in self.config.features:

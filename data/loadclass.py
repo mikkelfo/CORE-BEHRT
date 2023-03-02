@@ -9,12 +9,12 @@ class FeatureMaker():
             'concept': [],
         }
 
-        self.pipeline = self.create_pipeline()
-
         self.order = {
             'concept': 0,
             'background': -1
         }
+        
+        self.pipeline = self.create_pipeline()
 
     def __call__(self):
         concepts = None
@@ -33,11 +33,11 @@ class FeatureMaker():
         for id in self.config.features:
             creator = creators[id](self.config)
             pipeline.append(creator)
-            if creator.get('feature') is not None:
+            if getattr(creator, 'feature', None) is not None:
                 self.features[creator.feature] = []
 
         # Reordering
-        pipeline_creators = [creator.feature for creator in pipeline]
+        pipeline_creators = [creator.feature for creator in pipeline if hasattr(creator, 'feature')]
         for feature, pos in self.order.items():
             if feature in pipeline_creators:
                 creator = pipeline.pop(pipeline_creators.index(feature))

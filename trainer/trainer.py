@@ -5,8 +5,6 @@ import os
 import uuid
 import json
 
-from evaluation.mlm import top_k
-
 
 class EHRTrainer():
     def __init__(self, 
@@ -16,7 +14,8 @@ class EHRTrainer():
         eval_dataset: Dataset = None,
         optimizer: torch.optim.optimizer.Optimizer = None,
         scheduler: torch.optim.lr_scheduler.StepLR = None,
-        args: dict = None,
+        metrics: dict[str, callable] = None,
+        args: dict[str, any] = None,
     ):
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
@@ -26,6 +25,7 @@ class EHRTrainer():
         self.eval_dataset = eval_dataset
         self.optimizer = optimizer
         self.scheduler = scheduler
+        self.metrics = metrics
 
         self.args = args
 
@@ -34,19 +34,25 @@ class EHRTrainer():
 
         self.model.train() if mode == 'train' else self.model.eval()
         dataloader = DataLoader(self.get_dataset[mode], batch_size=self.args['batch_size'], shuffle=True)
-
-        self.initialize_loop(dataloader)
-        self.current_loop.set_description(mode.capitalize())
-
         step = self.get_step(mode)
-        for batch in self.current_loop:
-            self.batch_idx += 1
-            step(batch)
-        self.save()
-        self.finalize()
+        
+        self.save_setup()
+        for epoch in range(self.args['epochs']):
+            self.epoch_idx = epoch
+            self.initialize_loop(dataloader)
+            self.current_loop.set_description(f'{mode.upper()} {epoch}')
+
+            for batch in self.current_loop:
+                self.batch_idx += 1
+                step(batch)
+
+            if (epoch + 1) % self.args.get('save_every', 1) == 0: 
+                self.save_checkpoint()
+
+            self.finalize()
 
     def forward_pass(self, batch: dict[str, torch.Tensor]):
-        batch.to(self.device)
+        batch = self.to_device(batch)
         return self.model(
             input_ids=batch['concept'],
             attention_mask=batch['attention_mask'],
@@ -88,24 +94,24 @@ class EHRTrainer():
             'test_loss': outputs.loss.item(),
         })
         self.log_dict({
-            'test_acc_1': top_k(outputs, batch, 1),
-            'test_acc_10': top_k(outputs, batch, 10),
-            'test_acc_30': top_k(outputs, batch, 30),
-            'test_acc_50': top_k(outputs, batch, 50),
-            'test_acc_100': top_k(outputs, batch, 100),
+            name: func(outputs, batch) for name, func in self.metrics.items()
         }, on_step=False, on_epoch=True, on_progressbar=False)
 
     def eval_step(self, batch: dict[str, torch.Tensor]):
         # Forward pass
         with torch.no_grad():
             outputs = self.forward_pass(batch)
-
+        
+        # Logging
+        self.log_dict({
+            name: func(outputs, batch) for name, func in self.metrics.items()
+        }, on_step=False, on_epoch=True, on_progressbar=False)
 
     def setup_run_folder(self):
         # Generate unique run_name if not provided
         if self.args['run_name'] is None:
             self.args['run_name'] = uuid.uuid4().hex
-        self.run_folder = f'runs/{self.args["run_name"]}'
+        self.run_folder = os.path.join('runs', self.args['run_name'])
 
         if not os.path.exists('runs'):
             os.mkdir('runs')
@@ -168,27 +174,33 @@ class EHRTrainer():
     def initialize_loop(self, loop: DataLoader):
         self.current_loop = tqdm(loop)
         self.batch_idx = 0
+        self.metric_values = {}
 
     def finalize(self):
         self.current_loop.close()
         self.current_loop = None
         self.batch_idx = 0
 
-    def save(self):
+    def to_device(self, batch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+        return {key: value.to(self.device) for key, value in batch.items()}
+
+    def save_setup(self):
+        config_name = os.path.join(self.run_folder, 'config.json')
+        with open(config_name, 'w') as f:
+            json.dump({
+                'model_config': self.model.config,
+                'args': self.args
+            }, f)
+
+    def save_checkpoint(self):
         # Model/training specific
-        torch.save(self.model.state_dict(), f'{self.run_folder}/model.pt')
-        if self.optimizer is not None:
-            torch.save(self.optimizer.state_dict(), f'{self.run_folder}/optimizer.pt')
-        if self.scheduler is not None:
-            torch.save(self.scheduler.state_dict(), f'{self.run_folder}/scheduler.pt')
-
-        with open(f'{self.run_folder}/args.json', 'w') as f:
-            json.dump(self.args, f)
-
-        with open(f'{self.run_folder}/model_config.json', 'w') as f:
-            json.dump(self.model.config, f)
-
-        avg_metrics = {name: sum(values) / len(values) for name, values in self.metrics.items()}
-        with open(f'{self.run_folder}/metrics.json', 'w') as f:
-            json.dump(avg_metrics, f)
+        checkpoint_name = os.path.join(self.run_folder, f'checkpoint_{self.current_epoch}.pt')
+        torch.save({
+            'epoch': self.current_epoch,
+            'batch_idx': self.batch_idx,
+            'model_state_dict': self.model.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'scheduler_state_dict': self.scheduler.state_dict() if self.scheduler is not None else None,
+            'metric_values': self.metric_values,
+        }, checkpoint_name)
 

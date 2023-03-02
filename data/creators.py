@@ -3,6 +3,7 @@ from datetime import datetime
 import glob
 import itertools
 from dateutil.parser import parse
+import os
 
 class BaseCreator():
     def __init__(self, config):
@@ -27,7 +28,7 @@ class BaseCreator():
         return concepts
 
     def read_file(self, cfg, file_path) -> pd.DataFrame:
-        file_path = f'{cfg.data_dir}/{file_path}'
+        file_path = os.path.join(cfg.data_dir, file_path)
 
         file_type = file_path.split(".")[-1]
         if file_type == 'csv':

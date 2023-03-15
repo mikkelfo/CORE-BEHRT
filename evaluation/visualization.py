@@ -5,3 +5,4 @@ def dimensionality_reduction(embedding):
     X = tsne.fit_transform(embedding)
     x, y = X[:, 0], X[:, 1]
     return x, y
+

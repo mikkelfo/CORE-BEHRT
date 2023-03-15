@@ -1,12 +1,56 @@
+from torch.utils.data import Dataset
 import torch
-from base import BaseDataset
+
+
+class BaseDataset(Dataset):
+    def __init__(self, features: dict, **kwargs):
+        self.features = features
+        self.kwargs = kwargs
+
+    def __len__(self):
+        return len(self.features['concept'])
+
+    def __getitem__(self, index):
+        return {key: values[index] for key, values in self.features.items()}
+
+    def split(self, ratios: list = [0.7, 0.1, 0.2]):
+        if round(sum(ratios), 5) != 1:
+            raise ValueError(f'Sum of ratios ({ratios}) != 1 ({round(sum(ratios), 5)})')
+        torch.manual_seed(0)
+
+        N = len(self.features['concept'])
+
+        splits = self._split_indices(N, ratios)
+
+        for split in splits:
+            yield self.__class__({key: [values[s] for s in split] for key, values in self.features.items()}, **self.kwargs)
+
+    def _split_indices(self, N: int, ratios: list):
+        indices = torch.randperm(N)
+        splits = []
+        for ratio in ratios:
+            N_split = round(N * ratio)
+            splits.append(indices[:N_split])
+            indices = indices[N_split:]
+
+        # Add remaining indices to last split - incase of rounding error
+        if len(indices) > 0:
+            splits[-1] = torch.cat((splits[-1], indices))
+
+        print(f'Resulting split ratios: {[round(len(s) / N, 2) for s in splits]}')
+        return splits
+
+    def get_max_segments(self):
+        if 'segment' not in self.features:
+            raise ValueError('No segment data found. Please add segment data to dataset')
+        return max([max(segment) for segment in self.features['segment']])
 
 
 class MLMDataset(BaseDataset):
-    def __init__(self, features: dict[str, torch.LongTensor], **kwargs):
+    def __init__(self, features: dict, **kwargs):
         super().__init__(features, **kwargs)
 
-        self.vocabulary = self.load_vocabulary(self.kwargs['vocabulary'])
+        self.vocabulary = self.load_vocabulary(self.kwargs.get('vocabulary', 'vocabulary.pt'))
         self.masked_ratio = self.kwargs.get('masked_ratio', 0.3)
 
     def __getitem__(self, index):
@@ -18,9 +62,9 @@ class MLMDataset(BaseDataset):
     
         return patient
 
-    def _mask(self, patient: dict[str, torch.LongTensor]):
-        concepts = patient['concept']
-        mask = patient['attention_mask']
+    def _mask(self, patient: dict):
+        concepts = torch.tensor(patient['concept'])
+        mask = torch.tensor(patient['attention_mask'])
 
         N = len(concepts)
         N_nomask = len(mask[mask==1])
@@ -56,10 +100,9 @@ class MLMDataset(BaseDataset):
 
     def load_vocabulary(self, vocabulary):
         if isinstance(vocabulary, str):
-            with open(vocabulary, 'rb') as f:
-                self.vocabulary = torch.load(f)
+            return torch.load(vocabulary)
         elif isinstance(vocabulary, dict):
-            self.vocabulary = vocabulary
+            return vocabulary
         else:
             raise TypeError(f'Unsupported vocabulary input {type(vocabulary)}')
 

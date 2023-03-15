@@ -1,7 +1,7 @@
 import torch
 
 """Computes the precision@k for the specified values of k"""
-def top_k(outputs, batch, topk=10) -> dict[str, float]:
+def top_k(outputs, batch, topk=10) -> dict:
     logits = outputs.logits
     target = batch['target']
     
@@ -17,5 +17,4 @@ def top_k(outputs, batch, topk=10) -> dict[str, float]:
 
     correct_k = correct[:topk].float().sum(0)
     return correct_k.sum() / len(correct_k)
-
 

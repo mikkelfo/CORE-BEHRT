@@ -1,4 +1,4 @@
-from creators import BaseCreator
+from data.creators import BaseCreator
 
 
 class FeatureMaker():
@@ -13,25 +13,22 @@ class FeatureMaker():
             'concept': 0,
             'background': -1
         }
-        
+        self.creators = {creator.id: creator for creator in BaseCreator.__subclasses__()}
         self.pipeline = self.create_pipeline()
 
-    def __call__(self):
-        concepts = None
+    def __call__(self, concepts, patients_info):
         for creator in self.pipeline:
-            concepts = creator(concepts)
+            concepts = creator(concepts, patients_info)
 
         features = self.create_features(concepts)
 
         return features
     
     def create_pipeline(self):
-        creators = {creator.id: creator for creator in BaseCreator.__subclasses__()}
-
         # Pipeline creation
-        pipeline = [BaseCreator(self.config)]
+        pipeline = []
         for id in self.config.features:
-            creator = creators[id](self.config)
+            creator = self.creators[id](self.config)
             pipeline.append(creator)
             if getattr(creator, 'feature', None) is not None:
                 self.features[creator.feature] = []

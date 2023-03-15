@@ -1,4 +1,4 @@
-from transformers import BertConfig, BertForMaskedLM
+from transformers import BertForMaskedLM
 from embeddings.ehr import EhrEmbeddings
 
 
@@ -9,11 +9,3 @@ class BertEHRModel(BertForMaskedLM):
 
         self.bert.embeddings = EhrEmbeddings(config)
 
-
-if __name__ == '__main__':
-    config = BertConfig(
-        # vocab_size=None,              
-        # max_position_embeddings=None, 
-        # type_vocab_size=None
-    )
-    model = BertEHRModel(config)

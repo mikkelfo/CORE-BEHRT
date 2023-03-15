@@ -1,10 +1,7 @@
-data_dir: ./
+data_dir: formatted_data
 concepts: [
   diagnose,
-  medication,
-  labtests,
-  chartevents,
-  custom_events
+  medication
 ]
 patients_info: patients_info.csv
 
@@ -15,4 +12,4 @@ features:
     month: 1
     day: 26
   segment: true
-  background: ['GENDER', 'DATE_OF_DEATH']
+  background: ['GENDER']

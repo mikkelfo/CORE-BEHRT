@@ -6,6 +6,7 @@ from data.featuremaker import FeatureMaker
 from data_fixes.overwrite import Overwriter
 from data.tokenizer import EHRTokenizer
 from data.dataset import MLMDataset
+from data.split import Splitter
 
 def main():
     with initialize(config_path='configs'):
@@ -30,16 +31,23 @@ def main():
     # Overwrite nans and incorrect values
     features = Overwriter()(features)
 
+    # Split
+    train, test, val = Splitter()(features)
+
     # Tokenize
     tokenizer = EHRTokenizer({'sep_tokens': True, 'cls_token': True})
-    encoded = tokenizer(features, padding=False)
+    encoded_train = tokenizer(train, padding=False)
+    tokenizer.lock_vocabulary()
+    encoded_test = tokenizer(test, padding=False)
+    encoded_val = tokenizer(val, padding=False)
 
     # To dataset
-    dataset = MLMDataset(encoded, vocabulary=tokenizer.vocabulary)
-    train, val, test = dataset.split()
-    torch.save(train, 'dataset.train')
-    torch.save(val, 'dataset.val')
-    torch.save(test, 'dataset.test')
+    train_dataset = MLMDataset(encoded_train, vocabulary=tokenizer.vocabulary)
+    test_dataset = MLMDataset(encoded_test, vocabulary=tokenizer.vocabulary)
+    val_dataset = MLMDataset(encoded_val, vocabulary=tokenizer.vocabulary)
+    torch.save(train_dataset, 'dataset.train')
+    torch.save(test_dataset, 'dataset.test')
+    torch.save(val_dataset, 'dataset.val')
     
 
 if __name__ == '__main__':

@@ -3,7 +3,7 @@ from hydra import initialize, compose
 from data.concept_loader import ConceptLoader
 from data_fixes.infer import Inferrer
 from data.featuremaker import FeatureMaker
-from data_fixes.overwrite import Overwriter
+from data_fixes.handle import Handler
 from data.tokenizer import EHRTokenizer
 from data.dataset import MLMDataset
 from data.split import Splitter
@@ -29,7 +29,7 @@ def main():
     features = FeatureMaker(cfg)(concepts, patients_info)
 
     # Overwrite nans and incorrect values
-    features = Overwriter()(features)
+    features = Handler()(features)
 
     # Split
     train, test, val = Splitter()(features)

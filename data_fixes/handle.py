@@ -1,26 +1,26 @@
 import pandas as pd
 
 
-class Overwriter():
-    def __call__(self, features: dict, concept_fill = '[UNK]', num_fill = -100):
-        return self.overwrite(features, concept_fill, num_fill)
+class Handler():
+    def __call__(self, features: dict, concept_fill = '[UNK]', num_fill = -100, drop=True):
+        return self.handle(features, concept_fill, num_fill, drop)
 
-    def overwrite(self, features: dict, concept_fill = '[UNK]', num_fill = -100):
+    def handle(self, features: dict, concept_fill = '[UNK]', num_fill = -100, drop=True):
         for key, patients in features.items():
             filler = concept_fill if key == 'concept' else num_fill
 
             # Drop or replace incorrect ages (-1 <= age <= 120)
             if key == 'age':
-                patients = self.handle_incorrect_ages(patients)
+                patients = self.handle_incorrect_ages(patients, drop=drop)
 
             # Replace NaNs as 'filler'
-            patients = self.replace_nans(patients, filler)
+            patients = self.handle_nans(patients, filler, drop=drop)
 
             features[key] = patients
         
         return features
 
-    def handle_incorrect_ages(self, ages: list, drop=True, num_fill=-100):
+    def handle_incorrect_ages(self, ages: list, num_fill=-100, drop=True):
         handled_patients = []
         for patient in ages:
             if drop:
@@ -31,10 +31,13 @@ class Overwriter():
         return handled_patients
 
 
-    def replace_nans(self, patients: list, filler):
+    def handle_nans(self, patients: list, filler, drop=True):
         replaced_patients = []
         for patient in patients:
-            replaced_patients.append([filler if pd.isna(v) else v for v in patient])
+            if drop:
+                replaced_patients.append([v for v in patient if not pd.isna(v)])
+            else:
+                replaced_patients.append([filler if pd.isna(v) else v for v in patient])
 
         return replaced_patients
 

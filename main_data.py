@@ -10,7 +10,8 @@ from data.split import Splitter
 
 def main():
     with initialize(config_path='configs'):
-        cfg = compose(config_name='featuremaker.yaml')
+        features_config = compose(config_name='featuremaker.yaml')
+        tokenizer_config = compose(config_name='tokenizer.yaml')
     """
         Loads
         Infers nans
@@ -20,13 +21,13 @@ def main():
         To dataset
     """
     # Load concepts
-    concepts, patients_info = ConceptLoader()(cfg.data_dir)
+    concepts, patients_info = ConceptLoader()(features_config.data_dir)
 
     # Infer missing values
     concepts = Inferrer()(concepts)
 
     # Create feature sequences
-    features = FeatureMaker(cfg)(concepts, patients_info)
+    features = FeatureMaker(features_config)(concepts, patients_info)
 
     # Overwrite nans and incorrect values
     features = Handler()(features)
@@ -35,11 +36,11 @@ def main():
     train, test, val = Splitter()(features)
 
     # Tokenize
-    tokenizer = EHRTokenizer({'sep_tokens': True, 'cls_token': True})
-    encoded_train = tokenizer(train, padding=False)
+    tokenizer = EHRTokenizer(tokenizer_config)
+    encoded_train = tokenizer(train, padding=tokenizer_config.padding, truncation=tokenizer_config.truncation)
     tokenizer.freeze_vocabulary()
-    encoded_test = tokenizer(test, padding=False)
-    encoded_val = tokenizer(val, padding=False)
+    encoded_test = tokenizer(test, padding=tokenizer_config.padding, truncation=tokenizer_config.truncation)
+    encoded_val = tokenizer(val, padding=tokenizer_config.padding, truncation=tokenizer_config.truncation)
 
     # To dataset
     train_dataset = MLMDataset(encoded_train, vocabulary=tokenizer.vocabulary)

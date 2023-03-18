@@ -37,7 +37,7 @@ def main():
     # Tokenize
     tokenizer = EHRTokenizer({'sep_tokens': True, 'cls_token': True})
     encoded_train = tokenizer(train, padding=False)
-    tokenizer.lock_vocabulary()
+    tokenizer.freeze_vocabulary()
     encoded_test = tokenizer(test, padding=False)
     encoded_val = tokenizer(val, padding=False)
 

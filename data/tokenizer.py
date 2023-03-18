@@ -18,10 +18,10 @@ class EHRTokenizer():
             self.new_vocab = False
             self.vocabulary = vocabulary
 
-    def __call__(self, features: dict, padding=True, truncation=768):
+    def __call__(self, features: dict, padding=True, truncation=512):
         return self.batch_encode(features, padding, truncation)
 
-    def batch_encode(self, features: dict, padding=True, truncation=768):
+    def batch_encode(self, features: dict, padding=True, truncation=512):
         data = {key: [] for key in features}
         data['attention_mask'] = []
 
@@ -51,7 +51,7 @@ class EHRTokenizer():
                 if concept not in self.vocabulary:
                     self.vocabulary[concept] = len(self.vocabulary)
 
-        return [self.vocabulary[concept] for concept in concepts]
+        return [self.vocabulary.get(concept, self.vocabulary['[UNK]']) for concept in concepts]
 
     def truncate(self, patient: dict, max_len: int):
         # Find length of background sentence (+2 to include CLS token and SEP token)
@@ -117,4 +117,8 @@ class EHRTokenizer():
     def _patient_iterator(self, features: dict):
         for i in range(len(features['concept'])):
             yield {key: values[i] for key, values in features.items()}
+
+    def freeze_vocabulary(self):
+        self.new_vocab = False
+        self.save_vocab('vocabulary.pt')
 

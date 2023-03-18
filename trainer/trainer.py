@@ -11,55 +11,98 @@ class EHRTrainer():
         model: torch.nn.Module,
         train_dataset: Dataset = None,
         test_dataset: Dataset = None,
-        eval_dataset: Dataset = None,
+        val_dataset: Dataset = None,
         optimizer: torch.optim.Optimizer = None,
         scheduler: torch.optim.lr_scheduler.StepLR = None,
-        metrics: dict = {},
-        args: dict = None,
+        args: dict = {},
     ):
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
         self.model = model.to(self.device)
         self.train_dataset = train_dataset
         self.test_dataset = test_dataset
-        self.eval_dataset = eval_dataset
+        self.val_dataset = val_dataset
         self.optimizer = optimizer
         self.scheduler = scheduler
-        self.metrics = metrics
 
-        if args is None:
-            self.info('No args provided, using default args')
-            args = {
-                'batch_size': 4,
-                'accumulate_grad_batches': 1,
-                'epochs': 1,
-                'info': True,
-                'save_every': 1,
-            }
-        self.args = args
+        self.default_args = {
+            'batch_size': 32,
+            'effective_batch_size': 512,
+            'epochs': 10,
+            'info': True,
+            'save_every_k_steps': float('inf'),
+            'custom_loss': None,
+        }
+        self.args = {**self.default_args, **args}
 
-    def loop(self, mode: str):
-        self.info(f'Starting {mode} loop')
+    def update_attributes(self, **kwargs):
+        for key, value in kwargs.items():
+            if key == 'args':
+                self.args = {**self.args, **value}
+            else:
+                setattr(self, key, value)
 
-        self.model.train() if mode == 'train' else self.model.eval()
-        dataloader = DataLoader(self.get_dataset(mode), batch_size=self.args['batch_size'], shuffle=True, collate_fn=self.args.get('collate_fn'))
-        step = self.get_step(mode)
-        
+    def validate_training(self):
+        assert self.model is not None, 'No model provided'
+        assert self.train_dataset is not None, 'No training dataset provided'
+        assert self.optimizer is not None, 'No optimizer provided'
+
+    def train(self, **kwargs):
+        self.update_attributes(**kwargs)
+        self.validate_training()
+
+        accumulation_steps: int = self.args['effective_batch_size'] // self.args['batch_size']
+        train_loop = self.setup_training()
+
+        for epoch in range(self.args['epochs']):
+            train_loop.set_description(f'Train {epoch}')
+            epoch_loss = 0
+            step_loss = 0
+            for i, batch in train_loop:
+                # Train step
+                step_loss += self.train_step(batch).item() / self.args["batch_size"]
+                epoch_loss += step_loss
+
+                # Accumulate gradients
+                if (i+1) % accumulation_steps == 0:
+                    self.optimizer.step()
+                    self.optimizer.zero_grad()
+                    if self.scheduler is not None:
+                        self.scheduler.step()
+
+                    train_loop.set_postfix(loss=step_loss / accumulation_steps)
+                    self.log(f'Train loss: {step_loss / accumulation_steps}')
+                    step_loss = 0
+
+                # Save iteration checkpoint
+                if ((i+1) // accumulation_steps) % self.args['save_every_k_steps'] == 0:
+                    self.save_checkpoint(id=f'epoch{epoch}_step{(i+1) // accumulation_steps}', train_loss=step_loss / accumulation_steps)
+
+            # Validate (returns None if no validation set is provided)
+            val_loss, metrics = self.validate()
+            
+            # Save epoch checkpoint
+            self.save_checkpoint(id=f'epoch{epoch}_end', train_loss=epoch_loss / len(train_loop), val_loss=val_loss, metrics=metrics)
+
+            # Print epoch info
+            self.info(f'Epoch {epoch} train loss: {epoch_loss / len(train_loop)}')
+            self.info(f'Epoch {epoch} val loss: {val_loss}')
+            self.info(f'Epoch {epoch} metrics: {metrics}')
+
+    def setup_training(self) -> tqdm:
+        self.model.train()
         self.setup_run_folder()
         self.save_setup()
-        for epoch in range(self.args['epochs']):
-            self.epoch_idx = epoch
-            self.initialize_loop(dataloader)
-            self.current_loop.set_description(f'{mode.upper()} {epoch}')
+        dataloader = DataLoader(self.train_dataset, batch_size=self.args['batch_size'], shuffle=True, collate_fn=self.args.get('collate_fn'))
+        train_loop = tqdm(enumerate(dataloader), total=len(dataloader))
+        return train_loop
 
-            for batch in self.current_loop:
-                self.batch_idx += 1
-                step(batch)
+    def train_step(self, batch: dict):
+        outputs = self.forward_pass(batch)
+        loss = self.get_loss(outputs)
+        self.backward_pass(loss)
 
-            if (epoch + 1) % self.args.get('save_every', 1) == 0: 
-                self.save_checkpoint()
-
-            self.finalize()
+        return loss
 
     def forward_pass(self, batch: dict):
         batch = self.to_device(batch)
@@ -74,129 +117,55 @@ class EHRTrainer():
             labels=batch['target'] if 'target' in batch else None
         )
 
-    def backward_pass(self, loss: torch.Tensor):
+    def get_loss(self, outputs: dict, batch: dict):
+        if self.args.get('custom_loss') is not None:
+            return self.args['custom_loss'](outputs, batch)
+        elif 'loss' in outputs:
+            return outputs['loss']
+        else:
+            raise Exception('No loss found in outputs and no custom loss function provided')
+
+    def backward_pass(self, loss):
         loss.backward()
-        if self.batch_idx % self.args['accumulate_grad_batches'] == 0:
-            self.optimizer.step()
-            self.optimizer.zero_grad()
-            if self.scheduler is not None:
-                self.scheduler.step()
 
-    def train_step(self, batch: dict):       
-        # Forward pass
-        outputs = self.forward_pass(batch)
-        
-        # Backward pass and optimizer step
-        self.backward_pass(outputs.loss)
+    def validate(self):
+        if self.val_dataset is None:
+            return None, None
 
-        # Logging
-        self.log_dict({
-            'train_loss': outputs.loss.item(),
-        })
-
-    def test_step(self, batch: dict):
-        # Forward pass
-        with torch.no_grad():
+        self.model.eval()
+        dataloader = DataLoader(self.val_dataset, batch_size=self.args['batch_size'], shuffle=True, collate_fn=self.args.get('collate_fn'))
+        val_loop = tqdm(dataloader, total=len(dataloader))
+        val_loop.set_description('Validation')
+        val_loss = 0
+        metrics = getattr(self, 'metrics', {})
+        metric_values = {name: [] for name in metrics}
+        for batch in val_loop:
             outputs = self.forward_pass(batch)
+            val_loss += self.get_loss(outputs).item() / self.args['batch_size']
 
-        # Logging
-        self.log_dict({
-            'test_loss': outputs.loss.item(),
-        })
-        self.log_dict({
-            name: func(outputs, batch) for name, func in self.metrics.items()
-        }, on_step=False, on_epoch=True, on_progressbar=False)
+            for name, func in metrics.items():
+                metric_values[name].append(func(outputs, batch))
 
-    def eval_step(self, batch: dict):
-        # Forward pass
-        with torch.no_grad():
-            outputs = self.forward_pass(batch)
-        
-        # Logging
-        self.log_dict({
-            name: func(outputs, batch) for name, func in self.metrics.items()
-        }, on_step=False, on_epoch=True, on_progressbar=False)
+        self.model.train()
+        return val_loss / len(val_loop), {name: sum(values) / len(values) for name, values in metric_values.items()}
+
+    def to_device(self, batch: dict) -> dict:
+        return {key: value.to(self.device) for key, value in batch.items()}
 
     def setup_run_folder(self):
         # Generate unique run_name if not provided
         if self.args.get('run_name') is None:
             random_runname = uuid.uuid4().hex
             self.info(f'Run name not provided. Using random run name: {random_runname}')
-            self.run_folder = os.path.join('runs', random_runname)
-        else:
-            self.run_folder = os.path.join('runs', self.args['run_name'])
+            self.args['run_name'] = random_runname
+        self.run_folder = os.path.join('runs', self.args['run_name'])
 
         if not os.path.exists(self.run_folder):
-            os.mkdirs(self.run_folder)
+            os.makedirs(self.run_folder)
         if os.path.exists(self.run_folder):
             self.info(f'Run folder {self.run_folder} already exists. Writing files to existing folder')
 
         self.info(f'Run folder: {self.run_folder}')
-
-    def info(self, message: str):
-        if self.args['info']:
-            tqdm.write(message)
-
-    def log_dict(self, d: dict, on_step=True, on_epoch=True, on_progressbar=True):
-        for name, value in d.items():
-            self.log(name, value, on_step, on_epoch, on_progressbar)
-
-    def log(self, name: str, value: float, on_step=True, on_epoch=True, on_progressbar=True):
-        if name not in self.metric_values:
-            self.metric_values[name] = []
-        self.metric_values[name].append(value)
-
-        if on_progressbar:
-            self.current_loop.set_postfix(loss=value)
-
-        if on_step and self.batch_idx % self.args['accumulate_grad_batches'] == 0:
-            N = self.batch_idx // self.args['accumulate_grad_batches']
-            avg_value = sum(self.metric_values[name][-N:]) / N
-            self.info(f'Step {name}: {avg_value}')
-
-        if on_epoch and self.batch_idx == len(self.current_loop):
-            avg_value = sum(self.metric_values[name]) / len(self.metric_values[name])
-            self.info(f'Epoch {name}: {avg_value}')
-    
-    def get_step(self, mode: str) -> callable:
-        if mode == 'train':
-            return self.train_step
-        elif mode == 'test':
-            return self.test_step
-        elif mode == 'eval':
-            return self.eval_step
-
-    def get_dataset(self, mode: str) -> Dataset:
-        if mode == 'train':
-            return self.train_dataset
-        elif mode == 'test':
-            return self.test_dataset
-        elif mode == 'eval':
-            return self.eval_dataset
-
-    def train(self):
-        self.loop('train')
-    
-    def test(self):
-        self.args['epochs'] = 1
-        self.loop('test')
-
-    def eval(self):
-        self.args['epochs'] = 1
-        self.loop('eval') 
-
-    def initialize_loop(self, loop: DataLoader):
-        self.current_loop = tqdm(loop)
-        self.batch_idx = 0
-        self.metric_values = {}
-
-    def finalize(self):
-        self.current_loop.close()
-        self.current_loop = None
-        self.batch_idx = 0
-
-    def to_device(self, batch: dict) -> dict:
-        return {key: value.to(self.device) for key, value in batch.items()}
 
     def save_setup(self):
         config_name = os.path.join(self.run_folder, 'config.json')
@@ -206,15 +175,17 @@ class EHRTrainer():
                 'args': self.args
             }, f)
 
-    def save_checkpoint(self):
+    def save_checkpoint(self, id, **kwargs):
         # Model/training specific
-        checkpoint_name = os.path.join(self.run_folder, f'checkpoint_{self.current_epoch}.pt')
+        checkpoint_name = os.path.join(self.run_folder, f'checkpoint_{id}.pt')
+
         torch.save({
-            'epoch': self.current_epoch,
-            'batch_idx': self.batch_idx,
             'model_state_dict': self.model.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
             'scheduler_state_dict': self.scheduler.state_dict() if self.scheduler is not None else None,
-            'metric_values': self.metric_values,
+            **kwargs
         }, checkpoint_name)
 
+    def info(self, message):
+        if self.args.info:
+            print(f'[INFO] {message}')

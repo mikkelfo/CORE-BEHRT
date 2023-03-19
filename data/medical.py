@@ -1,8 +1,7 @@
-import string
 import pickle as pkl
-# get file directory
-import pandas as pd
+import string
 
+import pandas as pd
 
 """  ("UA","UA"), # Abdominal Circumference [cm]
         ("UB","UB"), # Orificiums opening into [cm]

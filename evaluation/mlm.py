@@ -12,8 +12,8 @@ def top_k(outputs, batch, topk=10) -> dict:
 
     _, pred = logits.topk(topk, 1, True, True)
     pred = pred.t()
-    correct = pred.eq()
+    correct = pred.eq(target)
 
     correct_k = correct[:topk].float().sum(0)
-    return correct_k.sum() / len(correct_k)
+    return correct_k.mean().item()
 

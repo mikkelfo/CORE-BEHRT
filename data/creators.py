@@ -41,13 +41,13 @@ class SegmentCreator(BaseCreator):
 
 class BackgroundCreator(BaseCreator):
     id = 'background'
-    prepend_token = "BG_"
+    prepend_token = "[BG_"
     def create(self, concepts: pd.DataFrame, patients_info: pd.DataFrame):
         # Create background concepts
         background = {
             'PID': patients_info['PID'].tolist() * len(self.config.features.background),
             'CONCEPT': itertools.chain.from_iterable(
-                [(self.prepend_token + patients_info[col].astype(str)).tolist() for col in self.config.features.background])
+                [(self.prepend_token + patients_info[col].astype(str) + "]").tolist() for col in self.config.features.background])
         }
 
         # Set optional features to 0

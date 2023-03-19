@@ -1,6 +1,7 @@
 import torch
 from transformers import BatchEncoding
-
+from os.path import join
+from medical import SKSVocabConstructor
 
 class EHRTokenizer():
     def __init__(self, config, vocabulary=None):
@@ -122,3 +123,69 @@ class EHRTokenizer():
         self.new_vocab = False
         self.save_vocab('vocabulary.pt')
 
+
+
+class H_EHRTokenizer(EHRTokenizer):
+    """In addition to integer encoding, also encode the hierarchy of the concepts as tuple
+    and return hierarchical vocabulary
+    The method get_leaf_nodes takes the hierarchical dictionary (with tuples as values) and returns the leaf nodes.
+    It is recommendes to use sks_vocab to get leafs.
+    This is because the SKS database is more complete.
+    If during testing, a concept is encountered that does not exactly match to the training data, 
+    we can still compute it's probability.
+    """
+    def __init__(self, config, vocabulary=None):
+        super().__init__(config, vocabulary)
+        self.h_vocabulary = {}
+        self.sks_vocab = SKSVocabConstructor(main_vocab=vocabulary)
+
+    def __call__(self, features: dict, padding=True, truncation=512):
+        data = self.batch_encode(features, padding, truncation)
+        data['h_concept'] = self.batch_encode_hierarchy(data)
+        return data
+
+    def batch_encode_hierarchy(self, data):
+        """Encode the hierarchy of the concepts as tuple"""
+        h_concepts = [] # list of lists of tuples
+        for patient_ls in data['concept']:
+            h_concepts.append(self.h_encode_patient(patient_ls))
+        return h_concepts
+
+    def h_encode_patient(self, patient_ls: dict):
+        pat_h_concepts = [] # list of tuples
+        for concept in patient_ls:
+            if concept not in self.h_vocabulary:
+                if concept not in self.sks_vocab:
+                    self.h_vocabulary[concept] = self.sks_vocab['[UNK]'] # we might introduce a new UNK token for the hierarchy
+                    pat_h_concepts.append(self.h_vocabulary['[UNK]'])
+                else:
+                    self.h_vocabulary[concept] = self.sks_vocab[concept]
+                    pat_h_concepts.append(self.h_vocabulary[concept])
+            else:
+                pat_h_concepts.append(self.h_vocabulary[concept]) # increment count for this concept
+        return pat_h_concepts
+    
+    def get_leaf_nodes(self, vocab):
+        """
+            Get the leaf nodes of a tree defined by a dictionary of tuples.
+            Parameters: 
+                tuple_dic: A dictionary of tuples, where the keys are the codes and the values are the tuples.
+        """
+        # Step 1: Create a set of parent nodes
+        parent_nodes = set(self.get_parent(node_tuple) for node_tuple in vocab.values())
+        # Step 2: Identify leaf nodes
+        leaf_nodes = {code: node_tuple for code, node_tuple in vocab.items() if node_tuple not in parent_nodes}
+        return leaf_nodes
+
+    @staticmethod
+    def get_parent(node_tuple):
+        """Get parent node of a node defined by a tuple."""
+        idx = next((i for i, x in enumerate(node_tuple) if x == 0), None)
+        if idx is not None:
+            return node_tuple[:idx - 1] + (0,) * (len(node_tuple) - idx + 1)
+        else:
+            return node_tuple[:-1] + (0,)
+    
+    def save_vocab(self, dest: str):
+        torch.save(self.vocabulary, join(dest, "vocabulary.pt"))
+        torch.save(self.h_vocabulary, join(dest, "h_vocabulary.pt"))

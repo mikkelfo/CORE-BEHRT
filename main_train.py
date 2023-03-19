@@ -24,13 +24,13 @@ def main():
         )
     )
 
-    if opt := cfg.get('optimizer', {}):
-        optimizer = AdamW(
-            model.parameters(),
-            lr=opt.get('lr', 1e-4),
-            weight_decay=opt.get('weight_decay', 0.01),
-            epsilon=opt.get('epsilon', 1e-8),
-        )
+    opt = cfg.get('optimizer', {})
+    optimizer = AdamW(
+        model.parameters(),
+        lr=opt.get('lr', 1e-4),
+        weight_decay=opt.get('weight_decay', 0.01),
+        eps=opt.get('epsilon', 1e-8),
+    )
     
     # Instantiate metrics
     if 'metrics' in cfg:
@@ -41,8 +41,8 @@ def main():
     trainer = EHRTrainer( 
         model=model, 
         optimizer=optimizer,
-        train_set=train_dataset, 
-        val_set=val_dataset, 
+        train_dataset=train_dataset, 
+        val_dataset=val_dataset, 
         args=cfg.get('trainer_args', {}),
         metrics=metrics,
     )

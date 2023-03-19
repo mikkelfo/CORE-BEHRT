@@ -31,6 +31,7 @@ def main():
 
     # Overwrite nans and incorrect values
     features = Handler()(features)
+    torch.save(features, 'features.pt')
 
     # Split
     train, test, val = Splitter()(features)

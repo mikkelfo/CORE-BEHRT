@@ -4,6 +4,7 @@ from tqdm import tqdm
 import os
 import uuid
 import json
+from dataloader.collate_fn import dynamic_padding
 
 
 class EHRTrainer():
@@ -14,6 +15,7 @@ class EHRTrainer():
         val_dataset: Dataset = None,
         optimizer: torch.optim.Optimizer = None,
         scheduler: torch.optim.lr_scheduler.StepLR = None,
+        metrics: dict = {},
         args: dict = {},
     ):
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
@@ -24,6 +26,7 @@ class EHRTrainer():
         self.val_dataset = val_dataset
         self.optimizer = optimizer
         self.scheduler = scheduler
+        self.metrics = metrics
 
         self.default_args = {
             'batch_size': 32,
@@ -56,12 +59,11 @@ class EHRTrainer():
 
         for epoch in range(self.args['epochs']):
             train_loop.set_description(f'Train {epoch}')
-            epoch_loss = 0
+            epoch_loss = []
             step_loss = 0
             for i, batch in train_loop:
                 # Train step
-                step_loss += self.train_step(batch).item() / self.args["batch_size"]
-                epoch_loss += step_loss
+                step_loss += self.train_step(batch).item()
 
                 # Accumulate gradients
                 if (i+1) % accumulation_steps == 0:
@@ -71,35 +73,36 @@ class EHRTrainer():
                         self.scheduler.step()
 
                     train_loop.set_postfix(loss=step_loss / accumulation_steps)
-                    self.log(f'Train loss: {step_loss / accumulation_steps}')
+                    tqdm.write(f'Train loss {(i+1) // accumulation_steps}: {step_loss / accumulation_steps}')
+                    epoch_loss.append(step_loss)
                     step_loss = 0
 
                 # Save iteration checkpoint
-                if ((i+1) // accumulation_steps) % self.args['save_every_k_steps'] == 0:
+                if ((i+1) / accumulation_steps) % self.args['save_every_k_steps'] == 0:
                     self.save_checkpoint(id=f'epoch{epoch}_step{(i+1) // accumulation_steps}', train_loss=step_loss / accumulation_steps)
 
             # Validate (returns None if no validation set is provided)
             val_loss, metrics = self.validate()
             
             # Save epoch checkpoint
-            self.save_checkpoint(id=f'epoch{epoch}_end', train_loss=epoch_loss / len(train_loop), val_loss=val_loss, metrics=metrics)
+            self.save_checkpoint(id=f'epoch{epoch}_end', train_loss=epoch_loss, val_loss=val_loss, metrics=metrics)
 
             # Print epoch info
-            self.info(f'Epoch {epoch} train loss: {epoch_loss / len(train_loop)}')
+            self.info(f'Epoch {epoch} train loss: {sum(epoch_loss) / len(train_loop)}')
             self.info(f'Epoch {epoch} val loss: {val_loss}')
-            self.info(f'Epoch {epoch} metrics: {metrics}')
+            self.info(f'Epoch {epoch} metrics: {metrics}\n')
 
     def setup_training(self) -> tqdm:
         self.model.train()
         self.setup_run_folder()
         self.save_setup()
-        dataloader = DataLoader(self.train_dataset, batch_size=self.args['batch_size'], shuffle=True, collate_fn=self.args.get('collate_fn'))
+        dataloader = DataLoader(self.train_dataset, batch_size=self.args['batch_size'], shuffle=True, collate_fn=self.args.get('collate_fn', dynamic_padding))
         train_loop = tqdm(enumerate(dataloader), total=len(dataloader))
         return train_loop
 
     def train_step(self, batch: dict):
         outputs = self.forward_pass(batch)
-        loss = self.get_loss(outputs)
+        loss = self.get_loss(outputs, batch)
         self.backward_pass(loss)
 
         return loss
@@ -133,17 +136,16 @@ class EHRTrainer():
             return None, None
 
         self.model.eval()
-        dataloader = DataLoader(self.val_dataset, batch_size=self.args['batch_size'], shuffle=True, collate_fn=self.args.get('collate_fn'))
+        dataloader = DataLoader(self.val_dataset, batch_size=self.args['batch_size'], shuffle=True, collate_fn=self.args.get('collate_fn', ))
         val_loop = tqdm(dataloader, total=len(dataloader))
         val_loop.set_description('Validation')
         val_loss = 0
-        metrics = getattr(self, 'metrics', {})
-        metric_values = {name: [] for name in metrics}
+        metric_values = {name: [] for name in self.metrics}
         for batch in val_loop:
             outputs = self.forward_pass(batch)
-            val_loss += self.get_loss(outputs).item() / self.args['batch_size']
+            val_loss += self.get_loss(outputs).item()
 
-            for name, func in metrics.items():
+            for name, func in self.metrics.items():
                 metric_values[name].append(func(outputs, batch))
 
         self.model.train()
@@ -187,5 +189,5 @@ class EHRTrainer():
         }, checkpoint_name)
 
     def info(self, message):
-        if self.args.info:
+        if self.args['info']:
             print(f'[INFO] {message}')

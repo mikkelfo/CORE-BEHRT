@@ -17,7 +17,7 @@ class BaseDataset(Dataset):
     def get_max_segments(self):
         if 'segment' not in self.features:
             raise ValueError('No segment data found. Please add segment data to dataset')
-        return max([max(segment) for segment in self.features['segment']])
+        return max([max(segment) for segment in self.features['segment']]) + 1
 
 
 class MLMDataset(BaseDataset):

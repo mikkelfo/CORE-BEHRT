@@ -77,7 +77,7 @@ class SKSVocabConstructor():
         self.codes = self.medcodes.codes
 
         if isinstance(main_vocab, type(None)):
-            self.special_tokens = ['[CLS]', '[PAD]', '[SEP]', '[MASK]', '[UNK]', '[MALE]', '[FEMALE]']
+            self.special_tokens = ['[CLS]', '[PAD]', '[SEP]', '[MASK]', '[UNK]', '[BG_Mand]', '[BG_Kvinde]']
             self.main_vocab = {token: idx for idx,
                                token in enumerate(self.special_tokens)}
         else:

@@ -143,7 +143,7 @@ class EHRTrainer():
         metric_values = {name: [] for name in self.metrics}
         for batch in val_loop:
             outputs = self.forward_pass(batch)
-            val_loss += self.get_loss(outputs).item()
+            val_loss += self.get_loss(outputs, batch).item()
 
             for name, func in self.metrics.items():
                 metric_values[name].append(func(outputs, batch))

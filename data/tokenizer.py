@@ -165,16 +165,16 @@ class H_EHRTokenizer(EHRTokenizer):
                 pat_h_concepts.append(self.h_vocabulary[concept]) # increment count for this concept
         return pat_h_concepts
     
-    def get_leaf_nodes(self, vocab):
+    def get_leaf_node(self, h_vocab):
         """
             Get the leaf nodes of a tree defined by a dictionary of tuples.
             Parameters: 
                 tuple_dic: A dictionary of tuples, where the keys are the codes and the values are the tuples.
         """
         # Step 1: Create a set of parent nodes
-        parent_nodes = set(self.get_parent(node_tuple) for node_tuple in vocab.values())
+        parent_nodes = set(self.get_parent(node_tuple) for node_tuple in h_vocab.values())
         # Step 2: Identify leaf nodes
-        leaf_nodes = {code: node_tuple for code, node_tuple in vocab.items() if node_tuple not in parent_nodes}
+        leaf_nodes = {code: node_tuple for code, node_tuple in h_vocab.items() if node_tuple not in parent_nodes}
         return leaf_nodes
 
     @staticmethod

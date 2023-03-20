@@ -87,7 +87,7 @@ class CE_FlatSoftmax_MOP(torch.nn.Module):
     @staticmethod
     def categorical_cross_entropy(y_pred, y_true):
         """Takes predicted and true probabilities and returns categorical cross entropy."""
-        y_pred = torch.clamp(y_pred, 1e-9, 1 - 1e-9)
+        y_pred = torch.clamp(y_pred, 1e-9, 1 - 1e-9) # avoid log(0)
         return -(y_true * torch.log(y_pred)).sum(dim=1).mean()
 
     def initialize_geometric_weights(self):

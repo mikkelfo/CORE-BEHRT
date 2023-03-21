@@ -86,7 +86,7 @@ class EHRTrainer():
             val_loss, metrics = self.validate()
             
             # Save epoch checkpoint
-            self.save_checkpoint(id=f'epoch{epoch}_end', train_loss=epoch_loss, val_loss=val_loss, metrics=metrics)
+            self.save_checkpoint(id=f'epoch{epoch}_end', train_loss=epoch_loss, val_loss=val_loss, metrics=metrics, final_step_loss=epoch_loss[-1])
 
             # Print epoch info
             self.info(f'Epoch {epoch} train loss: {sum(epoch_loss) / len(train_loop)}')

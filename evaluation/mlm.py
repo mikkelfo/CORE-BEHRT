@@ -5,7 +5,7 @@ def top_k(outputs, batch, topk=10) -> dict:
     logits = outputs.logits
     target = batch['target']
     
-    ind = torch.where(target != -100)
+    ind = torch.where((target != -100) & (target != 0))
 
     logits = logits[ind]
     target = target[ind]
@@ -13,7 +13,8 @@ def top_k(outputs, batch, topk=10) -> dict:
     _, pred = logits.topk(topk, 1, True, True)
     pred = pred.t()
     correct = pred.eq(target)
-
-    correct_k = correct[:topk].float().sum(0)
-    return correct_k.mean().item()
+    if correct.numel() == 0:
+        return 0
+    else:
+        return correct.any(0).float().mean().item()
 

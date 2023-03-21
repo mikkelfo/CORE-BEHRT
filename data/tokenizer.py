@@ -2,6 +2,8 @@ import torch
 from transformers import BatchEncoding
 from os.path import join
 from medical import SKSVocabConstructor
+from typing import List, Dict
+import pandas as pd
 
 class EHRTokenizer():
     def __init__(self, config, vocabulary=None):
@@ -127,54 +129,76 @@ class EHRTokenizer():
 
 class H_EHRTokenizer(EHRTokenizer):
     """In addition to integer encoding, also encode the hierarchy of the concepts as tuple
-    and return hierarchical vocabulary
-    The method get_leaf_nodes takes the hierarchical dictionary (with tuples as values) and returns the leaf nodes.
-    It is recommendes to use sks_vocab to get leafs.
-    This is because the SKS database is more complete.
-    If during testing, a concept is encountered that does not exactly match to the training data, 
-    we can still compute it's probability.
+    and return hierarchical vocabulary. In addition, constructs a dataframe with the SKS names and tuples.
     """
     def __init__(self, config, vocabulary=None):
         super().__init__(config, vocabulary)
         self.h_vocabulary = {}
-        self.sks_vocab = SKSVocabConstructor(main_vocab=vocabulary)
+        sks_vocab_ls = SKSVocabConstructor(main_vocab=vocabulary)
+        self.extended_sks_vocab_ls = self.extend_leafs(sks_vocab_ls) # extend leaf nodes to bottom level
+        self.df_sks_names, self.df_sks_tuples = self.construct_h_table_from_dics(self.extended_sks_vocab_ls) # full table of the SKS vocab tree
 
     def __call__(self, features: dict, padding=True, truncation=512):
         data = self.batch_encode(features, padding, truncation)
         data['h_concept'] = self.batch_encode_hierarchy(data)
         return data
 
-    def batch_encode_hierarchy(self, data):
+    def batch_encode_hierarchy(self, data:List[List[str]])->List[List[tuple]]:
         """Encode the hierarchy of the concepts as tuple"""
         h_concepts = [] # list of lists of tuples
-        for patient_ls in data['concept']:
-            h_concepts.append(self.h_encode_patient(patient_ls))
+        for patient_concept_ls in data['concept']:
+            h_concepts.append(self.h_encode_patient(patient_concept_ls))
         return h_concepts
 
-    def h_encode_patient(self, patient_ls: dict):
+    def h_encode_patient(self, patient_concept_ls: List[str]):
         pat_h_concepts = [] # list of tuples
-        for concept in patient_ls:
+        for concept in patient_concept_ls:
             if concept not in self.h_vocabulary:
-                if concept not in self.sks_vocab:
-                    self.h_vocabulary[concept] = self.sks_vocab['[UNK]'] # we might introduce a new UNK token for the hierarchy
-                    pat_h_concepts.append(self.h_vocabulary['[UNK]'])
-                else:
-                    self.h_vocabulary[concept] = self.sks_vocab[concept]
-                    pat_h_concepts.append(self.h_vocabulary[concept])
-            else:
-                pat_h_concepts.append(self.h_vocabulary[concept]) # increment count for this concept
+                if concept not in self.df_sks_names.stack().unique(): # check if it's in the database
+                    self.add_unknown_concept_to_hierarchy(concept)
+                self.h_vocabulary[concept] = self.get_lowest_level_tuple(concept)
+            pat_h_concepts.append(self.h_vocabulary[concept])
         return pat_h_concepts
     
-    def get_leaf_node(self, h_vocab):
+    def add_unknown_concept_to_hierarchy(self, concept):
+        """Add a new concept to the hierarchy. The concept is a tuple of the form (name, parent, level)"""
+        max_tup_lvl0 = self.df_sks_tuples.iloc[:,0].max()
+        new_max_tup_lvl0 = (max_tup_lvl0[0]+1,) + max_tup_lvl0[1:] # increment
+        new_hierarchy_row = self.extend_tuple_to_lower_levels(new_max_tup_lvl0)
+        self.df_sks_tuples.loc[len(self.df_sks_tuples)] = new_hierarchy_row
+        self.df_sks_names.loc[len(self.df_sks_names)] = [concept] * len(new_hierarchy_row)
+
+    def construct_h_table_from_dics(self, ls_dic:List[Dict[str, tuple]])->tuple[pd.DataFrame, pd.DataFrame]:
+        """From a list of dictionaries construct two pands dataframes, where each dictionary represents a column
+        The relationship of the rows is defined by the tuples in the dictionaries"""
+        synchronized_ls = self.synchronize_levels(ls_dic)
+        
+        inv_ls_dic = [self.invert_dic(dic) for dic in ls_dic]
+        df_tup = pd.DataFrame(synchronized_ls).T
+        df_names = df_tup.copy()
+        # map onto names
+        for i, col in enumerate(df_tup.columns):
+            df_names[col] = df_tup[col].map(lambda x: inv_ls_dic[i][x])
+        
+        return df_names, df_tup
+
+    def get_lowest_level_tuple(self, name):
+        """Get the lowest level tuple of a concept
+        E.g. the [SEP] token exists on all levels, but we want to get the lowest level tuple, so we would get (i, 1,1,1,..,1)"""
+        indices = self.df_names[self.df_names==name].stack().index
+        max_id = indices.max()
+        return self.df_tuples.iloc[max_id[0], max_id[1]]
+
+    def get_leaf_nodes(self, vocab):
         """
             Get the leaf nodes of a tree defined by a dictionary of tuples.
             Parameters: 
                 tuple_dic: A dictionary of tuples, where the keys are the codes and the values are the tuples.
         """
         # Step 1: Create a set of parent nodes
-        parent_nodes = set(self.get_parent(node_tuple) for node_tuple in h_vocab.values())
+        parent_nodes = set(self.get_parent(node_tuple) for node_tuple in vocab.values())
         # Step 2: Identify leaf nodes
-        leaf_nodes = {code: node_tuple for code, node_tuple in h_vocab.items() if node_tuple not in parent_nodes}
+        leaf_nodes = {code: node_tuple for code, node_tuple in vocab.items() if node_tuple not in parent_nodes}
         return leaf_nodes
 
     @staticmethod
@@ -189,3 +213,78 @@ class H_EHRTokenizer(EHRTokenizer):
     def save_vocab(self, dest: str):
         torch.save(self.vocabulary, join(dest, "vocabulary.pt"))
         torch.save(self.h_vocabulary, join(dest, "h_vocabulary.pt"))
+        self.df_sks_names.to_csv(join(dest, "sks_names.csv"), index=None)
+        self.df_sks_tuples.to_csv(join(dest, "sks_tuples.csv"), index=None)
+
+    # additional funcs, can be part of vocab constructor
+    @staticmethod
+    def extend_one_level(dic0:Dict, dic1:Dict, dic1_level:int) -> Dict:
+        """Takes a two dictionaries on two adjacent levels and extends the leafs of the first to the second one. 
+        dic0: dictionary on level i
+        dic1: dictionary on level i+1
+        dic1_level: level i+1"""
+        for k0, t0 in dic0.items():
+            flag = False
+            # print('k0',k)
+            for _, t1 in dic1.items():
+                if (t0[:dic1_level]==t1[:dic1_level]):
+                    # print('k1',k2)
+                    flag = True
+                    break
+            if not flag:
+                dic1[k0] = t0[:dic1_level] + (1,) + t0[dic1_level+1:]
+        return dic1
+
+    def extend_leafs(self, ls_dic:List[Dict[str, tuple]])->List[Dict]:
+        """Takes a list of ordered dictionaries, where each dictionary represents nodes on one hierarchy level by tuples
+        and extends leafs that are not on the lowest level"""
+        for i in range(len(ls_dic)-1):
+            ls_dic[i+1] = self.extend_one_level(ls_dic[i], ls_dic[i+1], i+1)
+        return ls_dic
+
+    @staticmethod
+    def replicate_nodes_to_match_lower_level(ls0: Dict[str, tuple], ls1:Dict[str, tuple], ls1_level:int)->List[tuple]:
+        """Given two dictionaries on two adjacent levels, replicate nodes of dic0 to match dic1."""
+        new_ls0 = []
+        for t1 in ls1:
+            for t0 in ls0:
+                if t0[:ls1_level] == t1[:ls1_level]:
+                    new_ls0.append(t0)
+        return new_ls0
+
+    def synchronize_levels(self, ls_dic:List[Dict[str, tuple]])->List[List]:
+        """Takes a list of ordered dictionaries, where each dictionary represents nodes on one hierarchy level by tuples
+        and replicates nodes on one level to match the level below"""
+        ls_dic = ls_dic[::-1] # we invert the list to go from the bottom to the top
+
+        dic_bottom = ls_dic[0] # lowest level
+        ls_bottom = sorted([v for v in dic_bottom.values()])
+
+        tree_depth = ls_bottom[0].__len__()
+
+        ls_ls_tup = [] 
+        ls_ls_tup.append(ls_bottom) # we can append the lowest level as it is
+        
+        for top_level in range(1, len(ls_dic)): #start from second entry
+            dic_top = ls_dic[top_level]
+            ls_top = sorted([v for v in dic_top.values()])
+            ls_bottom = ls_ls_tup[top_level-1]
+            ls_top_new = self, self.replicate_nodes_to_match_lower_level(ls_top, ls_bottom, tree_depth-top_level)
+            ls_ls_tup.append(ls_top_new)
+        
+        ls_ls_tup = ls_ls_tup[::-1] # we invert the list to go from the bottom to the top
+        return ls_ls_tup
+    @staticmethod
+    def invert_dic(dic:Dict)->Dict:
+            return {v:k for k,v in dic.items()}
+
+    @staticmethod
+    def extend_tuple_to_lower_levels(t):
+        """Given a tuple, extend it to the lowest level, by adding 1s to the end of the tuple"""
+        row_ls = []
+        row_ls.append(t)
+        for i in range(t.__len__()-1):
+            new_t = t[:i+1] + (1,) + t[i+2:]
+            t = new_t
+            row_ls.append(new_t)
+        return row_ls

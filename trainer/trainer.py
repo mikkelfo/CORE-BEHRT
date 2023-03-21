@@ -55,9 +55,10 @@ class EHRTrainer():
         self.validate_training()
 
         accumulation_steps: int = self.args['effective_batch_size'] // self.args['batch_size']
-        train_loop = self.setup_training()
+        dataloader = self.setup_training()
 
         for epoch in range(self.args['epochs']):
+            train_loop = tqdm(enumerate(dataloader), total=len(dataloader))
             train_loop.set_description(f'Train {epoch}')
             epoch_loss = []
             step_loss = 0
@@ -97,8 +98,7 @@ class EHRTrainer():
         self.setup_run_folder()
         self.save_setup()
         dataloader = DataLoader(self.train_dataset, batch_size=self.args['batch_size'], shuffle=True, collate_fn=self.args.get('collate_fn', dynamic_padding))
-        train_loop = tqdm(enumerate(dataloader), total=len(dataloader))
-        return train_loop
+        return dataloader
 
     def train_step(self, batch: dict):
         outputs = self.forward_pass(batch)
@@ -143,7 +143,7 @@ class EHRTrainer():
         metric_values = {name: [] for name in self.metrics}
         for batch in val_loop:
             outputs = self.forward_pass(batch)
-            val_loss += self.get_loss(outputs).item()
+            val_loss += self.get_loss(outputs, batch).item()
 
             for name, func in self.metrics.items():
                 metric_values[name].append(func(outputs, batch))

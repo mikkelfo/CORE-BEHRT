@@ -1,5 +1,6 @@
 import pickle as pkl
 import string
+from os.path import join, dirname
 
 import pandas as pd
 
@@ -37,9 +38,9 @@ def npu_codes_to_list():
 
 class MedicalCodes():
     def __init__(self):
-        with open("SKScodes.pkl", "rb") as f:
+        with open(join(dirname(__file__), "SKScodes.pkl"), "rb") as f:
             self.sks_codes = list(pkl.load(f))
-        with open("NPUcodes.pkl", "rb") as f:
+        with open(join(dirname(__file__), "NPUcodes.pkl"), "rb") as f:
             self.npu_codes = pkl.load(f) 
         self.codes = self.npu_codes + self.sks_codes
 
@@ -96,7 +97,7 @@ class SKSVocabConstructor():
             self.vocabs.append(self.construct_vocab_dic(level))
         for concept in self.vocabs[0]:
             tuple_vocab[concept] = self.map_concept_to_tuple(concept)
-        return tuple_vocab
+        return self.main_vocab, tuple_vocab
 
     def map_concept_to_tuple(self, concept):
         """Using the list of vocabs, map a concept to a tuple of integers"""

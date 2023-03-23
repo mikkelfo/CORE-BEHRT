@@ -117,7 +117,7 @@ class EHRTrainer():
                 'age': batch['age'] if 'age' in batch else None,
                 'abspos': batch['abspos'] if 'abspos' in batch else None
             },
-            labels=batch['target'] if 'target' in batch else None
+            target=batch['target'] if 'target' in batch else None
         )
 
     def get_loss(self, outputs: dict, batch: dict):

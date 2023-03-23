@@ -162,10 +162,10 @@ class EHRTrainer():
             self.args['run_name'] = random_runname
         self.run_folder = os.path.join('runs', self.args['run_name'])
 
-        if not os.path.exists(self.run_folder):
-            os.makedirs(self.run_folder)
         if os.path.exists(self.run_folder):
             self.info(f'Run folder {self.run_folder} already exists. Writing files to existing folder')
+        if not os.path.exists(self.run_folder):
+            os.makedirs(self.run_folder)
 
         self.info(f'Run folder: {self.run_folder}')
 

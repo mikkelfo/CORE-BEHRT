@@ -21,14 +21,15 @@ def main():
         To dataset
     """
     # Load concepts
-    concepts, patients_info = ConceptLoader()(features_config.data_dir)
+    concepts, patients_info = ConceptLoader()(features_config.data_dir, features_config.patients_info)
 
     # Infer missing values
     concepts = Inferrer()(concepts)
 
     # Create feature sequences
     features = FeatureMaker(features_config)(concepts, patients_info)
-
+    outcomes = OutcomeMaker()(concepts)
+    
     # Overwrite nans and incorrect values
     features = Handler()(features)
     torch.save(features, 'features.pt')

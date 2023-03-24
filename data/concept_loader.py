@@ -6,8 +6,9 @@ import os
 
 
 class ConceptLoader():
-    def __init__(self, concepts: list = None):
+    def __init__(self, concepts: list = None, patients_info: str = 'patients_info.csv'):
         self.concepts = ['diagnose', 'medication'] if concepts is None else concepts
+        self.patients_info = patients_info
 
     def __call__(self, data_dir: str = 'formatted_data'):
         return self.load(data_dir)
@@ -26,7 +27,7 @@ class ConceptLoader():
         concepts = concepts.sort_values('TIMESTAMP')
 
         # Load patient data
-        patient_path = os.path.join(data_dir, 'patients_info.csv')
+        patient_path = os.path.join(data_dir, self.patients_info)
         patients_info = self._read_file(patient_path)
 
         return concepts, patients_info

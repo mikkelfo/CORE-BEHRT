@@ -3,9 +3,8 @@ import torch
 
 
 class BaseDataset(Dataset):
-    def __init__(self, features: dict, **kwargs):
+    def __init__(self, features: dict):
         self.features = features
-        self.kwargs = kwargs
         self.max_segments = self.get_max_segments()
 
     def __len__(self):
@@ -21,11 +20,11 @@ class BaseDataset(Dataset):
 
 
 class MLMDataset(BaseDataset):
-    def __init__(self, features: dict, **kwargs):
-        super().__init__(features, **kwargs)
+    def __init__(self, features: dict, vocabulary, masked_ratio=0.3):
+        super().__init__(features)
 
-        self.vocabulary = self.load_vocabulary(self.kwargs.get('vocabulary', 'vocabulary.pt'))
-        self.masked_ratio = self.kwargs.get('masked_ratio', 0.3)
+        self.vocabulary = vocabulary
+        self.masked_ratio = masked_ratio
 
     def __getitem__(self, index):
         patient = super().__getitem__(index)
@@ -79,4 +78,44 @@ class MLMDataset(BaseDataset):
             return vocabulary
         else:
             raise TypeError(f'Unsupported vocabulary input {type(vocabulary)}')
+
+
+class CensorDataset(BaseDataset):
+    # TODO: censor_token as str (pre-tokenizer) or int (post-tokenizer)??
+    # TODO: .index finds first occurence - should we find last occurence?
+    def __init__(self, features: dict, censor_token: int, n_hours: int, outcomes):
+        super().__init__(features)
+
+        self.censor_token = censor_token
+        self.n_hours = n_hours
+        self.outcomes = outcomes
+
+    def __getitem__(self, index: int) -> dict:
+        patient = super().__getitem__(index)
+        patient['target'] = self.outcomes[index] # TODO: Construct these
+
+        return self._censor(patient)
+
+    def _find_token_idx(self, patient):
+        return patient['concept'].index(self.censor_token)
+
+    def _censor(self, patient: dict) -> dict:
+        # Find first occurence of censor token
+        token_idx = self._find_token_idx(patient)
+
+        # Only required when padding
+        mask = torch.tensor(patient['attention_mask'])
+        N_nomask = len(mask[mask==1])
+
+        # Initialize
+        pos = patient['abspos'][:N_nomask]
+        # censor the last n_hours
+        dont_censor = (pos - pos[token_idx] - self.n_hours) <= 0    # Include n_hours or not? (<= or <)
+
+        # TODO: This removes padding as well - is this ok?
+        for key, value in patient.items():
+            patient[key] = value[dont_censor]
+
+        return patient
+
 

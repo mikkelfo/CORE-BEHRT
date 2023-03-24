@@ -1,8 +1,9 @@
 import pickle as pkl
 import string
 from os.path import join, dirname
-
+from typing import List, Tuple, Dict
 import pandas as pd
+from tqdm import tqdm
 
 """  ("UA","UA"), # Abdominal Circumference [cm]
         ("UB","UB"), # Orificiums opening into [cm]
@@ -68,6 +69,130 @@ class MedicalCodes():
     def get_studies(self):
         return sorted(self.get_codes_type('und'))
 
+
+
+class TreeConstructor():
+    """Extending SKSVocab to a full tree structure."""
+    def __init__(self, main_vocab=None, additional_types=None, num_levels=6) -> None:
+        _, self.sks_vocab = SKSVocabConstructor(main_vocab, additional_types, num_levels)
+        
+
+    def __call__(self)->Tuple[List[Dict[str, Tuple]], pd.DataFrame, pd.DataFrame]:
+        self.extended_sks_vocab_ls = self.extend_leafs(self.sks_vocab) # extend leaf nodes to bottom level
+        self.full_sks_vocab_ls = self.fill_parents(self.extended_sks_vocab_ls) # fill parents to top level
+        self.df_sks_names, self.df_sks_tuples = self.construct_h_table_from_dics(self.full_sks_vocab_ls) # full table of the SKS vocab tree
+        return self.full_sks_vocab_ls, self.df_sks_names, self.df_sks_tuples
+
+    def extend_leafs(self, h_dic:Dict[str, Tuple])->List[Dict]:
+        """Takes a list of ordered dictionaries, where each dictionary represents nodes on one hierarchy level by tuples
+        and extends leafs that are not on the lowest level"""
+        tree = self.get_sks_vocab_ls(h_dic) # turn dict of tuples into list of dicts, one for each level
+        for level in tqdm(range(len(tree)-1), desc='extending leafs'):
+            tree[level+1] = self.extend_one_level(tree[level], tree[level+1], level+1)
+        return tree
+        
+    @staticmethod
+    def extend_one_level(nodes0:Dict[str, Tuple], nodes1:Dict[str, Tuple], nodes1_lvl:int) -> Dict[str, Tuple]:
+        """Takes a two dictionaries on two adjacent levels and extends the leafs of the first to the second one. 
+        dic0: dictionary on level i
+        dic1: dictionary on level i+1
+        dic1_level: level i+1"""
+        for node0_key, node0 in tqdm(nodes0.items(), desc='extending level'):
+            flag = False
+            for _, node1 in nodes1.items():
+                if (node0[:nodes1_lvl]==node1[:nodes1_lvl]):
+                    flag = True
+                    break
+
+            if not flag:
+                nodes1[node0_key] = node0[:nodes1_lvl] + (1,) + node0[nodes1_lvl+1:]
+        return nodes1
+    
+    def fill_parents(self, tree:List[Dict[str, Tuple]])->List[Dict]:
+        """Takes a list of ordered dictionaries, where each dictionary represents nodes on one hierarchy level by tuples
+        and fills in missing parents"""
+        n_levels = len(tree)
+        for level in tqdm(range(len(tree)-2, -1, -1), desc='filling parents'): # start from bottom level, and go to the top
+            tree[level] = self.fill_parents_one_level(tree[level], tree[level+1], level+1, n_levels)
+        return tree
+
+    @staticmethod
+    def fill_parents_one_level(node_dic0:Dict[str, Tuple], node_dic1:Dict[str, Tuple], node_dic1_level:int, n_levels:int):
+        """Takes two dictionaries on two adjacent levels and fills in missing parents."""
+        for node1_key, node1 in node_dic1.items():
+            parent_node = node1[:node_dic1_level] + (0,)*(n_levels-node_dic1_level)# fill with zeros to the end of the tuple
+            if parent_node not in node_dic0.values():
+                node_dic0[node1_key] = parent_node
+        return node_dic0
+    
+
+    def construct_h_table_from_dics(self, tree:List[Dict[str, tuple]])->tuple[pd.DataFrame, pd.DataFrame]:
+        """From a list of dictionaries construct two pands dataframes, where each dictionary represents a column
+        The relationship of the rows is defined by the tuples in the dictionaries"""
+        
+        synchronized_ls = self.synchronize_levels(tree)
+        
+        inv_tree = [self.invert_dic(dic) for dic in tree]
+        df_sks_tuples= pd.DataFrame(synchronized_ls).T
+        df_sks_names = df_sks_tuples.copy()
+        # map onto names
+        for i, col in enumerate(df_sks_tuples.columns):
+            df_sks_names[col] = df_sks_tuples[col].map(lambda x: inv_tree[i][x])
+        
+        return df_sks_names, df_sks_tuples
+
+    @staticmethod
+    def get_sks_vocab_ls(sks_vocab_tup:Dict[str, Tuple])->List[Dict[str, Tuple]]:
+        """Convert tuple dict to a list of dicts, one for each level"""
+        num_levels = len(sks_vocab_tup[list(sks_vocab_tup.keys())[0]])
+        vocab_ls = [dict() for _ in range(num_levels)]
+        for node_key, node in sks_vocab_tup.items():
+            if 0 in node:
+                level = node.index(0)
+            else:
+                level = -1
+            vocab_ls[level-1][node_key] = node
+        return vocab_ls
+    
+
+    def synchronize_levels(self, tree:List[Dict[str, tuple]])->List[List]:
+        """Takes a list of ordered dictionaries, where each dictionary represents nodes on one hierarchy level by tuples
+        and replicates nodes on one level to match the level below"""
+        tree = tree[::-1] # we invert the list to go from the bottom to the top
+
+        dic_bottom = tree[0] # lowest level
+        ls_bottom = sorted([v for v in dic_bottom.values()])
+
+        tree_depth = ls_bottom[0].__len__()
+
+        ls_ls_tup = [] 
+        ls_ls_tup.append(ls_bottom) # we can append the lowest level as it is
+        
+        for top_level in range(1, len(tree)): #start from second entry
+            dic_top = tree[top_level]
+            ls_top = sorted([v for v in dic_top.values()])
+            ls_bottom = ls_ls_tup[top_level-1]
+            ls_top_new = self.replicate_nodes_to_match_lower_level(ls_top, ls_bottom, tree_depth-top_level)
+            ls_ls_tup.append(ls_top_new)
+        
+        ls_ls_tup = ls_ls_tup[::-1] # we invert the list to go from the bottom to the top
+        return ls_ls_tup
+
+    @staticmethod
+    def replicate_nodes_to_match_lower_level(nodes0: List[tuple], nodes1:List[tuple], nodes1_level:int)->List[tuple]:
+        """Given two lists of nodes on two adjacent levels, replicate nodes of dic0 to match dic1."""
+        new_nodes0 = []
+        for node1 in nodes1:
+            for node0 in nodes0:
+                if node0[:nodes1_level] == node1[:nodes1_level]:
+                    new_nodes0.append(node0)
+        return new_nodes0
+
+    @staticmethod
+    def invert_dic(dic:Dict)->Dict:
+            return {v:k for k,v in dic.items()}
+
+
 #TODO: Implement subtopics for ICD codes
 class SKSVocabConstructor():
     """Construct a vocabulary for SKS codes.
@@ -90,8 +215,10 @@ class SKSVocabConstructor():
         if isinstance(additional_types, type(None)):
             self.additional_types=['D', 'M', 'L']
         self.num_levels = num_levels
-    def __call__(self):
-        """Return vocab, mapping concepts to tuples, where each tuple element is a code on a level"""
+
+    def __call__(self)->Tuple[Dict[str, int], Dict[str, Tuple[int]]]:
+        """Return vocab, mapping concepts to tuples, where each tuple element is a code on a level
+        The dictionares contain concept present in the SKS code and the ones inmain vocab."""
         tuple_vocab = {}
         for level in range(self.num_levels):
             self.vocabs.append(self.construct_vocab_dic(level))

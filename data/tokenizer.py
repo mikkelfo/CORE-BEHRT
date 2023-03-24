@@ -133,17 +133,18 @@ class H_EHRTokenizer(EHRTokenizer):
     """In addition to integer encoding, also encode the hierarchy of the concepts as tuple
     and return hierarchical vocabulary. In addition, constructs a dataframe with the SKS names and tuples.
     """
-    def __init__(self, config, vocabulary=None, test=False):
+    def __init__(self, config, vocabulary=None, test=False, data=None):
         super().__init__(config, vocabulary)
         self.h_vocabulary = {}
-        _, sks_vocab_tup = SKSVocabConstructor(main_vocab=self.vocabulary)() # this should return list of dicts
+        _, sks_vocab_tup = SKSVocabConstructor(main_vocab=self.vocabulary)() 
         if test:
             rand_keys = random.sample(sorted(sks_vocab_tup), 10)
-            sks_vocab_tup = {k: sks_vocab_tup[k] for k in rand_keys}
-            sks_vocab_tup = {'A':(1,0,0), 'B':(2,0,0), 'Aa':(1,1,0), 'Ab':(1,2,0), 'Ba':(2,1,0), 'Bb':(2,2,0), 'Ca':(3,1,0)}
-        sks_vocab_ls = self.get_sks_vocab_ls(sks_vocab_tup) # list of dicts
+            data_flat = [item for sublist in data['concept'] for item in sublist]
+            sks_vocab_tup = {k: sks_vocab_tup[k] for k in data_flat}
+            # sks_vocab_tup = {k: sks_vocab_tup[k] for k in rand_keys}
+            # sks_vocab_tup = {'A':(1,0,0), 'B':(2,0,0), 'Aa':(1,1,0), 'Ab':(1,2,0), 'Ba':(2,1,0), 'Bb':(2,2,0), 'Ca':(3,1,0)}
         
-        self.extended_sks_vocab_ls = self.extend_leafs(sks_vocab_ls) # extend leaf nodes to bottom level
+        self.extended_sks_vocab_ls = self.extend_leafs(sks_vocab_tup) # extend leaf nodes to bottom level
         self.full_sks_vocab_ls = self.fill_parents(self.extended_sks_vocab_ls) # fill parents to top level
         self.df_sks_names, self.df_sks_tuples = self.construct_h_table_from_dics(self.full_sks_vocab_ls) # full table of the SKS vocab tree
 
@@ -256,9 +257,10 @@ class H_EHRTokenizer(EHRTokenizer):
                 dic1[k0] = t0[:dic1_level] + (1,) + t0[dic1_level+1:]
         return dic1
 
-    def extend_leafs(self, ls_dic:List[Dict[str, Tuple]])->List[Dict]:
+    def extend_leafs(self, sks_dic:Dict[str, Tuple])->List[Dict]:
         """Takes a list of ordered dictionaries, where each dictionary represents nodes on one hierarchy level by tuples
         and extends leafs that are not on the lowest level"""
+        ls_dic = self.get_sks_vocab_ls(sks_dic) # turn dict of tuples into list of dicts, one for each level
         for i in tqdm(range(len(ls_dic)-1), desc='extending leafs'):
             ls_dic[i+1] = self.extend_one_level(ls_dic[i], ls_dic[i+1], i+1)
         return ls_dic

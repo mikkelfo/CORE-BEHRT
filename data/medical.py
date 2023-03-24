@@ -1,7 +1,9 @@
 import pickle as pkl
+import random
 import string
-from os.path import join, dirname
-from typing import List, Tuple, Dict
+from os.path import dirname, join
+from typing import Dict, List, Tuple
+
 import pandas as pd
 from tqdm import tqdm
 
@@ -73,9 +75,26 @@ class MedicalCodes():
 
 class TreeConstructor():
     """Extending SKSVocab to a full tree structure."""
-    def __init__(self, main_vocab=None, additional_types=None, num_levels=6) -> None:
-        _, self.sks_vocab = SKSVocabConstructor(main_vocab, additional_types, num_levels)
-        
+    def __init__(self, main_vocab=None, additional_types=None, num_levels=6, test=False, data=None) -> None:
+        _, self.sks_vocab = SKSVocabConstructor(main_vocab, additional_types, num_levels)()
+        assert self.unique_nodes()
+        if test:
+            data_flat = [item for sublist in data['concept'] for item in sublist]
+            self.sks_vocab = {k: self.sks_vocab[k] for k in data_flat if k in self.sks_vocab}
+            # rand_keys = random.sample(sorted(self.sks_vocab), 10)
+            # self.sks_vocab = {k: self.sks_vocab[k] for k in rand_keys}
+            # self.sks_vocab = {'A':(1,0,0), 'X':(4,1,1),'B':(2,0,0), 'Aa':(1,1,0), 'Ab':(1,2,0), 'Ba':(2,1,0), 'Bb':(2,2,0), 'Ca':(3,1,0)}
+            self.sks_vocab = {'A':(1,0,0,0), 'Aa':(1,1,0,0), 'Ab':(1,2,0,0), 'Ba':(2,1,0,0), 'Bbaa':(2,2,1,1), 'D':(1,2,0,0)}
+
+    def unique_nodes(self):
+        """Check that all nodes are unique."""
+        nodes = []
+        for k, v in self.sks_vocab.items():
+            if v in nodes:
+                print(f'Node {v} with name {k} is not unique!')
+                return False
+            nodes.append(v)
+        return True
 
     def __call__(self)->Tuple[List[Dict[str, Tuple]], pd.DataFrame, pd.DataFrame]:
         self.extended_sks_vocab_ls = self.extend_leafs(self.sks_vocab) # extend leaf nodes to bottom level
@@ -119,7 +138,7 @@ class TreeConstructor():
     @staticmethod
     def fill_parents_one_level(node_dic0:Dict[str, Tuple], node_dic1:Dict[str, Tuple], node_dic1_level:int, n_levels:int):
         """Takes two dictionaries on two adjacent levels and fills in missing parents."""
-        for node1_key, node1 in node_dic1.items():
+        for node1_key, node1 in tqdm(node_dic1.items(), desc='filling parents'):
             parent_node = node1[:node_dic1_level] + (0,)*(n_levels-node_dic1_level)# fill with zeros to the end of the tuple
             if parent_node not in node_dic0.values():
                 node_dic0[node1_key] = parent_node
@@ -131,10 +150,14 @@ class TreeConstructor():
         The relationship of the rows is defined by the tuples in the dictionaries"""
         
         synchronized_ls = self.synchronize_levels(tree)
-        
+        lengths = []
+        for ls in synchronized_ls:
+            lengths.append(len(ls))
+        print(lengths)
         inv_tree = [self.invert_dic(dic) for dic in tree]
         df_sks_tuples= pd.DataFrame(synchronized_ls).T
         df_sks_names = df_sks_tuples.copy()
+        return df_sks_names, df_sks_tuples
         # map onto names
         for i, col in enumerate(df_sks_tuples.columns):
             df_sks_names[col] = df_sks_tuples[col].map(lambda x: inv_tree[i][x])
@@ -168,7 +191,7 @@ class TreeConstructor():
         ls_ls_tup = [] 
         ls_ls_tup.append(ls_bottom) # we can append the lowest level as it is
         
-        for top_level in range(1, len(tree)): #start from second entry
+        for top_level in tqdm(range(1, len(tree)), desc='Synchronizing levels'): #start from second entry
             dic_top = tree[top_level]
             ls_top = sorted([v for v in dic_top.values()])
             ls_bottom = ls_ls_tup[top_level-1]
@@ -216,9 +239,10 @@ class SKSVocabConstructor():
             self.additional_types=['D', 'M', 'L']
         self.num_levels = num_levels
 
-    def __call__(self)->Tuple[Dict[str, int], Dict[str, Tuple[int]]]:
+    def __call__(self):
         """Return vocab, mapping concepts to tuples, where each tuple element is a code on a level
-        The dictionares contain concept present in the SKS code and the ones inmain vocab."""
+        The dictionares contain concept present in the SKS code and the ones inmain vocab.
+        types contains the types of codes to be included in the vocabulary, e.g. ['D', 'M', 'L']"""
         tuple_vocab = {}
         for level in range(self.num_levels):
             self.vocabs.append(self.construct_vocab_dic(level))
@@ -235,11 +259,6 @@ class SKSVocabConstructor():
             else:
                 tuple_of_integers.append(vocabulary["[UNK]"])
         return tuple(tuple_of_integers)
-    
-    def get_birthmonth(self): # needs to be time2vec later
-        return [k for k in self.main_vocab if k.startswith('[BIRTHMONTH]')]
-    def get_birthyear(self): # needs to be time2vec later
-        return [k for k in self.main_vocab if k.startswith('[BIRTHMONTH]')]
 
     def construct_vocab_dic(self, level):
         """construct a dictionary of codes and their topics"""
@@ -248,8 +267,7 @@ class SKSVocabConstructor():
         if level==0: # separated by types   
             # TODO: include level 0
             all_codes = self.medcodes.get_icd()+self.medcodes.get_atc()\
-                +self.medcodes.get_lab()\
-                +self.get_birthyear()+self.get_birthmonth()
+                +self.medcodes.get_lab()
             vocab = self.get_type_vocab(all_codes)
         elif level==1: # categories, lab tests, birthmonths, birthyears ...
             vocab = self.get_first_level_vocab()
@@ -278,10 +296,6 @@ class SKSVocabConstructor():
             vocab[code] = i+1
         for code in self.special_tokens: # we loop twice through birthyear and birthmonth
             vocab[code] = 0
-        for i, code in enumerate(self.get_birthyear()):
-            vocab[code] = i+1
-        for i, code in enumerate(self.get_birthmonth()):
-            vocab[code] = i+1
         return vocab
     
     def get_lower_level_vocab(self, level):
@@ -299,7 +313,7 @@ class SKSVocabConstructor():
         """Get a temporary vocab for types of codes e.g. [CLS], [SEX], Diagnoses"""
         temp_keys = [code.split(']')[0]+']' for code in self.special_tokens]
         temp_keys += self.additional_types 
-        temp_vocab = {token:idx for idx, token in enumerate(temp_keys)}
+        temp_vocab = {token:idx+1 for idx, token in enumerate(temp_keys)}
         return temp_vocab
 
     def add_icd_to_vocab(self, vocab, level):

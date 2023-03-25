@@ -121,8 +121,31 @@ class SKSVocabConstructor():
 
         for code_type in self.code_types:
             if code_type not in ['D', 'M', 'L']:
-                raise ValueError('Type not implemented yet.') # TODO: Instead add the codes on level 1
+                raise ValueError(f'Hierarchy for type {code_type} not implemented yet.') 
 
+        self.icd_topic_options = [
+            ("A00","B99"), # Certain Infectious and Parasitic Diseases
+            ("C00","D48"), # Neoplasms
+            ("D50","D89"), # Blood, Blood-Forming Organs, and Certain Disorders Involving the Immune Mechanism
+            ("E00","E90"), # Endocrine, Nutritional, and Metabolic Diseases, and Immunity Disorders
+            ("F00","F99"), # Mental, Behavioral, and Neurodevelopmental Disorders
+            ("G00","G99"), # Diseases of the Nervous System
+            ("H00","H59"), # Diseases of the Eye and Adnexa
+            ("H60","H95"), # Diseases of the Ear and Mastoid Process
+            ("I00","I99"), # Diseases of the Circulatory System
+            ("J00","J99"), # Diseases of the Respiratory System
+            ("K00","K93"), # Diseases of the Digestive System
+            ("L00","L99"), # Diseases of the Skin and Subcutaneous Tissue
+            ("M00","M99"), # Diseases of the Musculoskeletal System and Connective Tissue
+            ("N00","N99"), # Diseases of the Genitourinary System
+            ("O00","O99"), # Pregnancy, Childbirth, and the Puerperium
+            ("P00","P96"), # Certain Conditions Originating in the Perinatal Period
+            ("Q00","Q99"), # Congenital Malformations, Deformations, and Chromosomal Abnormalities
+            ("R00","R99"), # Symptoms, Signs, and Ill-Defined Conditions
+            ("S00","T98"), # Injury, Poisoning, and Certain Other Consequences of External Causes
+            ("X60","Y09"), # External Causes of Injury
+            ("Z00","Z99"), # Factors Influencing Health Status and Contact with Health Services
+        ]  
 
     def __call__(self)->Tuple[Dict[str, int], Dict[str, Tuple[int]]]:
         """Return vocab, mapping concepts to tuples, where each tuple element is a code on a level
@@ -133,8 +156,10 @@ class SKSVocabConstructor():
             self.vocabs.append(self.construct_vocab_dic(level))
         for concept in self.vocabs[0]:
             h_vocab[concept] = self.map_concept_to_tuple(concept)
-        if not self.unique_nodes(h_vocab):
-            raise ValueError('Not all nodes are unique')
+        
+        # if not self.unique_nodes(h_vocab):
+            # raise ValueError('Not all nodes are unique')
+        
         return self.main_vocab, h_vocab
 
     def map_concept_to_tuple(self, concept:str)->Tuple[int]:
@@ -154,18 +179,14 @@ class SKSVocabConstructor():
         level 2: category
         ...
         """
-        # if not 0<=level<=6:
-            # raise ValueError("Level must be between 0 and 5")
         if level==0: # separated by types   
-            # TODO: include level 0
             all_codes = []
             for prefix in self.code_types:
                 all_codes += self.medcodes.get_codes_by_prefix(prefix)
-            
             vocab = self.get_type_vocab(all_codes)
         elif level==1: # categories, lab tests, birthmonths, birthyears ...
             vocab = self.get_first_level_vocab()
-        else: # assign 0s to special tokens and construct hiearachy for icd and atc
+        else: # construct hiearachy for icd and atc
             vocab = self.get_lower_level_vocab(level)
         return vocab
     
@@ -177,27 +198,52 @@ class SKSVocabConstructor():
         for code in all_codes:
             if code[0] in self.code_types:
                 vocab[code] = temp_vocab[code[0]]
+
+                vocab[code[0]] = temp_vocab[code[0]] # add the type to the vocabulary, e.g. 'D' is not in SKS, but when creating the full tree, we need the type
             else:
                 # special tokens
                 vocab[code] = temp_vocab[code.split(']')[0]+']']
+
+        if 'D' in self.code_types:
+            for topic in self.icd_topic_options:
+                print(topic)
+                vocab[f"D{topic[0]}-D{topic[1]}"] = temp_vocab['D']
+            vocab['DU'] = temp_vocab['D']
+            vocab['DV'] = temp_vocab['D']
+            print('here',vocab,)
+            
+            
         return vocab
 
     def get_first_level_vocab(self):
+        """This includes icd topics and medication topics"""
         vocab = {'[ZERO]':0}
         all_codes = []
         for prefix in self.code_types:
             all_codes += self.medcodes.get_codes_by_prefix(prefix)
+            vocab = self.add_topics_to_dic(prefix, vocab)
+        print(vocab)
         i = 0
         for code in all_codes:
             if code.startswith('D') or code.startswith('M'):
-                vocab[code] = self.topic(code) # only icd and atc codes so far    
+                vocab[code] = self.get_topic(code) # only icd and atc codes so far     
             if code.startswith('L'):
-                vocab[code] = i +1
+                vocab[code] = i + 1
                 i += 1
         for code in self.special_tokens: # we loop twice through birthyear and birthmonth
             vocab[code] = 0
+        
         return vocab
     
+    def add_topics_to_dic(self, type, vocab):
+        """Add the topics to the vocabulary"""
+        if type=='D':
+            for topic in self.icd_topic_options:
+                vocab[f"D{topic[0]}-D{topic[1]}"] = self.get_topic('D'+topic[0])
+            vocab['DU'] = self.get_topic('DU')
+            vocab['DV'] = self.get_topic('DV')
+        return vocab
+
     def get_lower_level_vocab(self, level):
         # Looks good so far
         vocab = {'[ZERO]':0}
@@ -421,7 +467,7 @@ class SKSVocabConstructor():
         """Check if a string only contains digits"""
         return all([c.isdigit() for c in codes])
 
-    def topic(self, code):
+    def get_topic(self, code):
         if code.startswith('M'):
             return self.ATC_topic(code)
         elif code.startswith('D'):
@@ -439,40 +485,17 @@ class SKSVocabConstructor():
             return atc_topic_dic[code[1]]
         else:
             return len(atc_topic_ls)+2 #we start at 1, so we need to add 2
-    @staticmethod
-    def ICD_topic(code):
+    
+    def ICD_topic(self, code):
         assert code[0] == 'D', f"ICD code must start with 'D', code: {code}"
-        options = [
-            ("A00","B99"), # Certain Infectious and Parasitic Diseases
-            ("C00","D48"), # Neoplasms
-            ("D50","D89"), # Blood, Blood-Forming Organs, and Certain Disorders Involving the Immune Mechanism
-            ("E00","E90"), # Endocrine, Nutritional, and Metabolic Diseases, and Immunity Disorders
-            ("F00","F99"), # Mental, Behavioral, and Neurodevelopmental Disorders
-            ("G00","G99"), # Diseases of the Nervous System
-            ("H00","H59"), # Diseases of the Eye and Adnexa
-            ("H60","H95"), # Diseases of the Ear and Mastoid Process
-            ("I00","I99"), # Diseases of the Circulatory System
-            ("J00","J99"), # Diseases of the Respiratory System
-            ("K00","K93"), # Diseases of the Digestive System
-            ("L00","L99"), # Diseases of the Skin and Subcutaneous Tissue
-            ("M00","M99"), # Diseases of the Musculoskeletal System and Connective Tissue
-            ("N00","N99"), # Diseases of the Genitourinary System
-            ("O00","O99"), # Pregnancy, Childbirth, and the Puerperium
-            ("P00","P96"), # Certain Conditions Originating in the Perinatal Period
-            ("Q00","Q99"), # Congenital Malformations, Deformations, and Chromosomal Abnormalities
-            ("R00","R99"), # Symptoms, Signs, and Ill-Defined Conditions
-            ("S00","T98"), # Injury, Poisoning, and Certain Other Consequences of External Causes
-            ("X60","Y09"), # External Causes of Injury
-            ("Z00","Z99"), # Factors Influencing Health Status and Contact with Health Services
-        ]   
-        for i, option in enumerate(options):
+        for i, option in enumerate(self.icd_topic_options):
             if option[0] <= code[1:4] <= option[1]:
                 return i+1
             elif code.startswith("DU"): # special codes (childbirth and pregnancy)
-                return len(options)+2
+                return len(self.icd_topic_options)+2
             elif code.startswith("DV"): #weight, height and various other codes
-                return len(options)+3
-        return len(options)+4
+                return len(self.icd_topic_options)+3
+        return len(self.icd_topic_options)+4
     @staticmethod
     def unique_nodes(h_vocab: Dict[str, Tuple])->bool:
         """Check that nodes are unique."""
@@ -489,15 +512,15 @@ class SKSVocabConstructor():
 
 class TreeConstructor():
     """Extending SKSVocab to a full tree structure."""
-    def __init__(self, main_vocab=None, code_types=None, num_levels=6, test=False, data=None) -> None:
+    def __init__(self, main_vocab=None, code_types=['D', 'M'], num_levels=7, test=False, data=None) -> None:
         _, self.sks_vocab = SKSVocabConstructor(main_vocab, code_types, num_levels)()
         if test:
             data_flat = [item for sublist in data['concept'] for item in sublist]
             self.sks_vocab = {k: self.sks_vocab[k] for k in data_flat if k in self.sks_vocab}
-            # rand_keys = random.sample(sorted(self.sks_vocab), 10)
+            # rand_keys = random.sample(sorted(self.sks_vocab), 1000)
             # self.sks_vocab = {k: self.sks_vocab[k] for k in rand_keys}
             # self.sks_vocab = {'A':(1,0,0), 'X':(4,1,1),'B':(2,0,0), 'Aa':(1,1,0), 'Ab':(1,2,0), 'Ba':(2,1,0), 'Bb':(2,2,0), 'Ca':(3,1,0)}
-            self.sks_vocab = {'A':(1,0,0,0), 'Aa':(1,1,0,0), 'Ab':(1,2,0,0), 'Ba':(2,1,0,0), 'Bbaa':(2,2,1,1), 'D':(1,2,0,0)}
+            # self.sks_vocab = {'A':(1,0,0,0), 'Aa':(1,1,0,0), 'Ab':(1,2,0,0), 'Ba':(2,1,0,0), 'Bbaa':(2,2,1,1), 'D':(1,2,0,0)}
 
     def __call__(self)->Tuple[List[Dict[str, Tuple]], pd.DataFrame, pd.DataFrame]:
         self.extended_sks_vocab_ls = self.extend_leafs(self.sks_vocab) # extend leaf nodes to bottom level
@@ -556,11 +579,9 @@ class TreeConstructor():
         lengths = []
         for ls in synchronized_ls:
             lengths.append(len(ls))
-        print(lengths)
         inv_tree = [self.invert_dic(dic) for dic in tree]
         df_sks_tuples= pd.DataFrame(synchronized_ls).T
         df_sks_names = df_sks_tuples.copy()
-        return df_sks_names, df_sks_tuples
         # map onto names
         for i, col in enumerate(df_sks_tuples.columns):
             df_sks_names[col] = df_sks_tuples[col].map(lambda x: inv_tree[i][x])

@@ -98,14 +98,14 @@ class SKSVocabConstructor():
     Every integer of the tuple specifies a branch on a level. Integer 0 is reserved for empty node.
     Currently we have the hierarchy for medication and diagnosis implemented. 
     """
-    def __init__(self, main_vocab=None, code_types=None, num_levels=7):
+    def __init__(self, main_vocab=None, code_types=['D', 'M'], num_levels=7):
         """main_vocab: initial vocabulary, if None, create a new one
         code_types: list of code types to include in the vocabulary (by prefix D, M, L)
         num_levels: number of levels in the hierarchy, don't change this if you don't know what you are doing.
         """
         self.num_levels=num_levels
         self.medcodes = MedicalCodes()
-
+        self.code_types = code_types
         if isinstance(main_vocab, type(None)):
             self.special_tokens = ['[CLS]', '[PAD]', '[SEP]', '[MASK]', '[UNK]', '[BG_Mand]', '[BG_Kvinde]']
             self.main_vocab = {token: idx for idx,
@@ -118,11 +118,6 @@ class SKSVocabConstructor():
         self.alphanumeric_vocab = self.add_alphanumeric_vocab()
         self.two_digit_vocab = self.add_two_digit_vocab(temp_vocab=self.alphanumeric_vocab)
         self.abc123_voc = self.add_two_letter_vocab(temp_vocab=self.two_digit_vocab) # complete vocabulary with 1 and 2 letter codes
-        if isinstance(code_types, type(None)):
-            self.code_types=['D', 'M'] # diagnosis and medication by default
-        else:
-            self.code_types = code_types
-    
 
         for code_type in self.code_types:
             if code_type not in ['D', 'M', 'L']:
@@ -436,6 +431,7 @@ class SKSVocabConstructor():
 
     @staticmethod
     def ATC_topic(code):
+        """Returns the topic of an ATC code, here it's simply the first letter of the code'"""
         assert code[0] == 'M', f"ATC code must start with 'M, code: {code}'"
         atc_topic_ls = ['A', 'B', 'C', 'D', 'G', 'H', 'J', 'L', 'M', 'N', 'P', 'R', 'S', 'V']
         atc_topic_dic = {topic:(i+1) for i, topic in enumerate(atc_topic_ls)}
@@ -479,7 +475,7 @@ class SKSVocabConstructor():
         return len(options)+4
     @staticmethod
     def unique_nodes(h_vocab: Dict[str, Tuple])->bool:
-        """Check that all nodes are unique."""
+        """Check that nodes are unique."""
         nodes = []
         for k, v in h_vocab.items():
             if v in nodes:

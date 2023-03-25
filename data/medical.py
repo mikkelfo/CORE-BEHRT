@@ -282,7 +282,7 @@ class SKSVocabConstructor():
                     vocab[code] = self.alphanumeric_vocab[code[level]] # we fill all level below with zero
         def handle_DUA_DUB_DUH():
             if level==2:
-                vocab[code] = temp_vocab[code[:3]]
+                vocab[code] = self.alphanumeric_vocab[code[2]]
             elif level==3: # next two integers stand for a measure e.g. DUA10 is 10 cm circumference
                 vocab[code] = self.two_digit_vocab[code[3:5]]
             else: #DVRA, DVRB, DVRK
@@ -292,27 +292,29 @@ class SKSVocabConstructor():
                     vocab[code] = self.alphanumeric_vocab[code[level+1]] # we fill all level below with zero
         def handle_DVRK01():
             if level==2:
-                vocab[code] = temp_vocab[code]
+                vocab[code] = self.alphanumeric_vocab[code[3]]
             else:
                 vocab[code] = 0
         def handle_DUP_DUT_DVA():
             if level==2:
-                vocab[code] = temp_vocab[code[:3]]
+                vocab[code] = self.alphanumeric_vocab[code[2]]
             elif level==3:
-                if code[3].isdigit():
-                    vocab[code] = temp_vocab[str(int(code[3:]))] # digits
+                if self.all_digits(code[3:5]):
+                    vocab[code] = self.two_digit_vocab[code[3:5]]
                 else:
-                    vocab[code] = temp_vocab[code[3:]]
+                    vocab[code] = self.alphanumeric_vocab[code[3]]
             else:
                 vocab[code] = 0
         def handle_DVRA_DVRB():
             if level==2:
-                vocab[code] = temp_vocab[code[:4]]
-            elif level==3:
-                if  self.all_digits(code[4:]):
-                    vocab[code] = temp_vocab[str(int(code[4:]))] # digits
+                vocab[code] = self.alphanumeric_vocab[code[3]] # determine if it is A or B
+            elif level==3: # next two integers stand for a measure e.g. DUA10 is 10 cm circumference
+                vocab[code] = self.two_digit_vocab[code[4:6]]
+            elif level==4: # sometimes followed by a letter
+                if len(code)==7:
+                    vocab[code] = self.alphanumeric_vocab[code[6]]
                 else:
-                    vocab[code] = temp_vocab[code[4:]] #TODO: check this
+                    vocab[code] = 0
             else:
                 vocab[code] = 0
         

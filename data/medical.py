@@ -98,7 +98,7 @@ class SKSVocabConstructor():
     Every integer of the tuple specifies a branch on a level. Integer 0 is reserved for empty node.
     Currently we have the hierarchy for medication and diagnosis implemented. 
     """
-    def __init__(self, main_vocab=None, code_types=None, num_levels=6):
+    def __init__(self, main_vocab=None, code_types=None, num_levels=7):
         """main_vocab: initial vocabulary, if None, create a new one
         code_types: list of code types to include in the vocabulary (by prefix D, M, L)
         num_levels: number of levels in the hierarchy, don't change this if you don't know what you are doing.
@@ -116,7 +116,8 @@ class SKSVocabConstructor():
             
         self.vocabs = []
         self.alphanumeric_vocab = self.add_alphanumeric_vocab()
-        self.two_digit_vocab = self.add_two_digit_vocab()
+        self.two_digit_vocab = self.add_two_digit_vocab(temp_vocab=self.alphanumeric_vocab)
+        self.abc123_voc = self.add_two_letter_vocab(temp_vocab=self.two_digit_vocab) # complete vocabulary with 1 and 2 letter codes
         if isinstance(code_types, type(None)):
             self.code_types=['D', 'M'] # diagnosis and medication by default
         else:
@@ -137,8 +138,8 @@ class SKSVocabConstructor():
             self.vocabs.append(self.construct_vocab_dic(level))
         for concept in self.vocabs[0]:
             h_vocab[concept] = self.map_concept_to_tuple(concept)
-        # if not self.unique_nodes(h_vocab):
-            # raise ValueError('Not all nodes are unique')
+        if not self.unique_nodes(h_vocab):
+            raise ValueError('Not all nodes are unique')
         return self.main_vocab, h_vocab
 
     def map_concept_to_tuple(self, concept:str)->Tuple[int]:
@@ -274,45 +275,45 @@ class SKSVocabConstructor():
         def handle_two_digit_code():
             """Handle special codes followed by (at least) two digits"""
             if level==2: 
-                vocab[code] =  self.two_digit_vocab[code[2:4]]
+                vocab[code] = self.abc123_voc[code[2:4]] # two digits
             else:
                 if level>=len(code):
                     vocab[code] = 0 # code ends here (leaf node), fill with zeros
                 else:
-                    vocab[code] = self.alphanumeric_vocab[code[level]] # we fill all level below with zero
+                    vocab[code] = self.abc123_voc[code[level]] # we fill all level below with zero
         def handle_DUA_DUB_DUH():
             if level==2:
-                vocab[code] = self.alphanumeric_vocab[code[2]]
+                vocab[code] = self.abc123_voc[code[2]]
             elif level==3: # next two integers stand for a measure e.g. DUA10 is 10 cm circumference
-                vocab[code] = self.two_digit_vocab[code[3:5]]
+                vocab[code] = self.abc123_voc[code[3:5]]
             else: #DVRA, DVRB, DVRK
                 if level>=len(code)-1: # we skip the last digit since level 3 covered two digits
                     vocab[code] = 0 # code ends here (leaf node), fill with zeros
                 else:
-                    vocab[code] = self.alphanumeric_vocab[code[level+1]] # we fill all level below with zero
+                    vocab[code] = self.abc123_voc[code[level+1]] # we fill all level below with zero
         def handle_DVRK01():
             if level==2:
-                vocab[code] = self.alphanumeric_vocab[code[3]]
+                vocab[code] = self.abc123_voc[code[3]]
             else:
                 vocab[code] = 0
         def handle_DUP_DUT_DVA():
             if level==2:
-                vocab[code] = self.alphanumeric_vocab[code[2]]
+                vocab[code] = self.abc123_voc[code[2]]
             elif level==3:
-                if self.all_digits(code[3:5]):
-                    vocab[code] = self.two_digit_vocab[code[3:5]]
+                if self.all_digits(code[3:5]) or code[3:5]=='XX':
+                    vocab[code] = self.abc123_voc[code[3:5]]
                 else:
-                    vocab[code] = self.alphanumeric_vocab[code[3]]
+                    vocab[code] = self.abc123_voc[code[3]]
             else:
                 vocab[code] = 0
         def handle_DVRA_DVRB():
             if level==2:
-                vocab[code] = self.alphanumeric_vocab[code[3]] # determine if it is A or B
+                vocab[code] = self.abc123_voc[code[2:4]] # determine if it is A or B
             elif level==3: # next two integers stand for a measure e.g. DUA10 is 10 cm circumference
-                vocab[code] = self.two_digit_vocab[code[4:6]]
+                vocab[code] = self.abc123_voc[code[4:6]]
             elif level==4: # sometimes followed by a letter
                 if len(code)==7:
-                    vocab[code] = self.alphanumeric_vocab[code[6]]
+                    vocab[code] = self.abc123_voc[code[6]]
                 else:
                     vocab[code] = 0
             else:
@@ -396,6 +397,13 @@ class SKSVocabConstructor():
             temp_vocab[a] = len(temp_vocab)
         return temp_vocab
 
+    def add_two_letter_vocab(self, temp_vocab:Dict[str, int]={'[ZERO]':0})->Dict[str, int]:
+        """Takes a vocabulary, and extends it with the two letter codes len(vocab)+1:0, len(vocab)+2:1, ...)"""
+        for a in string.ascii_uppercase:
+            for b in string.ascii_uppercase:
+                temp_vocab[a+b] = len(temp_vocab)
+        return temp_vocab
+
     @staticmethod
     def insert_voc(code, voc):
         """Insert a code into the vocabulary"""
@@ -475,6 +483,7 @@ class SKSVocabConstructor():
         nodes = []
         for k, v in h_vocab.items():
             if v in nodes:
+                print(k)
                 print(f'Node {v} is not unique!')
                 print([k for k,v in h_vocab.items() if v == nodes[-1]])
                 return False

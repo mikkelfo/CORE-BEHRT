@@ -7,31 +7,32 @@ from typing import Dict, List, Tuple
 import pandas as pd
 from tqdm import tqdm
 
-"""  ("UA","UA"), # Abdominal Circumference [cm]
-        ("UB","UB"), # Orificiums opening into [cm]
-        ("UH","UH"), # Head circumference [cm]
-        ("UP","UP"), # Fetus
-        ("UT","UT"), # Mother
-        ("V00","V99"), # Weight of the placenta [g]
-        ("VA","VA"), # Undisclosed
-        ("VRA","VRA"), # regarding weight, height 
-        ("VRB","VRB"), # tobacco and alcohol
-        ("VRK","VRK"), # interoperative bleeding
+"""  
+("UA","UA"), # Abdominal Circumference [cm]
+("UB","UB"), # Orificiums opening into [cm]
+("UH","UH"), # Head circumference [cm]
+("UP","UP"), # Fetus
+("UT","UT"), # Mother
+("V00","V99"), # Weight of the placenta [g]
+("VA","VA"), # Undisclosed
+("VRA","VRA"), # regarding weight, height 
+("VRB","VRB"), # tobacco and alcohol
+("VRK","VRK"), # interoperative bleeding
 """
 # convert raw data to working format
-def sks_codes_to_list():
+def sks_codes_to_list()->None:
     """Convert the SKScomplete list of codes to a list of codes in pickles format."""
     codes = []
-    with open( "SKScomplete.txt") as f:
+    with open(join(dirname(__file__), "SKScomplete.txt")) as f:
         for line in f:
             codes.append(line.split(' ')[0])
     codes = set(codes)
     with open("SKScodes.pkl", "wb") as f:
         pkl.dump(codes, f)
 
-def npu_codes_to_list():
+def npu_codes_to_list()->None:
     """Convert the NPUlistEN221222.csv to a list of codes in pickles format."""
-    df = pd.read_csv('NPUlistEN221222.csv', 
+    df = pd.read_csv(join(dirname(__file__),'NPUlistEN221222.csv'), 
         encoding='latin-1', delimiter=';', usecols=['NPU code'])
     codes = df['NPU code'].unique().tolist()
     # replace DNK stands for local danish NPU codes
@@ -40,12 +41,17 @@ def npu_codes_to_list():
         pkl.dump(codes, f)
 
 class MedicalCodes():
+    """
+    Loads medical codes from SKS database and NPU (lab codes).
+    codes can be accessed by prefix (D, L, M) or signature (lab, dia, ...).
+    """
+
     def __init__(self):
         with open(join(dirname(__file__), "SKScodes.pkl"), "rb") as f:
             self.sks_codes = list(pkl.load(f))
         with open(join(dirname(__file__), "NPUcodes.pkl"), "rb") as f:
             self.npu_codes = pkl.load(f) 
-        self.codes = self.npu_codes + self.sks_codes
+        self.all_codes = self.npu_codes + self.sks_codes
         self.prefix_dic ={
             'L':'lab',
             'D':'icd',
@@ -61,7 +67,7 @@ class MedicalCodes():
         return getattr(self, 'get_'+self.prefix_dic[prefix])()
 
     def get_codes_type(self, signature, min_len=2):
-        codes =[c.strip(signature) for c in self.codes if c.startswith(signature)]
+        codes =[c.strip(signature) for c in self.all_codes if c.startswith(signature)]
         return [c for c in codes if len(c)>=min_len]
 
     def get_lab(self):
@@ -70,7 +76,7 @@ class MedicalCodes():
         return sorted(self.get_codes_type('dia', min_len=4))
     def get_atc(self):
         codes = self.get_codes_type('atc', min_len=4)
-        codes[codes.index('N05CC10')] = 'MZ99' # thalidomid, wrongly generated code will be assigned a special token
+        codes[codes.index('N05CC10')] = 'MZ99' # thalidomid, wrongly generated code will be assigned a new code
         return sorted(codes)
     def get_adm(self):
         return sorted(self.get_codes_type('adm'))
@@ -87,14 +93,18 @@ class MedicalCodes():
 
 #TODO: Implement subtopics for ICD codes
 class SKSVocabConstructor():
-    """Construct a vocabulary for SKS codes.
-    Returns a dictionary mapping SKS codes to tuples, 
-    where every entry in the tuple specifies the branch on a level.
-    Currently we have lab test, medication, diagnosis and procedures implemented. 
-    The vocabulary is constructed for all those codes, then filterd to only include codes that are in types"""
-    def __init__(self, main_vocab=None, additional_types=None, num_levels=6):
+    """
+    Construct two vocabularies for medical codes, mapping to integers and tuples (nodes).
+    Every integer of the tuple specifies a branch on a level. Integer 0 is reserved for empty node.
+    Currently we have the hierarchy for medication and diagnosis implemented. 
+    """
+    def __init__(self, main_vocab=None, code_types=None, num_levels=6):
+        """main_vocab: initial vocabulary, if None, create a new one
+        code_types: list of code types to include in the vocabulary (by prefix D, M, L)
+        num_levels: number of levels in the hierarchy, don't change this if you don't know what you are doing.
+        """
+        self.num_levels=num_levels
         self.medcodes = MedicalCodes()
-        self.codes = self.medcodes.codes
 
         if isinstance(main_vocab, type(None)):
             self.special_tokens = ['[CLS]', '[PAD]', '[SEP]', '[MASK]', '[UNK]', '[BG_Mand]', '[BG_Kvinde]']
@@ -105,31 +115,33 @@ class SKSVocabConstructor():
             self.special_tokens = [k for k in main_vocab if k.startswith('[')]
             
         self.vocabs = []
-
-        if isinstance(additional_types, type(None)):
-            self.additional_types=['D', 'M']
+        self.alphanumeric_vocab = self.add_alphanumeric_vocab()
+        self.two_digit_vocab = self.add_two_digit_vocab()
+        if isinstance(code_types, type(None)):
+            self.code_types=['D', 'M'] # diagnosis and medication by default
         else:
-            self.additional_types = additional_types
+            self.code_types = code_types
     
 
-        for code_type in self.additional_types:
+        for code_type in self.code_types:
             if code_type not in ['D', 'M', 'L']:
                 raise ValueError('Type not implemented yet.') # TODO: Instead add the codes on level 1
 
-        self.num_levels = num_levels
 
-    def __call__(self):
+    def __call__(self)->Tuple[Dict[str, int], Dict[str, Tuple[int]]]:
         """Return vocab, mapping concepts to tuples, where each tuple element is a code on a level
         The dictionares contain concept present in the SKS code and the ones inmain vocab.
         types contains the types of codes to be included in the vocabulary, e.g. ['D', 'M', 'L']"""
-        tuple_vocab = {}
-        for level in range(self.num_levels):
+        h_vocab = {}
+        for level in range(self.num_levels+1):
             self.vocabs.append(self.construct_vocab_dic(level))
         for concept in self.vocabs[0]:
-            tuple_vocab[concept] = self.map_concept_to_tuple(concept)
-        return self.main_vocab, tuple_vocab
+            h_vocab[concept] = self.map_concept_to_tuple(concept)
+        # if not self.unique_nodes(h_vocab):
+            # raise ValueError('Not all nodes are unique')
+        return self.main_vocab, h_vocab
 
-    def map_concept_to_tuple(self, concept):
+    def map_concept_to_tuple(self, concept:str)->Tuple[int]:
         """Using the list of vocabs, map a concept to a tuple of integers"""
         tuple_of_integers = []
         for vocabulary in self.vocabs:
@@ -139,14 +151,19 @@ class SKSVocabConstructor():
                 tuple_of_integers.append(vocabulary["[UNK]"])
         return tuple(tuple_of_integers)
 
-    def construct_vocab_dic(self, level):
-        """construct a dictionary of codes and their topics"""
-        if not 0<=level<=5:
-            raise ValueError("Level must be between 0 and 5")
+    def construct_vocab_dic(self, level:int)->Dict[str, int]:
+        """Construct a vocabulary dictionary for a given level
+        level 0: separated by types (lab, medication, diagnosis, procedures, [SEP], [MASK], [UNK],..)
+        level 1: topic
+        level 2: category
+        ...
+        """
+        # if not 0<=level<=6:
+            # raise ValueError("Level must be between 0 and 5")
         if level==0: # separated by types   
             # TODO: include level 0
             all_codes = []
-            for prefix in self.additional_types:
+            for prefix in self.code_types:
                 all_codes += self.medcodes.get_codes_by_prefix(prefix)
             
             vocab = self.get_type_vocab(all_codes)
@@ -162,8 +179,7 @@ class SKSVocabConstructor():
         temp_vocab = self.get_temp_vocab_type()
         all_codes += self.special_tokens
         for code in all_codes:
-            print(code[0])
-            if code[0] in self.additional_types:
+            if code[0] in self.code_types:
                 vocab[code] = temp_vocab[code[0]]
             else:
                 # special tokens
@@ -173,7 +189,7 @@ class SKSVocabConstructor():
     def get_first_level_vocab(self):
         vocab = {'[ZERO]':0}
         all_codes = []
-        for prefix in self.additional_types:
+        for prefix in self.code_types:
             all_codes += self.medcodes.get_codes_by_prefix(prefix)
         i = 0
         for code in all_codes:
@@ -189,10 +205,14 @@ class SKSVocabConstructor():
     def get_lower_level_vocab(self, level):
         # Looks good so far
         vocab = {'[ZERO]':0}
-        for code in self.medcodes.get_lab():
-            vocab[code] = 0
-        vocab = self.add_icd_to_vocab(vocab, level)
-        vocab = self.add_atc_to_vocab(vocab, level)
+        for code_type in self.code_types:
+            if code_type=='L':
+                for code in self.medcodes.get_lab():
+                    vocab[code] = 0 # we placed the labtests on level 1
+            prefix = self.medcodes.prefix_dic[code_type]
+            getter_func = getattr(self, 'add_'+ prefix +'_to_vocab')
+            vocab = getter_func(vocab, level)
+
         vocab = self.add_special_to_vocab(vocab)
         # TODO: add adm, opr, pro, til, uly, und, lab
         return vocab 
@@ -200,13 +220,14 @@ class SKSVocabConstructor():
     def get_temp_vocab_type(self):
         """Get a temporary vocab for types of codes e.g. [CLS], [SEX], Diagnoses"""
         temp_keys = [code.split(']')[0]+']' for code in self.special_tokens]
-        temp_keys += self.additional_types 
+        temp_keys += self.code_types 
         temp_vocab = {token:idx+1 for idx, token in enumerate(temp_keys)}
         return temp_vocab
 
     def add_icd_to_vocab(self, vocab, level):
         """Add disease codes to vocabulary levels lower than 1"""
         temp_vocab = self.get_temp_vocab_icd(level)
+        
         for code in self.medcodes.get_icd():
             if code.startswith(('DU', 'DV')):
                 vocab = self.handle_special_disease_codes(code, level, vocab, temp_vocab)
@@ -250,23 +271,31 @@ class SKSVocabConstructor():
         
     def handle_special_disease_codes(self, code, level, vocab, temp_vocab):
         """Handle special codes DU, DV"""
-        if code[2].isdigit():
-            # special code followed by two digits 
+        def handle_two_digit_code():
+            """Handle special codes followed by (at least) two digits"""
             if level==2: 
-                vocab[code] =  temp_vocab[code[:2]]
+                vocab[code] =  self.two_digit_vocab[code[2:4]]
             else:
-                vocab[code] = 0 # we fill all level below with zero
-        elif code.startswith(('DUA', 'DUB', 'DUH')):
+                if level>=len(code):
+                    vocab[code] = 0 # code ends here (leaf node), fill with zeros
+                else:
+                    vocab[code] = self.alphanumeric_vocab[code[level]] # we fill all level below with zero
+        def handle_DUA_DUB_DUH():
             if level==2:
                 vocab[code] = temp_vocab[code[:3]]
+            elif level==3: # next two integers stand for a measure e.g. DUA10 is 10 cm circumference
+                vocab[code] = self.two_digit_vocab[code[3:5]]
             else: #DVRA, DVRB, DVRK
-                vocab[code] = 0 # we fill all level below with zeros
-        elif code=='DVRK01':
+                if level>=len(code)-1: # we skip the last digit since level 3 covered two digits
+                    vocab[code] = 0 # code ends here (leaf node), fill with zeros
+                else:
+                    vocab[code] = self.alphanumeric_vocab[code[level+1]] # we fill all level below with zero
+        def handle_DVRK01():
             if level==2:
                 vocab[code] = temp_vocab[code]
             else:
                 vocab[code] = 0
-        elif code.startswith(('DUP', 'DUT', 'DVA')):
+        def handle_DUP_DUT_DVA():
             if level==2:
                 vocab[code] = temp_vocab[code[:3]]
             elif level==3:
@@ -276,7 +305,7 @@ class SKSVocabConstructor():
                     vocab[code] = temp_vocab[code[3:]]
             else:
                 vocab[code] = 0
-        elif code.startswith(('DVRA', 'DVRB')):
+        def handle_DVRA_DVRB():
             if level==2:
                 vocab[code] = temp_vocab[code[:4]]
             elif level==3:
@@ -286,9 +315,21 @@ class SKSVocabConstructor():
                     vocab[code] = temp_vocab[code[4:]] #TODO: check this
             else:
                 vocab[code] = 0
+        
+        if self.all_digits(code[2:4]):
+            handle_two_digit_code()
+        elif code.startswith(('DUA', 'DUB', 'DUH')):
+            handle_DUA_DUB_DUH()
+        elif code=='DVRK01':
+            handle_DVRK01()
+        elif code.startswith(('DUP', 'DUT', 'DVA')):
+            handle_DUP_DUT_DVA()
+        elif code.startswith(('DVRA', 'DVRB')):
+            handle_DVRA_DVRB()
         else:
             vocab[code] =  temp_vocab[code[:4]]
         return vocab
+
     def get_temp_vocab_icd(self, level):
         """Construct a temporary vocabulary for categories for icd codes"""
         temp_vocab = {'[ZERO]':0,'[UNK]':1}                
@@ -297,8 +338,8 @@ class SKSVocabConstructor():
         special_codes = special_codes_u + special_codes_v
     
         if level>=3:
-            temp_vocab = self.alphanumeric_vocab(temp_vocab)
-            temp_vocab = self.two_digit_vocab(temp_vocab)
+            temp_vocab = self.add_alphanumeric_vocab(temp_vocab)
+            temp_vocab = self.add_two_digit_vocab(temp_vocab)
             temp_vocab = self.insert_voc('XX', temp_vocab)
             temp_vocab = self.insert_voc('02A', temp_vocab)
             return temp_vocab
@@ -328,22 +369,25 @@ class SKSVocabConstructor():
         """Construct a temporary vocabulary for categories for atc codes"""
         temp_vocab = {'[ZERO]':0,'[UNK]':1}                
         if level==2:
-            temp_vocab = self.two_digit_vocab(temp_vocab)
+            temp_vocab = self.add_two_digit_vocab(temp_vocab)
         elif level==3 or level==4:
-            temp_vocab = self.alphanumeric_vocab(temp_vocab)
+            temp_vocab = self.add_alphanumeric_vocab(temp_vocab)
         else:
-            temp_vocab = self.two_digit_vocab(temp_vocab)
+            temp_vocab = self.add_two_digit_vocab(temp_vocab)
         return temp_vocab
 
     @staticmethod
-    def two_digit_vocab(temp_vocab):
+    def add_two_digit_vocab(temp_vocab:Dict[str, int]={'[ZERO]':0})->Dict[str, int]:
+        """Takes vocabulary and expands with two digit codes 00, 01, 02, ...
+        Useful for ICD codes, where the first two digits are the category"""
         for i in range(10):
                 for j in range(10):
                     temp_vocab[str(i)+str(j)] = len(temp_vocab)
         return temp_vocab
         
     @staticmethod
-    def alphanumeric_vocab(temp_vocab):
+    def add_alphanumeric_vocab(temp_vocab:Dict[str, int]={'[ZERO]':0})->Dict[str, int]:
+        """Takes a vocabulary, and extends it with the alphanumeric characters len(vocab)+1:0, len(vocab)+2:1, ...)"""
         for i in range(10):
             temp_vocab[str(i)] = len(temp_vocab)
         for a in string.ascii_uppercase:
@@ -423,14 +467,23 @@ class SKSVocabConstructor():
             elif code.startswith("DV"): #weight, height and various other codes
                 return len(options)+3
         return len(options)+4
-
+    @staticmethod
+    def unique_nodes(h_vocab: Dict[str, Tuple])->bool:
+        """Check that all nodes are unique."""
+        nodes = []
+        for k, v in h_vocab.items():
+            if v in nodes:
+                print(f'Node {v} is not unique!')
+                print([k for k,v in h_vocab.items() if v == nodes[-1]])
+                return False
+            nodes.append(v)
+        return True
 
 
 class TreeConstructor():
     """Extending SKSVocab to a full tree structure."""
-    def __init__(self, main_vocab=None, additional_types=None, num_levels=6, test=False, data=None) -> None:
-        _, self.sks_vocab = SKSVocabConstructor(main_vocab, additional_types, num_levels)()
-        assert self.unique_nodes()
+    def __init__(self, main_vocab=None, code_types=None, num_levels=6, test=False, data=None) -> None:
+        _, self.sks_vocab = SKSVocabConstructor(main_vocab, code_types, num_levels)()
         if test:
             data_flat = [item for sublist in data['concept'] for item in sublist]
             self.sks_vocab = {k: self.sks_vocab[k] for k in data_flat if k in self.sks_vocab}
@@ -438,17 +491,6 @@ class TreeConstructor():
             # self.sks_vocab = {k: self.sks_vocab[k] for k in rand_keys}
             # self.sks_vocab = {'A':(1,0,0), 'X':(4,1,1),'B':(2,0,0), 'Aa':(1,1,0), 'Ab':(1,2,0), 'Ba':(2,1,0), 'Bb':(2,2,0), 'Ca':(3,1,0)}
             self.sks_vocab = {'A':(1,0,0,0), 'Aa':(1,1,0,0), 'Ab':(1,2,0,0), 'Ba':(2,1,0,0), 'Bbaa':(2,2,1,1), 'D':(1,2,0,0)}
-
-    def unique_nodes(self):
-        """Check that all nodes are unique."""
-        nodes = []
-        for k, v in self.sks_vocab.items():
-            if v in nodes:
-                print(f'Node {v} with name {k} is not unique!')
-                print([k for k,v in self.sks_vocab.items() if v == nodes[-1]])
-                return False
-            nodes.append(v)
-        return True
 
     def __call__(self)->Tuple[List[Dict[str, Tuple]], pd.DataFrame, pd.DataFrame]:
         self.extended_sks_vocab_ls = self.extend_leafs(self.sks_vocab) # extend leaf nodes to bottom level

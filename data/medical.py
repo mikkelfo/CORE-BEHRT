@@ -445,6 +445,7 @@ class TreeConstructor():
         for k, v in self.sks_vocab.items():
             if v in nodes:
                 print(f'Node {v} with name {k} is not unique!')
+                print([k for k,v in self.sks_vocab.items() if v == nodes[-1]])
                 return False
             nodes.append(v)
         return True

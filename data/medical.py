@@ -63,7 +63,7 @@ class MedicalCodes():
             'U':'ext_injuries',
             'V':'studies',
         }
-    def get_codes_by_prefix(self, prefix, min_len=2):
+    def get_codes_by_prefix(self, prefix):
         return getattr(self, 'get_'+self.prefix_dic[prefix])()
 
     def get_codes_type(self, signature, min_len=2):
@@ -293,7 +293,7 @@ class SKSVocabConstructor():
                 if level==2:
                     vocab[code] = temp_vocab[code[:4]]
                 else:
-                    vocab = self.insert_code(vocab, code, temp_vocab, level+1)
+                    vocab = self.insert_code_part(vocab, code, temp_vocab, level+1)
         return vocab
 
     def add_atc_to_vocab(self, vocab, level):
@@ -303,9 +303,9 @@ class SKSVocabConstructor():
             if level==2:
                 vocab[code] = temp_vocab[code[2:4]]
             elif level==3 or level==4:
-                vocab = self.insert_code(vocab, code, temp_vocab, level+1)
+                vocab = self.insert_code_part(vocab, code, temp_vocab, level+1)
             else:
-                vocab = self.insert_code(vocab, code, temp_vocab, [level+1, level+3])
+                vocab = self.insert_code_part(vocab, code, temp_vocab, [level+1, level+3])
         return vocab
 
     def add_special_to_vocab(self, vocab):
@@ -317,7 +317,7 @@ class SKSVocabConstructor():
         return vocab
 
     @staticmethod
-    def insert_code(vocab, code, temp_vocab, ids):
+    def insert_code_part_part(vocab, code, temp_vocab, ids):
         """Insert part of the code into the vocabulary"""
         if isinstance(ids, int):
             ids = [ids, ids+1]
@@ -392,7 +392,7 @@ class SKSVocabConstructor():
 
     def get_temp_vocab_icd(self, level):
         """Construct a temporary vocabulary for categories for icd codes"""
-        temp_vocab = {'[ZERO]':0,'[UNK]':1}                
+        temp_vocab = {'[ZERO]':0}                
         special_codes_u = ['DUA', 'DUB', 'DUH', 'DUP', 'DUT'] # different birth-related codes
         special_codes_v = ['DVA', 'DVRA', 'DVRB', 'DVRK01'] # placenta weight, height weight ...
         special_codes = special_codes_u + special_codes_v
@@ -400,8 +400,8 @@ class SKSVocabConstructor():
         if level>=3:
             temp_vocab = self.add_alphanumeric_vocab(temp_vocab)
             temp_vocab = self.add_two_digit_vocab(temp_vocab)
-            temp_vocab = self.insert_voc('XX', temp_vocab)
-            temp_vocab = self.insert_voc('02A', temp_vocab)
+            temp_vocab = self.insert_code('XX', temp_vocab)
+            temp_vocab = self.insert_code('02A', temp_vocab)
             return temp_vocab
         
         for code in self.medcodes.get_icd():
@@ -411,23 +411,23 @@ class SKSVocabConstructor():
                 if any(special_code_bool):
                     key = special_codes[special_code_bool.index(True)]
                     if level==2:
-                        temp_vocab = self.insert_voc(key, temp_vocab) 
+                        temp_vocab = self.insert_code(key, temp_vocab) 
                 elif code[3].isdigit(): # duration of pregancy DUwwDdd or size of placenta 
                     if level==2:
-                        temp_vocab = self.insert_voc(code[:2], temp_vocab)
+                        temp_vocab = self.insert_code(code[:2], temp_vocab)
                 else:
                     if level==2:
-                        temp_vocab = self.insert_voc(code[:3], temp_vocab)
+                        temp_vocab = self.insert_code(code[:3], temp_vocab)
             else: 
                 if level==2:
-                    temp_vocab = self.insert_voc(code[:4], temp_vocab)
+                    temp_vocab = self.insert_code(code[:4], temp_vocab)
         
             
         return temp_vocab
 
     def get_temp_vocab_atc(self, level):
         """Construct a temporary vocabulary for categories for atc codes"""
-        temp_vocab = {'[ZERO]':0,'[UNK]':1}                
+        temp_vocab = {'[ZERO]':0}                
         if level==2:
             temp_vocab = self.add_two_digit_vocab(temp_vocab)
         elif level==3 or level==4:
@@ -453,8 +453,8 @@ class SKSVocabConstructor():
         for a in string.ascii_uppercase:
             temp_vocab[a] = len(temp_vocab)
         return temp_vocab
-
-    def add_two_letter_vocab(self, temp_vocab:Dict[str, int]={'[ZERO]':0})->Dict[str, int]:
+    @staticmethod
+    def add_two_letter_vocab(temp_vocab:Dict[str, int]={'[ZERO]':0})->Dict[str, int]:
         """Takes a vocabulary, and extends it with the two letter codes len(vocab)+1:0, len(vocab)+2:1, ...)"""
         for a in string.ascii_uppercase:
             for b in string.ascii_uppercase:
@@ -462,7 +462,7 @@ class SKSVocabConstructor():
         return temp_vocab
 
     @staticmethod
-    def insert_voc(code, voc):
+    def insert_code(code, voc):
         """Insert a code into the vocabulary"""
         if code not in voc:
             voc[code] = len(voc)

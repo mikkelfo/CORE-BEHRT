@@ -147,6 +147,8 @@ class SKSVocabConstructor():
             ("Z00","Z99"), # Factors Influencing Health Status and Contact with Health Services
         ]  
 
+        self.atc_topic_ls = ['A', 'B', 'C', 'D', 'G', 'H', 'J', 'L', 'M', 'N', 'P', 'R', 'S', 'V']
+
     def __call__(self)->Tuple[Dict[str, int], Dict[str, Tuple[int]]]:
         """Return vocab, mapping concepts to tuples, where each tuple element is a code on a level
         The dictionares contain concept present in the SKS code and the ones inmain vocab.
@@ -165,7 +167,7 @@ class SKSVocabConstructor():
 
     def fill_with_zeros(self):
         """Starting from top level, if concept not present in level below, fill with zeros"""
-        for i, vocab in tqdm(enumerate(self.vocabs[:-1]), desc='Filling with zeros'):
+        for i, vocab in enumerate(self.vocabs[:-1]):
             for concept in vocab:
                 if concept not in self.vocabs[i+1]:
                     self.vocabs[i+1][concept] = 0
@@ -211,13 +213,21 @@ class SKSVocabConstructor():
             else:
                 # special tokens
                 vocab[code] = temp_vocab[code.split(']')[0]+']']
+        vocab = self.add_topic_to_level_0_vocab(vocab, temp_vocab)
+        return vocab
 
+    def add_topic_to_level_0_vocab(self, vocab, temp_vocab):
+        """Add topics e.g. (A00-B99, C00-...) to the level 0 vocabulary"""
         if 'D' in self.code_types:
             for topic in self.icd_topic_options:
                 vocab[f"D{topic[0]}-D{topic[1]}"] = temp_vocab['D']
             vocab['DU'] = temp_vocab['D']
             vocab['DV'] = temp_vocab['D']
+        if 'M' in self.code_types:
+            for topic in self.atc_topic_ls:
+                vocab[f"M{topic}"] = temp_vocab['M']
         return vocab
+
 
     def get_first_level_vocab(self):
         """This includes icd topics and medication topics"""
@@ -245,6 +255,9 @@ class SKSVocabConstructor():
                 vocab[f"D{topic[0]}-D{topic[1]}"] = self.get_topic('D'+topic[0])
             vocab['DU'] = self.get_topic('DU')
             vocab['DV'] = self.get_topic('DV')
+        if type=='M':
+            for topic in self.atc_topic_ls:
+                vocab[f"M{topic}"] = self.get_topic(f"M{topic}")
         return vocab
 
     def get_lower_level_vocab(self, level):
@@ -472,25 +485,21 @@ class SKSVocabConstructor():
 
     def get_topic(self, code):
         if code.startswith('M'):
-            return self.ATC_topic(code)
+            return self.get_ATC_topic(code)
         elif code.startswith('D'):
-            return self.ICD_topic(code)
+            return self.get_ICD_topic(code)
         else:
             print(f"Code type starting with {code[0]} not implemented yet")
 
-    @staticmethod
-    def ATC_topic(code):
+    def get_ATC_topic(self, code):
         """Returns the topic of an ATC code, here it's simply the first letter of the code'"""
-        assert code[0] == 'M', f"ATC code must start with 'M, code: {code}'"
-        atc_topic_ls = ['A', 'B', 'C', 'D', 'G', 'H', 'J', 'L', 'M', 'N', 'P', 'R', 'S', 'V']
-        atc_topic_dic = {topic:(i+1) for i, topic in enumerate(atc_topic_ls)}
+        atc_topic_dic = {topic:(i+1) for i, topic in enumerate(self.atc_topic_ls)}
         if code[1] in atc_topic_dic:
             return atc_topic_dic[code[1]]
         else:
-            return len(atc_topic_ls)+2 #we start at 1, so we need to add 2
+            return len(self.atc_topic_ls)+2 #we start at 1, so we need to add 2
     
-    def ICD_topic(self, code):
-        assert code[0] == 'D', f"ICD code must start with 'D', code: {code}"
+    def get_ICD_topic(self, code):
         for i, option in enumerate(self.icd_topic_options):
             if option[0] <= code[1:4] <= option[1]:
                 return i+1

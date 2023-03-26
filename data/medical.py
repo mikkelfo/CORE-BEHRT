@@ -154,6 +154,7 @@ class SKSVocabConstructor():
         h_vocab = {}
         for level in range(self.num_levels+1):
             self.vocabs.append(self.construct_vocab_dic(level))
+        self.fill_with_zeros()
         for concept in self.vocabs[0]:
             h_vocab[concept] = self.map_concept_to_tuple(concept)
         
@@ -161,6 +162,13 @@ class SKSVocabConstructor():
             # raise ValueError('Not all nodes are unique')
         
         return self.main_vocab, h_vocab
+
+    def fill_with_zeros(self):
+        """Starting from top level, if concept not present in level below, fill with zeros"""
+        for i, vocab in tqdm(enumerate(self.vocabs[:-1]), desc='Filling with zeros'):
+            for concept in vocab:
+                if concept not in self.vocabs[i+1]:
+                    self.vocabs[i+1][concept] = 0
 
     def map_concept_to_tuple(self, concept:str)->Tuple[int]:
         """Using the list of vocabs, map a concept to a tuple of integers"""
@@ -206,13 +214,9 @@ class SKSVocabConstructor():
 
         if 'D' in self.code_types:
             for topic in self.icd_topic_options:
-                print(topic)
                 vocab[f"D{topic[0]}-D{topic[1]}"] = temp_vocab['D']
             vocab['DU'] = temp_vocab['D']
             vocab['DV'] = temp_vocab['D']
-            print('here',vocab,)
-            
-            
         return vocab
 
     def get_first_level_vocab(self):
@@ -222,7 +226,6 @@ class SKSVocabConstructor():
         for prefix in self.code_types:
             all_codes += self.medcodes.get_codes_by_prefix(prefix)
             vocab = self.add_topics_to_dic(prefix, vocab)
-        print(vocab)
         i = 0
         for code in all_codes:
             if code.startswith('D') or code.startswith('M'):

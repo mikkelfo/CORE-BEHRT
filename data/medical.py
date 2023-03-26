@@ -98,31 +98,305 @@ class SKSVocabConstructor():
     Every integer of the tuple specifies a branch on a level. Integer 0 is reserved for empty node.
     Currently we have the hierarchy for medication and diagnosis implemented. 
     """
-    def __init__(self, main_vocab=None, code_types=['D', 'M'], num_levels=7):
-        """main_vocab: initial vocabulary, if None, create a new one
+    def __init__(self, main_vocab=None, code_types=['D', 'M'], num_levels=8):
+        """
+        main_vocab: initial vocabulary, if None, create a new one
         code_types: list of code types to include in the vocabulary (by prefix D, M, L)
         num_levels: number of levels in the hierarchy, don't change this if you don't know what you are doing.
         """
-        self.num_levels=num_levels
-        self.medcodes = MedicalCodes()
-        self.code_types = code_types
-        if isinstance(main_vocab, type(None)):
-            self.special_tokens = ['[CLS]', '[PAD]', '[SEP]', '[MASK]', '[UNK]', '[BG_Mand]', '[BG_Kvinde]']
-            self.main_vocab = {token: idx for idx,
-                               token in enumerate(self.special_tokens)}
-        else:
-            self.main_vocab = main_vocab
-            self.special_tokens = [k for k in main_vocab if k.startswith('[')]
-            
-        self.vocabs = []
-        self.alphanumeric_vocab = self.add_alphanumeric_vocab()
-        self.two_digit_vocab = self.add_two_digit_vocab(temp_vocab=self.alphanumeric_vocab)
-        self.abc123_voc = self.add_two_letter_vocab(temp_vocab=self.two_digit_vocab) # complete vocabulary with 1 and 2 letter codes
 
+        self.code_types = code_types
         for code_type in self.code_types:
-            if code_type not in ['D', 'M', 'L']:
+            if code_type not in ['D', 'M']:
                 raise ValueError(f'Hierarchy for type {code_type} not implemented yet.') 
 
+        self.num_levels=num_levels
+        self.vocabs = [{'[ZERO]':0} for _ in range(num_levels)] # these vocabularies will contain the tree
+
+        self.medcodes = MedicalCodes()
+
+        # take care of special codes
+        if isinstance(main_vocab, type(None)):
+            self.special_codes = ['[CLS]', '[PAD]', '[SEP]', '[MASK]', '[UNK]', '[BG_Mand]', '[BG_Kvinde]']
+            self.main_vocab = {token: idx for idx,
+                               token in enumerate(self.special_codes)}
+        else:
+            self.main_vocab = main_vocab
+            self.special_codes = [k for k in main_vocab if k.startswith('[')]
+
+        self.init_icd_helpers()
+        self.atc_topic_ls = ['A', 'B', 'C', 'D', 'G', 'H', 'J', 'L', 'M', 'N', 'P', 'R', 'S', 'V']
+        self.atc_topic_dic = {topic:(i+1) for i, topic in enumerate(self.atc_topic_ls)}
+        self.topics = {'D':self.icd_topic_options, 'M':self.atc_topic_ls}
+
+        self.init_temp_vocabs()
+        
+
+    def __call__(self)->Tuple[Dict[str, int], Dict[str, Tuple[int]]]:
+        """Return vocab, mapping concepts to tuples, where each tuple element is a code on a level
+        The dictionares contain concept present in the SKS code and the ones inmain vocab.
+        types contains the types of codes to be included in the vocabulary, e.g. ['D', 'M', 'L']"""
+        
+        self.handle_level_one() # add special tokens/code types to the first level
+       
+        for code_type in self.code_types: # Loop over disease, medication, lab_codes,...
+            self.handle_codetype(code_type)
+        # for codes which exist only in the top n levels (e.g. type codes, topics codes), 
+        # we add zeros to lower levels
+        self.fill_with_zeros() 
+       
+        h_vocab = {} # this is the dictionary of tuples (first vocab contains all the concepts)
+        for concept in self.vocabs[0]:
+            h_vocab[concept] = self.map_concept_to_tuple(concept)
+        
+        if not self.unique_nodes(h_vocab):
+            raise ValueError('Not all nodes are unique')
+        
+        return self.main_vocab, h_vocab
+
+    def handle_level_one(self):
+        """Add special tokens and code types to the first level"""
+        for special_code in self.special_codes:
+            self.vocabs[0][special_code] = len(self.vocabs[0]) 
+        for code_type in self.code_types:
+            self.vocabs[0][code_type] = len(self.vocabs[0]) 
+
+        for code_type in self.code_types:
+            codes = self.medcodes.get_codes_by_prefix(code_type)
+            for code in codes:
+                self.vocabs[0][code] = self.vocabs[0][code_type]
+       
+
+    def handle_codetype(self, code_type)->None:
+        """Here we go through the different EHR code types and add them to the hierarchy"""
+        if code_type == 'D':
+            print('Adding diagnosis codes')
+            self.add_icd_vocabs()
+        elif code_type == 'M':
+            print('Adding medication codes')
+            self.add_atc_vocabs()
+        else:
+            print(f"Codes of type {code_type} are not yet implemented")
+        return None
+
+    def fill_with_zeros(self):
+        """Starting from top level, if concept not present in level below, fill with zeros"""
+        for i, vocab in enumerate(self.vocabs[:-1]):
+            for concept in vocab:
+                if concept not in self.vocabs[i+1]:
+                    self.vocabs[i+1][concept] = 0
+
+    def map_concept_to_tuple(self, concept:str)->Tuple[int]:
+        """Using the list of vocabs, map a concept to a tuple of integers"""
+        tuple_of_integers = []
+        for vocabulary in self.vocabs:
+            if concept in vocabulary:
+                tuple_of_integers.append(vocabulary[concept])
+            else:
+                tuple_of_integers.append(vocabulary["[UNK]"])
+        return tuple(tuple_of_integers)
+
+    def add_icd_vocabs(self)->None:
+        """Add ICD codes to the vocabulary"""
+        for topic in self.icd_topic_options:
+            self.add_topic(topic, 'D')
+        for code in self.medcodes.get_codes_by_prefix('D'):
+            self.vocabs[1][code] = self.get_topic(code)
+
+        self.add_category('D') # A00, A01, ..., Z99
+        # this also takes care of the special codes
+        # think whether it can be separated and moved to add_lower_levels_icd
+        self.add_lower_levels_icd() 
+        return None
+
+    def add_lower_levels_icd(self):
+        for code in self.medcodes.get_codes_by_prefix('D'):
+            if code.startswith(('DU', 'DV')): # filled at topic level already
+                continue
+            for i, vocab in enumerate(self.vocabs[3:]): # 0/1/2 are type/topic/category
+                if len(code)>i+4:
+                    vocab[code] = self.alphanumeric_vocab[code[i+4]]
+
+    def add_atc_vocabs(self)->None:
+        """Add ATC codes to the vocabulary"""
+        for topic in self.atc_topic_ls:
+            self.add_topic(topic, 'M')
+        self.add_category('M') # A, B, C, ..., V
+        self.add_lower_level_atc()
+        return None
+
+    def add_lower_level_atc(self):
+        for code in self.medcodes.get_codes_by_prefix('M'):
+            for i, vocab in enumerate(self.vocabs[3:]): # check this
+                if len(code)>i+4:
+                    vocab[code] = self.alphanumeric_vocab[code[i+4]]
+
+    # Topics
+    def add_topic(self, topic:Tuple[str, str], code_type:str):
+        """Add all codes from a topic to the vocabulary"""
+        type_voc, topic_voc = self.vocabs[:2]
+
+        for topic in self.topics[code_type]:
+            if code_type == 'D':
+                topic_name = f"D{topic[0]}-D{topic[1]}"
+            elif code_type == 'M':
+                topic_name = f"M{topic}"
+            type_voc[topic_name] = type_voc[code_type]
+            topic_voc[topic_name] = self.get_topic(topic_name)
+        
+
+    def get_topic(self, code):
+        if code.startswith('D'):
+            return self.get_ICD_topic(code)
+        elif code.startswith('M'):
+            return self.get_ATC_topic(code)
+        else:
+            print(f"Code type starting with {code[0]} not implemented yet")
+    
+    def get_ICD_topic(self, code):
+        for i, option in enumerate(self.icd_topic_options):
+            if option[0] <= code[1:4] <= option[1]:
+                return i+1
+            elif code.startswith("DU"): # special codes (childbirth and pregnancy)
+                return len(self.icd_topic_options)+2
+            elif code.startswith("DV"): #weight, height and various other codes
+                return len(self.icd_topic_options)+3
+        return len(self.icd_topic_options)+4
+
+    def get_ATC_topic(self, code):
+        """Returns the topic of an ATC code, here it's simply the first letter of the code'"""
+        if code[1] in self.atc_topic_dic:
+            return self.atc_topic_dic[code[1]]
+        else:
+            return len(self.atc_topic_dic) + 2 #we start at 1, so we need to add 2
+
+    # TODO: implement subtopics for ICD codes
+    def add_category(self, type:str):
+        """Add ICD/ATC categories to the vocabulary"""
+        for code in self.medcodes.get_codes_by_prefix(type):
+            if code.startswith(('DU', 'DV')):
+                self.handle_special_icd_codes(code) # here we handle all levels of the special codes
+                continue
+            category = code[:4] # e.g. DA00, DA01, ..., DZ99 / MA00, MA01, ..., MZ99
+            if category not in self.vocabs[2]: # we first create the category keys, and then use it to fill the topic and type keys
+                if type == 'D':
+                    cat_int = self.icd_category_vocab[category]
+                elif type == 'M':
+                    cat_int = self.two_digit_vocab[category[2:]]
+                else:
+                    print(f"Code type starting with {type[0]} not implemented yet")
+                self.vocabs[2][category] = cat_int
+                self.vocabs[1][category] = self.get_topic(category)
+                self.vocabs[0][category] = self.vocabs[0][type]
+            self.vocabs[2][code] = self.vocabs[2][category]
+            self.vocabs[1][code] = self.vocabs[1][category]
+
+    def handle_special_icd_codes(self, code):
+        """Handle special codes DU, DV"""
+        cat_vocab = self.vocabs[2]
+
+        def handle_DU_codes():
+            """Related to pregnancy and childbirth"""
+            if self.all_digits(code[2:4]):
+                handle_DUiiixxx()
+            elif code[2] in ['A', 'B' ,'U', 'H', 'P', 'T']:
+                handle_DUX()
+            else:
+                print(f"category for code {code} not implemented yet")
+
+        def handle_DUiiixxx():
+            """Special code, U followed by three digits/ 2 digits, then sometimes D (for days), 
+                stands for durations of pregnancy"""
+            if "DUiiixxx" not in self.vocabs[2]:
+                    cat_vocab['DUiiixxx'] = 1
+            cat_vocab[code] = cat_vocab['DUiiixxx']
+            self.vocabs[3][code] = self.DUiii_voc[code]
+
+        def handle_DUX():
+            """Here X stands for A, B, H, P, T"""
+            cat_vocab[code] = string.ascii_uppercase.index(code[2])+2 # skip 0 and DUiiixxx 
+            self.vocabs[3][code] = self.abc123_voc[code[3:5]]# next two integers stand for a measure e.g. DUA10 is 10 cm circumference
+            # these codes end here
+
+        def handle_DV_codes():
+            if self.all_digits(code[2:]):
+                handle_DViiii()
+            if code[2] == 'A':
+                handle_DVA()
+            if code[2] == 'R':
+                handle_DVR()
+            
+        def handle_DViiii():
+            """Special code, V followed by four digits, stands for weight, height, etc."""
+            if "DViiii" not in self.vocabs[2]:
+                    cat_vocab['DViiii'] = 1
+            cat_vocab[code] = cat_vocab['DViiii']
+            self.vocabs[3][code] = self.DV4int_voc[code]
+
+        def handle_DVA():
+            """Special code, VA followed by two digits, stands for weight, height, etc."""
+            if "DVA" not in self.vocabs[2]:
+                cat_vocab['DVA'] = 2
+            cat_vocab[code] = cat_vocab['DVA']
+            self.vocabs[3][code] = self.abc123_voc[code[3:5]]
+
+        def handle_DVR():
+            if "DVR" not in self.vocabs[2]:
+                cat_vocab['DVR'] = 3
+            cat_vocab[code] = cat_vocab['DVR']
+
+            if code[3] == 'A':
+                handle_DVRA()
+            elif code[3] == 'B':
+                handle_DVRB()
+            elif code[3] == 'K':
+                handle_DVRK()
+            else:
+                print(f"Subcategories for {code} not implemented yet")
+
+        def handle_DVRA():
+            if "DVRA" not in self.vocabs[2]:
+                self.vocabs[3]['DVRA'] = 1
+            self.vocabs[3][code] = self.vocabs[3]['DVRA']
+            self.vocabs[4][code] = self.two_digit_vocab[code[4:6]] 
+            if len(code)>6:
+                self.vocabs[5][code] = self.alphanumeric_vocab[code[-1]] # 'DVRA02A'
+    
+        def handle_DVRB():
+            if "DVRB" not in self.vocabs[2]:
+                self.vocabs[3]['DVRB'] = 2
+            self.vocabs[3][code] = self.vocabs[3]['DVRB']
+            self.vocabs[4][code] = self.two_digit_vocab[code[4:6]] # last level
+
+        def handle_DVRK():
+            if "DVRK" not in self.vocabs[2]:
+                self.vocabs[3]['DVRK'] = 3
+            self.vocabs[3][code] = self.vocabs[3]['DVRK'] 
+            self.vocabs[4][code] = 1 # only one branch
+            
+        
+        if code.startswith('DU'):
+            handle_DU_codes()
+        if code.startswith('DV'):
+            handle_DV_codes()
+        self.vocabs[2] = cat_vocab
+
+    @staticmethod
+    def all_digits(codes):
+        """Check if a string only contains digits"""
+        return all([c.isdigit() for c in codes])
+
+    def get_DU_two_digit_codes_voc(self)->Dict[str, int]:
+        """Get a vocabulary for the two digit codes in the DUiii branch """
+        duii_ls = list(set([code for code in self.medcodes.get_icd() if code.startswith('DU') and self.all_digits(code[2:4])]))
+        return {code: idx+1 for idx, code in enumerate(duii_ls)}
+
+    def get_DV_four_digit_codes_voc(self)->Dict[str, int]:
+        """Get a vocabulary for the four digit codes in the DV branch """
+        dv4int_ls = list(set([code for code in self.medcodes.get_icd() if code.startswith('DV') and self.all_digits(code[2:6])]))
+        return {code: idx+1 for idx, code in enumerate(dv4int_ls)}
+
+    def init_icd_helpers(self):
         self.icd_topic_options = [
             ("A00","B99"), # Certain Infectious and Parasitic Diseases
             ("C00","D48"), # Neoplasms
@@ -145,296 +419,17 @@ class SKSVocabConstructor():
             ("S00","T98"), # Injury, Poisoning, and Certain Other Consequences of External Causes
             ("X60","Y09"), # External Causes of Injury
             ("Z00","Z99"), # Factors Influencing Health Status and Contact with Health Services
+            ("U00","UZZ"), # Supplementary Classification of Factors Influencing Health Status and Contact with Health Services
+            ("V00","VZZ"), # Supplementary Classification of External Causes of Injury and Poisoning
         ]  
+        self.DUiii_voc = self.get_DU_two_digit_codes_voc()
+        self.DV4int_voc = self.get_DV_four_digit_codes_voc()
 
-        self.atc_topic_ls = ['A', 'B', 'C', 'D', 'G', 'H', 'J', 'L', 'M', 'N', 'P', 'R', 'S', 'V']
-
-    def __call__(self)->Tuple[Dict[str, int], Dict[str, Tuple[int]]]:
-        """Return vocab, mapping concepts to tuples, where each tuple element is a code on a level
-        The dictionares contain concept present in the SKS code and the ones inmain vocab.
-        types contains the types of codes to be included in the vocabulary, e.g. ['D', 'M', 'L']"""
-        h_vocab = {}
-        for level in range(self.num_levels+1):
-            self.vocabs.append(self.construct_vocab_dic(level))
-        self.fill_with_zeros()
-        for concept in self.vocabs[0]:
-            h_vocab[concept] = self.map_concept_to_tuple(concept)
-        
-        # if not self.unique_nodes(h_vocab):
-            # raise ValueError('Not all nodes are unique')
-        
-        return self.main_vocab, h_vocab
-
-    def fill_with_zeros(self):
-        """Starting from top level, if concept not present in level below, fill with zeros"""
-        for i, vocab in enumerate(self.vocabs[:-1]):
-            for concept in vocab:
-                if concept not in self.vocabs[i+1]:
-                    self.vocabs[i+1][concept] = 0
-
-    def map_concept_to_tuple(self, concept:str)->Tuple[int]:
-        """Using the list of vocabs, map a concept to a tuple of integers"""
-        tuple_of_integers = []
-        for vocabulary in self.vocabs:
-            if concept in vocabulary:
-                tuple_of_integers.append(vocabulary[concept])
-            else:
-                tuple_of_integers.append(vocabulary["[UNK]"])
-        return tuple(tuple_of_integers)
-
-    def construct_vocab_dic(self, level:int)->Dict[str, int]:
-        """Construct a vocabulary dictionary for a given level
-        level 0: separated by types (lab, medication, diagnosis, procedures, [SEP], [MASK], [UNK],..)
-        level 1: topic
-        level 2: category
-        ...
-        """
-        if level==0: # separated by types   
-            all_codes = []
-            for prefix in self.code_types:
-                all_codes += self.medcodes.get_codes_by_prefix(prefix)
-            vocab = self.get_type_vocab(all_codes)
-        elif level==1: # categories, lab tests, birthmonths, birthyears ...
-            vocab = self.get_first_level_vocab()
-        else: # construct hiearachy for icd and atc
-            vocab = self.get_lower_level_vocab(level)
-        return vocab
-    
-    def get_type_vocab(self, all_codes):
-        """Uses the temporary vocabulary to assign a category to each code."""
-        vocab = {'[ZERO]':0}
-        temp_vocab = self.get_temp_vocab_type()
-        all_codes += self.special_tokens
-        for code in all_codes:
-            if code[0] in self.code_types:
-                vocab[code] = temp_vocab[code[0]]
-
-                vocab[code[0]] = temp_vocab[code[0]] # add the type to the vocabulary, e.g. 'D' is not in SKS, but when creating the full tree, we need the type
-            else:
-                # special tokens
-                vocab[code] = temp_vocab[code.split(']')[0]+']']
-        vocab = self.add_topic_to_level_0_vocab(vocab, temp_vocab)
-        return vocab
-
-    def add_topic_to_level_0_vocab(self, vocab, temp_vocab):
-        """Add topics e.g. (A00-B99, C00-...) to the level 0 vocabulary"""
-        if 'D' in self.code_types:
-            for topic in self.icd_topic_options:
-                vocab[f"D{topic[0]}-D{topic[1]}"] = temp_vocab['D']
-            vocab['DU'] = temp_vocab['D']
-            vocab['DV'] = temp_vocab['D']
-        if 'M' in self.code_types:
-            for topic in self.atc_topic_ls:
-                vocab[f"M{topic}"] = temp_vocab['M']
-        return vocab
-
-
-    def get_first_level_vocab(self):
-        """This includes icd topics and medication topics"""
-        vocab = {'[ZERO]':0}
-        all_codes = []
-        for prefix in self.code_types:
-            all_codes += self.medcodes.get_codes_by_prefix(prefix)
-            vocab = self.add_topics_to_dic(prefix, vocab)
-        i = 0
-        for code in all_codes:
-            if code.startswith('D') or code.startswith('M'):
-                vocab[code] = self.get_topic(code) # only icd and atc codes so far     
-            if code.startswith('L'):
-                vocab[code] = i + 1
-                i += 1
-        for code in self.special_tokens: # we loop twice through birthyear and birthmonth
-            vocab[code] = 0
-        
-        return vocab
-    
-    def add_topics_to_dic(self, type, vocab):
-        """Add the topics to the vocabulary"""
-        if type=='D':
-            for topic in self.icd_topic_options:
-                vocab[f"D{topic[0]}-D{topic[1]}"] = self.get_topic('D'+topic[0])
-            vocab['DU'] = self.get_topic('DU')
-            vocab['DV'] = self.get_topic('DV')
-        if type=='M':
-            for topic in self.atc_topic_ls:
-                vocab[f"M{topic}"] = self.get_topic(f"M{topic}")
-        return vocab
-
-    def get_lower_level_vocab(self, level):
-        # Looks good so far
-        vocab = {'[ZERO]':0}
-        for code_type in self.code_types:
-            if code_type=='L':
-                for code in self.medcodes.get_lab():
-                    vocab[code] = 0 # we placed the labtests on level 1
-            prefix = self.medcodes.prefix_dic[code_type]
-            getter_func = getattr(self, 'add_'+ prefix +'_to_vocab')
-            vocab = getter_func(vocab, level)
-
-        vocab = self.add_special_to_vocab(vocab)
-        # TODO: add adm, opr, pro, til, uly, und, lab
-        return vocab 
-
-    def get_temp_vocab_type(self):
-        """Get a temporary vocab for types of codes e.g. [CLS], [SEX], Diagnoses"""
-        temp_keys = [code.split(']')[0]+']' for code in self.special_tokens]
-        temp_keys += self.code_types 
-        temp_vocab = {token:idx+1 for idx, token in enumerate(temp_keys)}
-        return temp_vocab
-
-    def add_icd_to_vocab(self, vocab, level):
-        """Add disease codes to vocabulary levels lower than 1"""
-        temp_vocab = self.get_temp_vocab_icd(level)
-        
-        for code in self.medcodes.get_icd():
-            if code.startswith(('DU', 'DV')):
-                vocab = self.handle_special_disease_codes(code, level, vocab, temp_vocab)
-            else:
-                if level==2:
-                    vocab[code] = temp_vocab[code[:4]]
-                else:
-                    vocab = self.insert_code_part(vocab, code, temp_vocab, level+1)
-        return vocab
-
-    def add_atc_to_vocab(self, vocab, level):
-        """Add medication codes at levels lower than 1"""
-        temp_vocab = self.get_temp_vocab_atc(level)
-        for code in self.medcodes.get_atc():
-            if level==2:
-                vocab[code] = temp_vocab[code[2:4]]
-            elif level==3 or level==4:
-                vocab = self.insert_code_part(vocab, code, temp_vocab, level+1)
-            else:
-                vocab = self.insert_code_part(vocab, code, temp_vocab, [level+1, level+3])
-        return vocab
-
-    def add_special_to_vocab(self, vocab):
-        """Add special tokens to vocab, at levels lower than 1, we append zeros 
-        which will be turned into zero vectors"""
-        special_codes = [k for k in self.main_vocab if k.startswith('[')]
-        for code in special_codes:
-            vocab[code] = 0
-        return vocab
-
-    @staticmethod
-    def insert_code_part_part(vocab, code, temp_vocab, ids):
-        """Insert part of the code into the vocabulary"""
-        if isinstance(ids, int):
-            ids = [ids, ids+1]
-        if len(code)>=(ids[1]):
-            vocab[code] = temp_vocab[code[ids[0]:ids[1]]]
-        else:
-            vocab[code] = 0
-        return vocab
-        
-    def handle_special_disease_codes(self, code, level, vocab, temp_vocab):
-        """Handle special codes DU, DV"""
-        def handle_two_digit_code():
-            """Handle special codes followed by (at least) two digits"""
-            if level==2: 
-                vocab[code] = self.abc123_voc[code[2:4]] # two digits
-            else:
-                if level>=len(code):
-                    vocab[code] = 0 # code ends here (leaf node), fill with zeros
-                else:
-                    vocab[code] = self.abc123_voc[code[level]] # we fill all level below with zero
-        def handle_DUA_DUB_DUH():
-            if level==2:
-                vocab[code] = self.abc123_voc[code[2]]
-            elif level==3: # next two integers stand for a measure e.g. DUA10 is 10 cm circumference
-                vocab[code] = self.abc123_voc[code[3:5]]
-            else: #DVRA, DVRB, DVRK
-                if level>=len(code)-1: # we skip the last digit since level 3 covered two digits
-                    vocab[code] = 0 # code ends here (leaf node), fill with zeros
-                else:
-                    vocab[code] = self.abc123_voc[code[level+1]] # we fill all level below with zero
-        def handle_DVRK01():
-            if level==2:
-                vocab[code] = self.abc123_voc[code[3]]
-            else:
-                vocab[code] = 0
-        def handle_DUP_DUT_DVA():
-            if level==2:
-                vocab[code] = self.abc123_voc[code[2]]
-            elif level==3:
-                if self.all_digits(code[3:5]) or code[3:5]=='XX':
-                    vocab[code] = self.abc123_voc[code[3:5]]
-                else:
-                    vocab[code] = self.abc123_voc[code[3]]
-            else:
-                vocab[code] = 0
-        def handle_DVRA_DVRB():
-            if level==2:
-                vocab[code] = self.abc123_voc[code[2:4]] # determine if it is A or B
-            elif level==3: # next two integers stand for a measure e.g. DUA10 is 10 cm circumference
-                vocab[code] = self.abc123_voc[code[4:6]]
-            elif level==4: # sometimes followed by a letter
-                if len(code)==7:
-                    vocab[code] = self.abc123_voc[code[6]]
-                else:
-                    vocab[code] = 0
-            else:
-                vocab[code] = 0
-        
-        if self.all_digits(code[2:4]):
-            handle_two_digit_code()
-        elif code.startswith(('DUA', 'DUB', 'DUH')):
-            handle_DUA_DUB_DUH()
-        elif code=='DVRK01':
-            handle_DVRK01()
-        elif code.startswith(('DUP', 'DUT', 'DVA')):
-            handle_DUP_DUT_DVA()
-        elif code.startswith(('DVRA', 'DVRB')):
-            handle_DVRA_DVRB()
-        else:
-            vocab[code] =  temp_vocab[code[:4]]
-        return vocab
-
-    def get_temp_vocab_icd(self, level):
-        """Construct a temporary vocabulary for categories for icd codes"""
-        temp_vocab = {'[ZERO]':0}                
-        special_codes_u = ['DUA', 'DUB', 'DUH', 'DUP', 'DUT'] # different birth-related codes
-        special_codes_v = ['DVA', 'DVRA', 'DVRB', 'DVRK01'] # placenta weight, height weight ...
-        special_codes = special_codes_u + special_codes_v
-    
-        if level>=3:
-            temp_vocab = self.add_alphanumeric_vocab(temp_vocab)
-            temp_vocab = self.add_two_digit_vocab(temp_vocab)
-            temp_vocab = self.insert_code('XX', temp_vocab)
-            temp_vocab = self.insert_code('02A', temp_vocab)
-            return temp_vocab
-        
-        for code in self.medcodes.get_icd():
-            if code.startswith('DU') or code.startswith('DV'):
-                # special codes
-                special_code_bool = [code.startswith(s) for s in special_codes]
-                if any(special_code_bool):
-                    key = special_codes[special_code_bool.index(True)]
-                    if level==2:
-                        temp_vocab = self.insert_code(key, temp_vocab) 
-                elif code[3].isdigit(): # duration of pregancy DUwwDdd or size of placenta 
-                    if level==2:
-                        temp_vocab = self.insert_code(code[:2], temp_vocab)
-                else:
-                    if level==2:
-                        temp_vocab = self.insert_code(code[:3], temp_vocab)
-            else: 
-                if level==2:
-                    temp_vocab = self.insert_code(code[:4], temp_vocab)
-        
-            
-        return temp_vocab
-
-    def get_temp_vocab_atc(self, level):
-        """Construct a temporary vocabulary for categories for atc codes"""
-        temp_vocab = {'[ZERO]':0}                
-        if level==2:
-            temp_vocab = self.add_two_digit_vocab(temp_vocab)
-        elif level==3 or level==4:
-            temp_vocab = self.add_alphanumeric_vocab(temp_vocab)
-        else:
-            temp_vocab = self.add_two_digit_vocab(temp_vocab)
-        return temp_vocab
+    def init_temp_vocabs(self):
+        self.alphanumeric_vocab = self.add_alphanumeric_vocab()
+        self.two_digit_vocab = self.add_two_digit_vocab()
+        self.icd_category_vocab = self.add_icd_category_vocab()
+        self.abc123_voc = self.add_two_letter_vocab(self.add_two_digit_vocab(self.alphanumeric_vocab)) # complete vocabulary with 1 and 2 letter codes
 
     @staticmethod
     def add_two_digit_vocab(temp_vocab:Dict[str, int]={'[ZERO]':0})->Dict[str, int]:
@@ -462,61 +457,23 @@ class SKSVocabConstructor():
         return temp_vocab
 
     @staticmethod
-    def insert_code(code, voc):
-        """Insert a code into the vocabulary"""
-        if code not in voc:
-            voc[code] = len(voc)
-        return voc
-    @staticmethod
-    def same_type(codes):
-        """Check if all codes are of the same type (ATC or ICD)"""
-        # Get the first character of the first string
-        first_char = codes[0][0]
-        # Iterate over the strings and compare the first character of each string to the first character of the first string
-        for code in codes:
-            if code[0] != first_char:
-                return False
-        return True
+    def add_icd_category_vocab(temp_vocab:Dict[str, int]={'[ZERO]':0})->Dict[str, int]:
+        """Takes a vocabulary, and extends it with the two letter codes len(vocab)+1:0, len(vocab)+2:1, ...)"""
+        for X in string.ascii_uppercase:
+            for i in range(10):
+                for j in range(10):
+                    temp_vocab['D'+X+ str(i)+str(j)] = len(temp_vocab)
+        return temp_vocab
 
-    @staticmethod
-    def all_digits(codes):
-        """Check if a string only contains digits"""
-        return all([c.isdigit() for c in codes])
-
-    def get_topic(self, code):
-        if code.startswith('M'):
-            return self.get_ATC_topic(code)
-        elif code.startswith('D'):
-            return self.get_ICD_topic(code)
-        else:
-            print(f"Code type starting with {code[0]} not implemented yet")
-
-    def get_ATC_topic(self, code):
-        """Returns the topic of an ATC code, here it's simply the first letter of the code'"""
-        atc_topic_dic = {topic:(i+1) for i, topic in enumerate(self.atc_topic_ls)}
-        if code[1] in atc_topic_dic:
-            return atc_topic_dic[code[1]]
-        else:
-            return len(self.atc_topic_ls)+2 #we start at 1, so we need to add 2
-    
-    def get_ICD_topic(self, code):
-        for i, option in enumerate(self.icd_topic_options):
-            if option[0] <= code[1:4] <= option[1]:
-                return i+1
-            elif code.startswith("DU"): # special codes (childbirth and pregnancy)
-                return len(self.icd_topic_options)+2
-            elif code.startswith("DV"): #weight, height and various other codes
-                return len(self.icd_topic_options)+3
-        return len(self.icd_topic_options)+4
     @staticmethod
     def unique_nodes(h_vocab: Dict[str, Tuple])->bool:
         """Check that nodes are unique."""
         nodes = []
-        for k, v in h_vocab.items():
+        for k, v in tqdm(h_vocab.items(), 'Checking nodes for uniqueness'):
             if v in nodes:
                 print(k)
                 print(f'Node {v} is not unique!')
-                print([k for k,v in h_vocab.items() if v == nodes[-1]])
+                print({k:v2 for k, v2 in h_vocab.items() if v2==v})
                 return False
             nodes.append(v)
         return True

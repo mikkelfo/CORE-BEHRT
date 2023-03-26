@@ -75,7 +75,7 @@ class EHRTrainer():
 
                     train_loop.set_postfix(loss=step_loss / accumulation_steps)
                     tqdm.write(f'Train loss {(i+1) // accumulation_steps}: {step_loss / accumulation_steps}')
-                    epoch_loss.append(step_loss)
+                    epoch_loss.append(step_loss / accumulation_steps)
                     step_loss = 0
 
                 # Save iteration checkpoint

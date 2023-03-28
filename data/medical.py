@@ -3,7 +3,7 @@ import random
 import string
 from os.path import dirname, join
 from typing import Dict, List, Tuple
-
+import torch
 import pandas as pd
 from tqdm import tqdm
 
@@ -104,7 +104,7 @@ class SKSVocabConstructor():
         code_types: list of code types to include in the vocabulary (by prefix D, M, L)
         num_levels: number of levels in the hierarchy, don't change this if you don't know what you are doing.
         """
-
+        
         self.code_types = code_types
         for code_type in self.code_types:
             if code_type not in ['D', 'M']:
@@ -130,9 +130,9 @@ class SKSVocabConstructor():
         self.topics = {'D':self.icd_topic_options, 'M':self.atc_topic_ls}
 
         self.init_temp_vocabs()
-        
 
-    def __call__(self)->Tuple[Dict[str, int], Dict[str, Tuple[int]]]:
+
+    def __call__(self, check_for_uniqueness=True)->Tuple[Dict[str, int], Dict[str, Tuple[int]]]:
         """Return vocab, mapping concepts to tuples, where each tuple element is a code on a level
         The dictionares contain concept present in the SKS code and the ones inmain vocab.
         types contains the types of codes to be included in the vocabulary, e.g. ['D', 'M', 'L']"""
@@ -145,14 +145,32 @@ class SKSVocabConstructor():
         # we add zeros to lower levels
         self.fill_with_zeros() 
        
-        h_vocab = {} # this is the dictionary of tuples (first vocab contains all the concepts)
+        tree = {} # this is the dictionary of tuples (first vocab contains all the concepts)
         for concept in self.vocabs[0]:
-            h_vocab[concept] = self.map_concept_to_tuple(concept)
+            tree[concept] = self.map_concept_to_tuple(concept)
         
-        if not self.unique_nodes(h_vocab):
-            raise ValueError('Not all nodes are unique')
-        
-        return self.main_vocab, h_vocab
+        if check_for_uniqueness:
+            if not self.unique_nodes(tree):
+                raise ValueError('Not all nodes are unique')
+        del tree['[ZERO]']
+
+        tree = self.extend_leafs_to_bottom(tree)
+
+        return self.main_vocab, tree
+
+    def extend_leafs_to_bottom(self, tree:Dict[str, Tuple]):
+        """Leafs that are not on the bottom level are filled with 1s"""
+        tree_tensor = torch.tensor([v for _, v in tree.items()], dtype=torch.long)[:1000]
+        for row_id in tqdm(range(len(tree_tensor)), 'extend_leafs_to_bottom'):        
+            if (tree_tensor[row_id]!=0).sum()==0:
+                continue
+            bottom_level = (tree_tensor[row_id]!=0).nonzero()[-1]+1
+            mask = tree_tensor[row_id, :bottom_level] == tree_tensor[:, :bottom_level]
+            if mask.sum()<2:
+                tree_tensor[row_id, bottom_level:] = 1
+            # insert back into vocab
+        tree = {k:tree_tensor[row_id].tolist() for row_id, k in enumerate(list(tree.keys())[:1000])}
+        return tree
 
     def handle_level_one(self):
         """Add special tokens and code types to the first level"""
@@ -479,28 +497,36 @@ class SKSVocabConstructor():
         return True
 
 
-class TreeConstructor():
+class TableConstructor():
     """Extending SKSVocab to a full tree structure."""
-    def __init__(self, main_vocab=None, code_types=['D', 'M'], num_levels=7, test=False, data=None) -> None:
-        _, self.sks_vocab = SKSVocabConstructor(main_vocab, code_types, num_levels)()
-        if test:
-            data_flat = [item for sublist in data['concept'] for item in sublist]
-            self.sks_vocab = {k: self.sks_vocab[k] for k in data_flat if k in self.sks_vocab}
-            # rand_keys = random.sample(sorted(self.sks_vocab), 1000)
-            # self.sks_vocab = {k: self.sks_vocab[k] for k in rand_keys}
-            # self.sks_vocab = {'A':(1,0,0), 'X':(4,1,1),'B':(2,0,0), 'Aa':(1,1,0), 'Ab':(1,2,0), 'Ba':(2,1,0), 'Bb':(2,2,0), 'Ca':(3,1,0)}
-            # self.sks_vocab = {'A':(1,0,0,0), 'Aa':(1,1,0,0), 'Ab':(1,2,0,0), 'Ba':(2,1,0,0), 'Bbaa':(2,2,1,1), 'D':(1,2,0,0)}
+    def __init__(self, sks_tree=None, main_vocab=None, code_types=['D', 'M'], num_levels=7) -> None:
+        if isinstance(sks_tree, type(None)):
+            _, self.sks_tree = SKSVocabConstructor(main_vocab, code_types, num_levels)()
+        else:
+            self.sks_tree = sks_tree
 
-    def __call__(self)->Tuple[List[Dict[str, Tuple]], pd.DataFrame, pd.DataFrame]:
-        self.extended_sks_vocab_ls = self.extend_leafs(self.sks_vocab) # extend leaf nodes to bottom level
-        self.full_sks_vocab_ls = self.fill_parents(self.extended_sks_vocab_ls) # fill parents to top level
-        self.df_sks_names, self.df_sks_tuples = self.construct_h_table_from_dics(self.full_sks_vocab_ls) # full table of the SKS vocab tree
-        return self.full_sks_vocab_ls, self.df_sks_names, self.df_sks_tuples
+    def __call__(self, data=None, test=False)->Tuple[List[Dict[str, Tuple]], pd.DataFrame, pd.DataFrame]:
+        """data only needed for test"""
+        if test:
+            # data_flat = [item for sublist in data['concept'] for item in sublist]
+            # self.sks_tree = {k: self.sks_tree[k] for k in data_flat if k in self.sks_tree}
+            rand_keys = random.sample(sorted(self.sks_tree), 1000)
+            self.sks_tree = {k: self.sks_tree[k] for k in rand_keys}
+            # self.sks_tree = {'A':(1,0,0), 'X':(4,1,1),'B':(2,0,0), 'Aa':(1,1,0), 'Ab':(1,2,0), 'Ba':(2,1,0), 'Bb':(2,2,0), 'Ca':(3,1,0)}
+            # self.sks_tree = {'A':(1,0,0,0), 'Aa':(1,1,0,0), 'Ab':(1,2,0,0), 'Ba':(2,1,0,0), 'Bbaa':(2,2,1,1), 'D':(1,2,0,0)}
+        
+        self.sks_tree_ls = self.get_sks_tree_ls(self.sks_tree)
+        # SKSVocabConstructor.unique_nodes(self.extended_sks_tree_ls)
+        # self.full_sks_tree_ls = self.fill_parents(self.extended_sks_tree_ls) # fill parents to top level
+        self.df_sks_names, self.df_sks_tuples = self.construct_h_table_from_dics(self.sks_tree_ls) # full table of the SKS vocab tree
+        return self.sks_tree_ls, self.df_sks_names, self.df_sks_tuples
+
+
 
     def extend_leafs(self, h_dic:Dict[str, Tuple])->List[Dict]:
         """Takes a list of ordered dictionaries, where each dictionary represents nodes on one hierarchy level by tuples
         and extends leafs that are not on the lowest level"""
-        tree = self.get_sks_vocab_ls(h_dic) # turn dict of tuples into list of dicts, one for each level
+        tree = self.get_sks_tree_ls(h_dic) # turn dict of tuples into list of dicts, one for each level
         for level in tqdm(range(len(tree)-1), desc='extending leafs'):
             tree[level+1] = self.extend_one_level(tree[level], tree[level+1], level+1)
         return tree
@@ -558,11 +584,11 @@ class TreeConstructor():
         return df_sks_names, df_sks_tuples
 
     @staticmethod
-    def get_sks_vocab_ls(sks_vocab_tup:Dict[str, Tuple])->List[Dict[str, Tuple]]:
+    def get_sks_tree_ls(sks_tree_tup:Dict[str, Tuple])->List[Dict[str, Tuple]]:
         """Convert tuple dict to a list of dicts, one for each level"""
-        num_levels = len(sks_vocab_tup[list(sks_vocab_tup.keys())[0]])
+        num_levels = len(sks_tree_tup[list(sks_tree_tup.keys())[0]])
         vocab_ls = [dict() for _ in range(num_levels)]
-        for node_key, node in sks_vocab_tup.items():
+        for node_key, node in sks_tree_tup.items():
             if 0 in node:
                 level = node.index(0)
             else:

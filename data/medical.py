@@ -92,6 +92,7 @@ class MedicalCodes():
         return sorted(self.get_codes_type('und'))
 
 #TODO: Implement subtopics for ICD codes
+#TODO: Add option to reduce level, and flatten nodes from levels below
 class SKSVocabConstructor():
     """
     Construct two vocabularies for medical codes, mapping to integers and tuples (nodes).
@@ -498,7 +499,7 @@ class SKSVocabConstructor():
 
 
 class TableConstructor():
-    """Extending SKSVocab to a full tree structure."""
+    """Producing tables with names and tuples of the entire tree."""
     def __init__(self, sks_tree=None, main_vocab=None, code_types=['D', 'M'], num_levels=8) -> None:
         if isinstance(sks_tree, type(None)):
             print("Constructing SKS tree...")
@@ -506,22 +507,13 @@ class TableConstructor():
         else:
             self.sks_tree = sks_tree
 
-    def __call__(self, data=None, test=False)->Tuple[List[Dict[str, Tuple]], pd.DataFrame, pd.DataFrame]:
-        """data only needed for test"""
-        if test:
-            # data_flat = [item for sublist in data['concept'] for item in sublist]
-            # self.sks_tree = {k: self.sks_tree[k] for k in data_flat if k in self.sks_tree}
-            rand_keys = random.sample(sorted(self.sks_tree), 1000)
-            self.sks_tree = {k: self.sks_tree[k] for k in rand_keys}
-            # self.sks_tree = {'A':(1,0,0), 'X':(4,1,1),'B':(2,0,0), 'Aa':(1,1,0), 'Ab':(1,2,0), 'Ba':(2,1,0), 'Bb':(2,2,0), 'Ca':(3,1,0)}
-            # self.sks_tree = {'A':(1,0,0,0), 'Aa':(1,1,0,0), 'Ab':(1,2,0,0), 'Ba':(2,1,0,0), 'Bbaa':(2,2,1,1), 'D':(1,2,0,0)}
-        
+    def __call__(self)->Tuple[pd.DataFrame, pd.DataFrame]:
         # split the levels into several dicts, to avoid issues with repeating keys
-        self.sks_tree_ls = self.get_sks_tree_ls(self.sks_tree)
+        self.tree_ls = self.get_sks_tree_ls(self.sks_tree)
         # fill parents to top level, e.g.: SEP:(1,1,1) ->  SEP:(1,1,0), SEP:(1,0,0), in separate dicts
-        self.extended_sks_tree_ls = self.fill_parents(self.extended_sks_tree_ls) 
-        self.df_sks_names, self.df_sks_tuples = self.construct_h_table_from_dics(self.extended_sks_tree_ls) # full table of the SKS vocab tree
-        return self.df_sks_names, self.df_sks_tuples
+        self.extended_tree_ls = self.fill_parents(self.tree_ls) 
+        names, tuples = self.construct_h_table_from_dics(self.extended_tree_ls) # full table of the SKS vocab tree
+        return names, tuples
     
     def construct_h_table_from_dics(self, tree:List[Dict[str, tuple]])->tuple[pd.DataFrame, pd.DataFrame]:
         """
@@ -555,7 +547,7 @@ class TableConstructor():
     @staticmethod
     def fill_parents_one_level(node_dic0:Dict[str, Tuple], node_dic1:Dict[str, Tuple], node_dic1_level:int, n_levels:int):
         """Takes two dictionaries on two adjacent levels and fills in missing parents."""
-        for node1_key, node1 in tqdm(node_dic1.items(), desc='filling parents'):
+        for node1_key, node1 in node_dic1.items():
             parent_node = node1[:node_dic1_level] + (0,)*(n_levels-node_dic1_level)# fill with zeros to the end of the tuple
             if parent_node not in node_dic0.values():
                 node_dic0[node1_key] = parent_node
@@ -579,7 +571,6 @@ class TableConstructor():
         """Takes a list of ordered dictionaries, where each dictionary represents nodes on one hierarchy level by tuples
         and replicates nodes on one level to match the level below"""
         tree = tree[::-1] # we invert the list to go from the bottom to the top
-        print(tree[-1])
         dic_bottom = tree[0] # lowest level
         ls_bottom = sorted([v for v in dic_bottom.values()])
 
@@ -588,7 +579,7 @@ class TableConstructor():
         ls_ls_tup = [] 
         ls_ls_tup.append(ls_bottom) # we can append the lowest level as it is
         
-        for top_level in tqdm(range(1, len(tree)), desc='Synchronizing levels'): #start from second entry
+        for top_level in range(1, len(tree)): #start from second entry
             dic_top = tree[top_level]
             ls_top = sorted([v for v in dic_top.values()])
             ls_bottom = ls_ls_tup[top_level-1]

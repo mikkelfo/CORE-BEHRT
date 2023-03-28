@@ -160,7 +160,7 @@ class SKSVocabConstructor():
 
     def extend_leafs_to_bottom(self, tree:Dict[str, Tuple]):
         """Leafs that are not on the bottom level are filled with 1s"""
-        tree_tensor = torch.tensor([v for _, v in tree.items()], dtype=torch.long)[:1000]
+        tree_tensor = torch.tensor([v for _, v in tree.items()], dtype=torch.long)
         for row_id in tqdm(range(len(tree_tensor)), 'extend_leafs_to_bottom'):        
             if (tree_tensor[row_id]!=0).sum()==0:
                 continue
@@ -169,7 +169,7 @@ class SKSVocabConstructor():
             if mask.sum()<2:
                 tree_tensor[row_id, bottom_level:] = 1
             # insert back into vocab
-        tree = {k:tree_tensor[row_id].tolist() for row_id, k in enumerate(list(tree.keys())[:1000])}
+        tree = {k:tuple(tree_tensor[row_id].tolist()) for row_id, k in enumerate(tree.keys())}
         return tree
 
     def handle_level_one(self):
@@ -499,8 +499,9 @@ class SKSVocabConstructor():
 
 class TableConstructor():
     """Extending SKSVocab to a full tree structure."""
-    def __init__(self, sks_tree=None, main_vocab=None, code_types=['D', 'M'], num_levels=7) -> None:
+    def __init__(self, sks_tree=None, main_vocab=None, code_types=['D', 'M'], num_levels=8) -> None:
         if isinstance(sks_tree, type(None)):
+            print("Constructing SKS tree...")
             _, self.sks_tree = SKSVocabConstructor(main_vocab, code_types, num_levels)()
         else:
             self.sks_tree = sks_tree
@@ -515,39 +516,34 @@ class TableConstructor():
             # self.sks_tree = {'A':(1,0,0), 'X':(4,1,1),'B':(2,0,0), 'Aa':(1,1,0), 'Ab':(1,2,0), 'Ba':(2,1,0), 'Bb':(2,2,0), 'Ca':(3,1,0)}
             # self.sks_tree = {'A':(1,0,0,0), 'Aa':(1,1,0,0), 'Ab':(1,2,0,0), 'Ba':(2,1,0,0), 'Bbaa':(2,2,1,1), 'D':(1,2,0,0)}
         
+        # split the levels into several dicts, to avoid issues with repeating keys
         self.sks_tree_ls = self.get_sks_tree_ls(self.sks_tree)
-        # SKSVocabConstructor.unique_nodes(self.extended_sks_tree_ls)
-        # self.full_sks_tree_ls = self.fill_parents(self.extended_sks_tree_ls) # fill parents to top level
-        self.df_sks_names, self.df_sks_tuples = self.construct_h_table_from_dics(self.sks_tree_ls) # full table of the SKS vocab tree
-        return self.sks_tree_ls, self.df_sks_names, self.df_sks_tuples
-
-
-
-    def extend_leafs(self, h_dic:Dict[str, Tuple])->List[Dict]:
-        """Takes a list of ordered dictionaries, where each dictionary represents nodes on one hierarchy level by tuples
-        and extends leafs that are not on the lowest level"""
-        tree = self.get_sks_tree_ls(h_dic) # turn dict of tuples into list of dicts, one for each level
-        for level in tqdm(range(len(tree)-1), desc='extending leafs'):
-            tree[level+1] = self.extend_one_level(tree[level], tree[level+1], level+1)
-        return tree
-        
-    @staticmethod
-    def extend_one_level(nodes0:Dict[str, Tuple], nodes1:Dict[str, Tuple], nodes1_lvl:int) -> Dict[str, Tuple]:
-        """Takes a two dictionaries on two adjacent levels and extends the leafs of the first to the second one. 
-        dic0: dictionary on level i
-        dic1: dictionary on level i+1
-        dic1_level: level i+1"""
-        for node0_key, node0 in tqdm(nodes0.items(), desc='extending level'):
-            flag = False
-            for _, node1 in nodes1.items():
-                if (node0[:nodes1_lvl]==node1[:nodes1_lvl]):
-                    flag = True
-                    break
-
-            if not flag:
-                nodes1[node0_key] = node0[:nodes1_lvl] + (1,) + node0[nodes1_lvl+1:]
-        return nodes1
+        # fill parents to top level, e.g.: SEP:(1,1,1) ->  SEP:(1,1,0), SEP:(1,0,0), in separate dicts
+        self.extended_sks_tree_ls = self.fill_parents(self.extended_sks_tree_ls) 
+        self.df_sks_names, self.df_sks_tuples = self.construct_h_table_from_dics(self.extended_sks_tree_ls) # full table of the SKS vocab tree
+        return self.df_sks_names, self.df_sks_tuples
     
+    def construct_h_table_from_dics(self, tree:List[Dict[str, tuple]])->tuple[pd.DataFrame, pd.DataFrame]:
+        """
+        Main function to construct the SKS vocab tree.
+        From a list of dictionaries construct two pands dataframes, where each dictionary represents a column
+        The relationship of the rows is defined by the tuples in the dictionaries
+        """
+        
+        synchronized_ls = self.synchronize_levels(tree)
+        lengths = []
+        for ls in synchronized_ls:
+            lengths.append(len(ls))
+        inv_tree = [self.invert_dic(dic) for dic in tree]
+        df_sks_tuples= pd.DataFrame(synchronized_ls).T
+        
+        df_sks_names = df_sks_tuples.copy()
+        # map onto names
+        for i, col in enumerate(df_sks_tuples.columns):
+            df_sks_names[col] = df_sks_tuples[col].map(lambda x: inv_tree[i][x])
+        
+        return df_sks_names, df_sks_tuples    
+
     def fill_parents(self, tree:List[Dict[str, Tuple]])->List[Dict]:
         """Takes a list of ordered dictionaries, where each dictionary represents nodes on one hierarchy level by tuples
         and fills in missing parents"""
@@ -566,23 +562,6 @@ class TableConstructor():
         return node_dic0
     
 
-    def construct_h_table_from_dics(self, tree:List[Dict[str, tuple]])->tuple[pd.DataFrame, pd.DataFrame]:
-        """From a list of dictionaries construct two pands dataframes, where each dictionary represents a column
-        The relationship of the rows is defined by the tuples in the dictionaries"""
-        
-        synchronized_ls = self.synchronize_levels(tree)
-        lengths = []
-        for ls in synchronized_ls:
-            lengths.append(len(ls))
-        inv_tree = [self.invert_dic(dic) for dic in tree]
-        df_sks_tuples= pd.DataFrame(synchronized_ls).T
-        df_sks_names = df_sks_tuples.copy()
-        # map onto names
-        for i, col in enumerate(df_sks_tuples.columns):
-            df_sks_names[col] = df_sks_tuples[col].map(lambda x: inv_tree[i][x])
-        
-        return df_sks_names, df_sks_tuples
-
     @staticmethod
     def get_sks_tree_ls(sks_tree_tup:Dict[str, Tuple])->List[Dict[str, Tuple]]:
         """Convert tuple dict to a list of dicts, one for each level"""
@@ -592,16 +571,15 @@ class TableConstructor():
             if 0 in node:
                 level = node.index(0)
             else:
-                level = -1
+                level = num_levels 
             vocab_ls[level-1][node_key] = node
         return vocab_ls
     
-
     def synchronize_levels(self, tree:List[Dict[str, tuple]])->List[List]:
         """Takes a list of ordered dictionaries, where each dictionary represents nodes on one hierarchy level by tuples
         and replicates nodes on one level to match the level below"""
         tree = tree[::-1] # we invert the list to go from the bottom to the top
-
+        print(tree[-1])
         dic_bottom = tree[0] # lowest level
         ls_bottom = sorted([v for v in dic_bottom.values()])
 

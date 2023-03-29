@@ -521,15 +521,12 @@ class TableConstructor():
         From a list of dictionaries construct two pands dataframes, where each dictionary represents a column
         The relationship of the rows is defined by the tuples in the dictionaries
         """
-        print(len(tree[2]))
-        print(tree[-1])
-        synchronized_ls = self.synchronize_levels(tree)
-        for ls in synchronized_ls:
-            print(len(ls))
-        inv_tree = [self.invert_dic(dic) for dic in tree]
-        df_sks_tuples= pd.DataFrame(synchronized_ls).T
+        synchronized_ls = self.synchronize_levels(tree) # list of dictionaries, one for each level
         
+        df_sks_tuples= pd.DataFrame(synchronized_ls).T
         df_sks_names = df_sks_tuples.copy()
+        
+        inv_tree = [self.invert_dic(dic) for dic in tree] 
         # map onto names
         for i, col in enumerate(df_sks_tuples.columns):
             df_sks_names[col] = df_sks_tuples[col].map(lambda x: inv_tree[i][x])
@@ -545,13 +542,13 @@ class TableConstructor():
         return tree
 
     @staticmethod
-    def fill_parents_one_level(node_dic0:Dict[str, Tuple], node_dic1:Dict[str, Tuple], node_dic1_level:int, n_levels:int):
+    def fill_parents_one_level(parent_dic:Dict[str, Tuple], child_dic:Dict[str, Tuple], child_dic_level:int, n_levels:int):
         """Takes two dictionaries on two adjacent levels and fills in missing parents."""
-        for node1_key, node1 in node_dic1.items():
-            parent_node = node1[:node_dic1_level] + (0,)*(n_levels-node_dic1_level)# fill with zeros to the end of the tuple
-            if parent_node not in node_dic0.values():
-                node_dic0[node1_key] = parent_node
-        return node_dic0
+        for child_name, child_node in tqdm(child_dic.items(), 'Level '+str(child_dic_level-1)):
+            parent_node = child_node[:child_dic_level] + (0,)*(n_levels-child_dic_level)# fill with zeros to the end of the tuple
+            if parent_node not in parent_dic.values():
+                parent_dic[child_name] = parent_node
+        return parent_dic
     
 
     @staticmethod
@@ -567,7 +564,7 @@ class TableConstructor():
             vocab_ls[level-1][node_key] = node
         return vocab_ls
     
-    def synchronize_levels(self, tree:List[Dict[str, tuple]])->List[List]:
+    def synchronize_levels(self, tree:List[Dict[str, Tuple]])->List[List[Tuple]]:
         """Takes a list of ordered dictionaries, where each dictionary represents nodes on one hierarchy level by tuples
         and replicates nodes on one level to match the level below"""
         tree = tree[::-1] # we invert the list to go from the bottom to the top
@@ -579,7 +576,7 @@ class TableConstructor():
         ls_ls_tup = [] 
         ls_ls_tup.append(ls_bottom) # we can append the lowest level as it is
         
-        for top_level in range(1, len(tree)): #start from second entry
+        for top_level in tqdm(range(1, len(tree)), desc='Syncrhonize'): #start from second entry
             dic_top = tree[top_level]
             ls_top = sorted([v for v in dic_top.values()])
             ls_bottom = ls_ls_tup[top_level-1]
@@ -590,14 +587,14 @@ class TableConstructor():
         return ls_ls_tup
 
     @staticmethod
-    def replicate_nodes_to_match_lower_level(nodes0: List[tuple], nodes1:List[tuple], nodes1_level:int)->List[tuple]:
+    def replicate_nodes_to_match_lower_level(top_nodes: List[tuple], bottom_nodes:List[tuple], bottom_level:int)->List[tuple]:
         """Given two lists of nodes on two adjacent levels, replicate nodes of dic0 to match dic1."""
-        new_nodes0 = []
-        for node1 in nodes1:
-            for node0 in nodes0:
-                if node0[:nodes1_level] == node1[:nodes1_level]:
-                    new_nodes0.append(node0)
-        return new_nodes0
+        new_top_nodes = []
+        for bottom_node in tqdm(bottom_nodes, desc='replicate node'):
+            for top_node in top_nodes:
+                if top_node[:bottom_level] == bottom_node[:bottom_level]:
+                    new_top_nodes.append(top_node)
+        return new_top_nodes
 
     @staticmethod
     def invert_dic(dic:Dict)->Dict:

@@ -165,10 +165,10 @@ class SKSVocabConstructor():
         for row_id in tqdm(range(len(tree_tensor)), 'extend_leafs_to_bottom'):        
             if (tree_tensor[row_id]!=0).all(): # already at bottom level
                 continue
-            bottom_level = (tree_tensor[row_id]!=0).nonzero()[-1]+1
-            mask = (tree_tensor[row_id, :bottom_level] == tree_tensor[:, :bottom_level]).all(dim=1)
-            if mask.sum()<2:
-                tree_tensor[row_id, bottom_level:] = 1
+            leaf_level = (tree_tensor[row_id]!=0).nonzero()[-1]+1 
+            children_mask = (tree_tensor[row_id, :leaf_level] == tree_tensor[:, :leaf_level]).all(dim=1) 
+            if children_mask.sum()<=1: # if only equal to itself, no children 
+                tree_tensor[row_id, leaf_level:] = 1
             # insert back into vocab
         tree = {k:tuple(tree_tensor[row_id].tolist()) for row_id, k in enumerate(tree.keys())}
         return tree

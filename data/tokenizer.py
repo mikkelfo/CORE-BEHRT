@@ -5,7 +5,7 @@ from data import medical
 from typing import List, Dict, Tuple
 import pandas as pd
 from tqdm import tqdm
-import random
+
 
 class EHRTokenizer():
     def __init__(self, config, vocabulary=None):
@@ -134,27 +134,30 @@ class H_EHRTokenizer(EHRTokenizer):
     In addition to integer encoding, also encode the hierarchy of the concepts as tuples
     and return hierarchical vocabulary. Also constructs a dataframe with the SKS names and coresponding tuples.
     """
-    def __init__(self, config:Dict, vocabulary:Dict=None, full_sks_vocab_ls:List[Dict]=None, names:pd.DataFrame=None, tuples:pd.DataFrame=None):
-        super().__init__(config, vocabulary)
+    def __init__(self, config:Dict, vocabulary:Dict=None, full_sks_vocab_ls:List[Dict]=None, names_df:pd.DataFrame=None, tuples_df:pd.DataFrame=None):
+        super(H_EHRTokenizer, self).__init__(config, vocabulary)
         self.h_vocabulary = {}
-        if isinstance(full_sks_vocab_ls, type(None)) or isinstance(names, type(None)) or isinstance(tuples, type(None)):
+        if isinstance(full_sks_vocab_ls, type(None)) or isinstance(names_df, type(None)) or isinstance(tuples_df, type(None)):
             constructor = medical.TableConstructor(main_vocab=self.vocabulary)
             self.full_sks_vocab_ls, self.df_sks_names, self.df_sks_tuples = constructor(main_vocab=self.vocabulary)()
         else:
             self.full_sks_vocab_ls = full_sks_vocab_ls
-            self.df_sks_names = names
-            self.df_sks_tuples = tuples
+            self.df_sks_names = names_df
+            self.df_sks_tuples = tuples_df
 
-    def __call__(self, features: dict, padding=True, truncation=512):
+    def __call__(self, features: Dict[str,List[List]], padding:bool=True, truncation:int=512):
+        concepts = features['concept'].copy()
         data = self.batch_encode(features, padding, truncation)
-        data['h_concept'] = self.batch_encode_hierarchy(data)
+        data['h_concept'] = self.batch_encode_hierarchy(concepts, truncation)
         return data
 
-    def batch_encode_hierarchy(self, data:List[List[str]])->List[List[tuple]]:
+    def batch_encode_hierarchy(self, concepts:List[List], padding:bool, truncation:int)->List[List[tuple]]:
         """Encode the hierarchy of the concepts as tuple"""
         h_concepts = [] # list of lists of tuples
-        for patient_concept_ls in data['concept']:
-            h_concepts.append(self.h_encode_patient(patient_concept_ls))
+        for patient_concept_ls in tqdm(concepts, 'h_encode patients'):
+            pat_h_concept_ls = self.h_encode_patient(patient_concept_ls)
+            pat_h_concept_ls = self.h_pad(pat_h_concept_ls, padding, truncation)
+            h_concepts.append(pat_h_concept_ls)
         return h_concepts
 
     def h_encode_patient(self, patient_concept_ls: List[str]):
@@ -168,6 +171,11 @@ class H_EHRTokenizer(EHRTokenizer):
             pat_h_concepts.append(self.h_vocabulary[concept])
         return pat_h_concepts
     
+    # TODO: take care of padding and truncation!
+    def h_pad(self, pat_h_concepts:List[tuple], data:List[List])->List[tuple]:
+        
+        return pat_h_concepts
+
     def add_unknown_concept_to_hierarchy(self, concept:str)->None:
         """Add a new concept to the hierarchy."""
         max_node_lvl0 = self.df_sks_tuples.iloc[:,0].max() # at the first level, get maximum integer value (num root nodes) 

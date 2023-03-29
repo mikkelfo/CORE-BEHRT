@@ -161,12 +161,12 @@ class SKSVocabConstructor():
 
     def extend_leafs_to_bottom(self, tree:Dict[str, Tuple]):
         """Leafs that are not on the bottom level are filled with 1s"""
-        tree_tensor = torch.tensor([v for _, v in tree.items()], dtype=torch.long)
+        tree_tensor = torch.tensor([v for v in tree.values()], dtype=torch.long)
         for row_id in tqdm(range(len(tree_tensor)), 'extend_leafs_to_bottom'):        
-            if (tree_tensor[row_id]!=0).sum()==0:
+            if (tree_tensor[row_id]!=0).all(): # already at bottom level
                 continue
             bottom_level = (tree_tensor[row_id]!=0).nonzero()[-1]+1
-            mask = tree_tensor[row_id, :bottom_level] == tree_tensor[:, :bottom_level]
+            mask = (tree_tensor[row_id, :bottom_level] == tree_tensor[:, :bottom_level]).all(dim=1)
             if mask.sum()<2:
                 tree_tensor[row_id, bottom_level:] = 1
             # insert back into vocab
@@ -521,11 +521,11 @@ class TableConstructor():
         From a list of dictionaries construct two pands dataframes, where each dictionary represents a column
         The relationship of the rows is defined by the tuples in the dictionaries
         """
-        
+        print(len(tree[2]))
+        print(tree[-1])
         synchronized_ls = self.synchronize_levels(tree)
-        lengths = []
         for ls in synchronized_ls:
-            lengths.append(len(ls))
+            print(len(ls))
         inv_tree = [self.invert_dic(dic) for dic in tree]
         df_sks_tuples= pd.DataFrame(synchronized_ls).T
         

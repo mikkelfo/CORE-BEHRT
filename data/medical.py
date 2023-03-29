@@ -513,7 +513,7 @@ class TableConstructor():
         # fill parents to top level, e.g.: SEP:(1,1,1) ->  SEP:(1,1,0), SEP:(1,0,0), in separate dicts
         self.extended_tree_ls = self.fill_parents(self.tree_ls) 
         names, tuples = self.construct_h_table_from_dics(self.extended_tree_ls) # full table of the SKS vocab tree
-        return names, tuples
+        return self.extended_tree_ls, names, tuples
     
     def construct_h_table_from_dics(self, tree:List[Dict[str, tuple]])->tuple[pd.DataFrame, pd.DataFrame]:
         """
@@ -525,7 +525,7 @@ class TableConstructor():
         
         df_sks_tuples= pd.DataFrame(synchronized_ls).T
         df_sks_names = df_sks_tuples.copy()
-        
+
         inv_tree = [self.invert_dic(dic) for dic in tree] 
         # map onto names
         for i, col in enumerate(df_sks_tuples.columns):

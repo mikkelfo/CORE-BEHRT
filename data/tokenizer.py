@@ -1,7 +1,7 @@
 import torch
 from transformers import BatchEncoding
 from os.path import join
-from data.medical import TreeConstructor
+from data import medical
 from typing import List, Dict, Tuple
 import pandas as pd
 from tqdm import tqdm
@@ -134,10 +134,16 @@ class H_EHRTokenizer(EHRTokenizer):
     In addition to integer encoding, also encode the hierarchy of the concepts as tuples
     and return hierarchical vocabulary. Also constructs a dataframe with the SKS names and coresponding tuples.
     """
-    def __init__(self, config, vocabulary=None):
+    def __init__(self, config:Dict, vocabulary:Dict=None, full_sks_vocab_ls:List[Dict]=None, names:pd.DataFrame=None, tuples:pd.DataFrame=None):
         super().__init__(config, vocabulary)
         self.h_vocabulary = {}
-        self.full_sks_vocab_ls, self.df_sks_names, self.df_sks_tuples = TreeConstructor(main_vocab=self.vocabulary)()
+        if isinstance(full_sks_vocab_ls, type(None)) or isinstance(names, type(None)) or isinstance(tuples, type(None)):
+            constructor = medical.TableConstructor(main_vocab=self.vocabulary)
+            self.full_sks_vocab_ls, self.df_sks_names, self.df_sks_tuples = constructor(main_vocab=self.vocabulary)()
+        else:
+            self.full_sks_vocab_ls = full_sks_vocab_ls
+            self.df_sks_names = names
+            self.df_sks_tuples = tuples
 
     def __call__(self, features: dict, padding=True, truncation=512):
         data = self.batch_encode(features, padding, truncation)

@@ -544,7 +544,7 @@ class TableConstructor():
     @staticmethod
     def fill_parents_one_level(parent_dic:Dict[str, Tuple], child_dic:Dict[str, Tuple], child_dic_level:int, n_levels:int):
         """Takes two dictionaries on two adjacent levels and fills in missing parents."""
-        for child_name, child_node in tqdm(child_dic.items(), 'Level '+str(child_dic_level-1)):
+        for child_name, child_node in child_dic.items():
             parent_node = child_node[:child_dic_level] + (0,)*(n_levels-child_dic_level)# fill with zeros to the end of the tuple
             if parent_node not in parent_dic.values():
                 parent_dic[child_name] = parent_node

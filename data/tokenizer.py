@@ -135,12 +135,12 @@ class H_EHRTokenizer(EHRTokenizer):
     In addition to integer encoding, also encode the hierarchy of the concepts as tuples
     and return hierarchical vocabulary. Also constructs a dataframe with the SKS names and coresponding tuples.
     """
-    def __init__(self, config:Dict, vocabulary:Dict=None, full_sks_vocab_ls:List[Dict]=None, names_df:pd.DataFrame=None, tuples_df:pd.DataFrame=None):
+    def __init__(self, config:Dict, vocabulary:Dict=None, code_types=['D','M'], full_sks_vocab_ls:List[Dict]=None, names_df:pd.DataFrame=None, tuples_df:pd.DataFrame=None):
         super(H_EHRTokenizer, self).__init__(config, vocabulary)
         self.h_vocabulary = {}
         if isinstance(full_sks_vocab_ls, type(None)) or isinstance(names_df, type(None)) or isinstance(tuples_df, type(None)):
-            constructor = medical.TableConstructor(main_vocab=self.vocabulary)
-            self.full_sks_vocab_ls, self.df_sks_names, self.df_sks_tuples = constructor(main_vocab=self.vocabulary)()
+            constructor = medical.TableConstructor(main_vocab=self.vocabulary, code_types=code_types)
+            self.full_sks_vocab_ls, self.df_sks_names, self.df_sks_tuples = constructor()
         else:
             self.full_sks_vocab_ls = full_sks_vocab_ls
             self.df_sks_names = names_df
@@ -180,6 +180,8 @@ class H_EHRTokenizer(EHRTokenizer):
 
         self.df_sks_tuples.loc[len(self.df_sks_tuples)] = new_hierarchy_row # add the list of nodes at the end of the df
         self.df_sks_names.loc[len(self.df_sks_names)] = [concept] * len(new_hierarchy_row) # add at the end of the df
+        for node, sks_voc in zip(new_hierarchy_row, self.full_sks_vocab_ls):
+            sks_voc[concept] = node
 
     def get_lowest_level_node(self, name:str)->Tuple[int]:
         """Get the lowest level tuple of a concept

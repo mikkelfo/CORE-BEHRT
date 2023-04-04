@@ -1,5 +1,6 @@
-train_dataset: 'dataset.train'
-val_dataset: 'dataset.val'
+train_encoded: 'train_encoded.pt'
+val_encoded: 'val_encoded.pt'
+vocabulary: 'vocabulary.pt'
 
 model:
   max_position_embeddings: 512

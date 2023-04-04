@@ -28,7 +28,7 @@ class EHRTrainer():
         self.scheduler = scheduler
         self.metrics = metrics
 
-        self.default_args = {
+        default_args = {
             'batch_size': 32,
             'effective_batch_size': 512,
             'epochs': 10,
@@ -36,7 +36,7 @@ class EHRTrainer():
             'save_every_k_steps': float('inf'),
             'custom_loss': None,
         }
-        self.args = {**self.default_args, **args}
+        self.args = {**default_args, **args}
 
     def update_attributes(self, **kwargs):
         for key, value in kwargs.items():

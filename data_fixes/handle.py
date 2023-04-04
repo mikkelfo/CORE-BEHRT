@@ -19,8 +19,8 @@ class Handler():
 
         return handled_patients
 
-
-    def handle_incorrect_ages(self, patient: dict, num_fill=-100, drop=True):
+    @staticmethod
+    def handle_incorrect_ages(patient: dict, num_fill=-100, drop=True):
         correct_indices = [i for i, age in enumerate(patient['age']) if -1 <= age <= 120]
         if drop:
             for key, values in patient.items():
@@ -31,7 +31,8 @@ class Handler():
 
         return patient
 
-    def handle_nans(self, patient: dict, concept_fill = '[UNK]', num_fill = -100, drop=True):
+    @staticmethod
+    def handle_nans(patient: dict, concept_fill = '[UNK]', num_fill = -100, drop=True):
         if drop:
             nan_indices = []
             for values in patient.values():

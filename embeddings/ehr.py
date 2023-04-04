@@ -21,7 +21,7 @@ class EhrEmbeddings(nn.Module):
             linear: bool                            - whether to linearly scale embeddings (a: concept, b: age, c: abspos, d: segment)
     """
     def __init__(self, config):
-        super(EhrEmbeddings, self).__init__()
+        super().__init__()
         self.config = config
         
         self.concept_embeddings = nn.Embedding(config.vocab_size, config.hidden_size)

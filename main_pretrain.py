@@ -2,6 +2,7 @@ import torch
 from hydra import initialize, compose
 from hydra.utils import instantiate
 from torch.optim import AdamW
+from data.dataset import MLMDataset
 
 from trainer.trainer import EHRTrainer
 from model.model import BertEHRModel
@@ -9,16 +10,20 @@ from transformers import BertConfig
 
 
 
-def main():
+def main_train():
     with initialize(config_path='configs'):
-        cfg: dict = compose(config_name='trainer.yaml')
+        cfg: dict = compose(config_name='pretrain.yaml')
 
-    train_dataset = torch.load(cfg.get('train_dataset', 'dataset.train'))
-    val_dataset = torch.load(cfg.get('val_dataset', 'dataset.val'))
+    # MLM specific
+    train_encoded = torch.load(cfg.get('train_encoded', 'train_encoded.pt'))
+    val_encoded = torch.load(cfg.get('val_encoded', 'val_encoded.pt'))
+    vocabulary = torch.load(cfg.get('vocabulary', 'vocabulary.pt'))
+    train_dataset = MLMDataset(train_encoded, vocabulary=vocabulary)
+    val_dataset = MLMDataset(val_encoded, vocabulary=vocabulary)
 
     model = BertEHRModel(
         BertConfig(
-            vocab_size=len(train_dataset.vocabulary),
+            vocab_size=len(vocabulary),
             type_vocab_size=train_dataset.max_segments,
             **cfg.get('model', {}),
         )
@@ -50,4 +55,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    main_train()

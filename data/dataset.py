@@ -1,5 +1,6 @@
 from torch.utils.data import Dataset
 import torch
+import pandas as pd
 
 
 class BaseDataset(Dataset):
@@ -20,11 +21,13 @@ class BaseDataset(Dataset):
 
 
 class MLMDataset(BaseDataset):
-    def __init__(self, features: dict, vocabulary, masked_ratio=0.3):
+    def __init__(self, features: dict, vocabulary: dict, masked_ratio=0.3, ignore_special_tokens=True):
         super().__init__(features)
 
         self.vocabulary = vocabulary
         self.masked_ratio = masked_ratio
+        if ignore_special_tokens:
+            self.n_special_tokens = 5   # TODO: Find a dynamic way to get this
 
     def __getitem__(self, index):
         patient = super().__getitem__(index)
@@ -37,17 +40,16 @@ class MLMDataset(BaseDataset):
 
     def _mask(self, patient: dict):
         concepts = torch.tensor(patient['concept'])
-        mask = torch.tensor(patient['attention_mask'])
 
         N = len(concepts)
-        N_nomask = len(mask[mask==1])
 
         # Initialize
         masked_concepts = torch.clone(concepts)
         target = torch.ones(N, dtype=torch.long) * -100
 
         # Apply special token mask and create MLM mask
-        eligble_concepts = masked_concepts[1:N_nomask-1]        # We dont mask CLS and last SEP token
+        eligble_mask = masked_concepts >= self.n_special_tokens
+        eligble_concepts = masked_concepts[eligble_mask]        # Ignore special tokens
         rng = torch.rand(len(eligble_concepts))                 # Random number for each token
         masked = rng < self.masked_ratio                        # Mask tokens with probability masked_ratio
 
@@ -62,11 +64,11 @@ class MLMDataset(BaseDataset):
 
         # Apply operations (Mask, replace, keep)
         selected_concepts = torch.where(rng_mask, self.vocabulary['[MASK]'], selected_concepts) # Replace with [MASK]
-        selected_concepts = torch.where(rng_replace, torch.randint(5, len(self.vocabulary), (len(selected_concepts),)), selected_concepts) # Replace with random word
-        # selected_concepts = torch.where(rng_keep, selected_concepts, selected_concepts)   # Redundant
+        selected_concepts = torch.where(rng_replace, torch.randint(self.n_special_tokens, len(self.vocabulary), (len(selected_concepts),)), selected_concepts) # Replace with random word
+        # selected_concepts = torch.where(rng_keep, selected_concepts, selected_concepts)       # Redundant
 
         # Update outputs
-        target[1:N_nomask-1][masked] = eligble_concepts[masked] # Set "true" token
+        target[eligble_mask][masked] = eligble_concepts[masked] # Set "true" token
         eligble_concepts[masked] = selected_concepts            # Set masked token in concepts (masked_concepts is updated by eligble_concepts)
 
         return masked_concepts, target
@@ -81,9 +83,12 @@ class MLMDataset(BaseDataset):
 
 
 class CensorDataset(BaseDataset):
-    # TODO: censor_token as str (pre-tokenizer) or int (post-tokenizer)??
-    # TODO: .index finds first occurence - should we find last occurence?
-    def __init__(self, features: dict, censor_token: int, n_hours: int, outcomes):
+    """
+        Uses .index, so it finds first occurence of censor token
+        Takes censor_token as int (post-tokenizer)
+        n_hours can be both negative and positive (indicating before/after censor token)
+    """
+    def __init__(self, features: dict, censor_token: int, n_hours: int, outcomes: dict):
         super().__init__(features)
 
         self.censor_token = censor_token
@@ -92,23 +97,21 @@ class CensorDataset(BaseDataset):
 
     def __getitem__(self, index: int) -> dict:
         patient = super().__getitem__(index)
-        patient['target'] = self.outcomes[index] # TODO: Construct these
+        patient['target'] = pd.isna(self.outcomes[index])   # TODO: Boolean target or int?
 
         return self._censor(patient)
 
-    def _find_token_idx(self, patient):
-        return patient['concept'].index(self.censor_token)
-
     def _censor(self, patient: dict) -> dict:
         # Find first occurence of censor token
-        token_idx = self._find_token_idx(patient)
+        token_idx = patient['concept'].index(self.censor_token)
 
         # Only required when padding
         mask = torch.tensor(patient['attention_mask'])
         N_nomask = len(mask[mask==1])
 
-        # Initialize
+        # Remove padding 
         pos = patient['abspos'][:N_nomask]
+
         # censor the last n_hours
         dont_censor = (pos - pos[token_idx] - self.n_hours) <= 0    # Include n_hours or not? (<= or <)
 

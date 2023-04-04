@@ -7,11 +7,11 @@ from data_fixes.handle import Handler
 from data.tokenizer import EHRTokenizer
 from data.dataset import MLMDataset
 from data.split import Splitter
+from downstream_tasks.outcomes import OutcomeMaker
 
-def main():
+def main_data():
     with initialize(config_path='configs'):
-        features_config = compose(config_name='featuremaker.yaml')
-        tokenizer_config = compose(config_name='tokenizer.yaml')
+        data_config = compose(config_name='data.yaml')
     """
         Loads
         Infers nans
@@ -21,38 +21,44 @@ def main():
         To dataset
     """
     # Load concepts
-    concepts, patients_info = ConceptLoader()(features_config.data_dir, features_config.patients_info)
+    concepts, patients_info = ConceptLoader()(**data_config.loader)
 
     # Infer missing values
     concepts = Inferrer()(concepts)
 
-    # Create feature sequences
-    features = FeatureMaker(features_config)(concepts, patients_info)
-    outcomes = OutcomeMaker()(concepts)
+    # Make outcomes
+    patients_info = OutcomeMaker(data_config.outcomes)(concepts, patients_info)
+
+    # Create feature sequences and outcomes
+    features, outcomes = FeatureMaker(data_config)(concepts, patients_info)
     
-    # Overwrite nans and incorrect values
+    # Overwrite nans and other incorrect values
     features = Handler()(features)
+
+    # Save final features and outcomes
     torch.save(features, 'features.pt')
+    torch.save(outcomes, 'outcomes.pt')
 
     # Split
-    train, test, val = Splitter()(features)
+    train_features, test_features, val_features = Splitter()(features)
+    train_outcomes, test_outcomes, val_outcomes = Splitter()(outcomes)
 
     # Tokenize
-    tokenizer = EHRTokenizer(tokenizer_config)
-    encoded_train = tokenizer(train, padding=tokenizer_config.padding, truncation=tokenizer_config.truncation)
+    tokenizer = EHRTokenizer(data_config.tokenizer)
+    train_encoded = tokenizer(train_features)
     tokenizer.freeze_vocabulary()
-    encoded_test = tokenizer(test, padding=tokenizer_config.padding, truncation=tokenizer_config.truncation)
-    encoded_val = tokenizer(val, padding=tokenizer_config.padding, truncation=tokenizer_config.truncation)
+    test_encoded = tokenizer(test_features)
+    val_encoded = tokenizer(val_features)
 
-    # To dataset
-    train_dataset = MLMDataset(encoded_train, vocabulary=tokenizer.vocabulary)
-    test_dataset = MLMDataset(encoded_test, vocabulary=tokenizer.vocabulary)
-    val_dataset = MLMDataset(encoded_val, vocabulary=tokenizer.vocabulary)
-    torch.save(train_dataset, 'dataset.train')
-    torch.save(test_dataset, 'dataset.test')
-    torch.save(val_dataset, 'dataset.val')
+    # Save features and outcomes
+    torch.save(train_encoded, 'train_encoded.pt')
+    torch.save(train_outcomes, 'train_outcomes.pt')
+    torch.save(test_encoded, 'test_encoded.pt')
+    torch.save(test_outcomes, 'test_outcomes.pt')
+    torch.save(val_encoded, 'val_encoded.pt')
+    torch.save(val_outcomes, 'val_outcomes.pt')
     
 
 if __name__ == '__main__':
-    main()
+    main_data()
 

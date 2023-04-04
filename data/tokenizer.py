@@ -18,7 +18,14 @@ class EHRTokenizer():
             self.new_vocab = False
             self.vocabulary = vocabulary
 
-    def __call__(self, features: dict, padding=True, truncation=512):
+        self.padding = config.get('padding', False)
+        self.truncation = config.get('truncation', 512)
+
+    def __call__(self, features: dict, padding=None, truncation=None):
+        if padding is None:
+            padding = self.padding
+        if truncation is None:
+            truncation = self.truncation
         return self.batch_encode(features, padding, truncation)
 
     def batch_encode(self, features: dict, padding=True, truncation=512):
@@ -53,7 +60,8 @@ class EHRTokenizer():
 
         return [self.vocabulary.get(concept, self.vocabulary['[UNK]']) for concept in concepts]
 
-    def truncate(self, patient: dict, max_len: int):
+    @staticmethod
+    def truncate(patient: dict, max_len: int):
         # Find length of background sentence (+2 to include CLS token and SEP token)
         background_length = len([x for x in patient.get('concept', []) if x[:3] == "BG_"]) + 2
         truncation_length = max_len - background_length
@@ -89,7 +97,8 @@ class EHRTokenizer():
         
         return patient
 
-    def insert_sep_tokens(self, patient: dict):
+    @staticmethod
+    def insert_sep_tokens(patient: dict):
         padded_segment = patient['segment'] + [None]                # Add None to last entry to avoid index out of range
 
         for key, values in patient.items():
@@ -105,18 +114,20 @@ class EHRTokenizer():
 
         return patient
 
-    def insert_cls_token(self, patient: dict):
+    @staticmethod
+    def insert_cls_token(patient: dict):
         for key, values in patient.items():
             token = '[CLS]' if key == 'concept' else 0          # Determine token value (CLS for concepts, 0 for rest)
             patient[key] = [token] + values
         return patient
 
-    def save_vocab(self, dest: str):
-        torch.save(self.vocabulary, dest)
-
-    def _patient_iterator(self, features: dict):
+    @staticmethod
+    def _patient_iterator(features: dict):
         for i in range(len(features['concept'])):
             yield {key: values[i] for key, values in features.items()}
+
+    def save_vocab(self, dest: str):
+        torch.save(self.vocabulary, dest)
 
     def freeze_vocabulary(self):
         self.new_vocab = False

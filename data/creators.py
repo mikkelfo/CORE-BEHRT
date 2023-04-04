@@ -23,8 +23,7 @@ class AgeCreator(BaseCreator):
 class AbsposCreator(BaseCreator):
     feature = id = 'abspos'
     def create(self, concepts: pd.DataFrame, patients_info: pd.DataFrame):
-        abspos = self.config.features.abspos
-        origin_point = datetime(abspos.year, abspos.month, abspos.day)
+        origin_point = datetime(**self.config.features.abspos)
         # Calculate hours since origin point
         abspos = (concepts['TIMESTAMP'] - origin_point).dt.total_seconds() / 60 / 60
 

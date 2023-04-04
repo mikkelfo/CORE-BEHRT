@@ -6,20 +6,16 @@ import os
 
 
 class ConceptLoader():
-    def __init__(self, concepts: list = None, patients_info: str = 'patients_info.csv'):
-        self.concepts = ['diagnose', 'medication'] if concepts is None else concepts
-        self.patients_info = patients_info
-
-    def __call__(self, data_dir: str = 'formatted_data'):
-        return self.load(data_dir)
+    def __call__(self, concepts=['diagnose', 'medication'], data_dir: str = 'formatted_data', patients_info: str = 'patients_info.csv'):
+        return self.load(concepts=concepts, data_dir=data_dir, patients_info=patients_info)
     
-    def load(self, data_dir: str = 'formatted_data'):
+    def load(self, concepts=['diagnose', 'medication'], data_dir: str = 'formatted_data', patients_info: str = 'patients_info.csv'):
         # Get all concept files
         concept_paths = os.path.join(data_dir, 'concept.*')
         path = glob.glob(concept_paths)
 
         # Filter out concepts files
-        path = [p for p in path if p.split('.')[1] in self.concepts]
+        path = [p for p in path if p.split('.')[1] in concepts]
         
         # Load concepts
         concepts = pd.concat([self._read_file(p) for p in path], ignore_index=True).drop_duplicates()
@@ -27,7 +23,7 @@ class ConceptLoader():
         concepts = concepts.sort_values('TIMESTAMP')
 
         # Load patient data
-        patient_path = os.path.join(data_dir, self.patients_info)
+        patient_path = os.path.join(data_dir, patients_info)
         patients_info = self._read_file(patient_path)
 
         return concepts, patients_info
@@ -39,14 +35,15 @@ class ConceptLoader():
         elif file_type == 'parquet':
             df = pd.read_parquet(file_path)
 
-        for col in self._detect_date_columns(df):
+        for col in self.detect_date_columns(df):
             df[col] = df[col].apply(lambda x: x[:10] if isinstance(x, str) else x)
             df[col] = pd.to_datetime(df[col], errors='coerce')
             df[col] = df[col].dt.tz_localize(None)
 
         return df
 
-    def _detect_date_columns(self, df: pd.DataFrame):
+    @staticmethod
+    def detect_date_columns(df: pd.DataFrame):
         date_columns = []
         for col in df.columns:
             if isinstance(df[col], datetime):

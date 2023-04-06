@@ -48,15 +48,8 @@ class EHRTokenizer():
             longest_seq = max([len(s) for s in data['concept']])            # Find longest sequence
             data = self.pad(data, max_len=longest_seq)                      # Pad sequences to max_len
 
+        
         return BatchEncoding(data, tensor_type='pt' if padding else None)
-
-    def encode(self, concepts: list):
-        if self.new_vocab:
-            for concept in concepts:
-                if concept not in self.vocabulary:
-                    self.vocabulary[concept] = len(self.vocabulary)
-
-        return [self.vocabulary.get(concept, self.vocabulary['[UNK]']) for concept in concepts]
 
     def truncate(self, patient: dict, max_len: int):
         # Find length of background sentence (+2 to include CLS token and SEP token)
@@ -146,7 +139,7 @@ class H_EHRTokenizer(EHRTokenizer):
             self.df_sks_names = names_df
             self.df_sks_tuples = tuples_df
     def __call__(self, features: Dict[str,List[List]], padding:bool=True, truncation:int=512):
-        data = self.batch_encode(features, padding, truncation)
+        data = self.batch_encode(features, padding, truncation, hierarchical=True)
         self.inv_vocab = {v: k for k, v in self.vocabulary.items()}
         data['h_concept'] = self.batch_encode_hierarchy(data)
         return data
@@ -175,11 +168,30 @@ class H_EHRTokenizer(EHRTokenizer):
                 pat_h_concepts.append(self.h_vocabulary[concept])
             # TODO: for now we insert UNK, change to inserting ancestor for unseen tokens
             else: # val/test
-                if concept not in self.vocabulary:
-                    pat_h_concepts.append(self.h_vocabulary['[UNK]'])
+                if concept not in self.h_vocabulary:
+                    pat_h_concepts.append(self.check_for_ancestor(concept))
                 else:
                     pat_h_concepts.append(self.h_vocabulary[concept])
         return pat_h_concepts
+
+    def encode(self, concepts: list):
+        """Overwrite the encode function to add the concept to the vocabulary if it's not there yet"""
+        if self.new_vocab:
+            for concept in concepts:
+                if concept not in self.vocabulary:
+                    self.vocabulary[concept] = len(self.vocabulary)
+
+        return [self.vocabulary.get(concept, self.check_for_ancestor(concept)) for concept in concepts]
+
+    def check_for_ancestor(self, concept):
+        """Check if the concept has an ancestor in the vocabulary"""
+        index = [(0,1)]
+        while concept not in self.vocabulary and index[-1][1]>0: 
+            index = self.names.where(self.names == concept).stack().index
+            concept = self.names.iloc[index[-1][0], index[-1][1]-1] # get parent
+        return self.h_vocabulary.get(concept, self.h_vocabulary['[UNK]'])
+
+        
 
     def add_unknown_concept_to_hierarchy(self, concept:str)->None:
         """Add a new concept to the hierarchy."""

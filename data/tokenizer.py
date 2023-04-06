@@ -160,16 +160,25 @@ class H_EHRTokenizer(EHRTokenizer):
             h_concepts.append(pat_h_enc_concepts)
         return h_concepts
 
+    
     def h_encode_patient(self, patient_concept_tok: List[int]):
         pat_h_concepts = [] # list of tuples
+
         for concept_tok in patient_concept_tok:
             concept = self.inv_vocab[int(concept_tok)] # instead we map the integers to the corresponding concepts
-            if concept not in self.h_vocabulary:
-                if concept not in self.df_sks_names.stack().unique(): # check if it's in the database
-                    print(concept, 'not in the database')
-                    self.add_unknown_concept_to_hierarchy(concept)
-                self.h_vocabulary[concept] = self.get_lowest_level_node(concept)
-            pat_h_concepts.append(self.h_vocabulary[concept])
+            if self.new_vocab: # train
+                if concept not in self.h_vocabulary:
+                    if concept not in self.df_sks_names.stack().unique(): # check if it's in the database
+                        print(concept, 'not in the database')
+                        self.add_unknown_concept_to_hierarchy(concept)
+                    self.h_vocabulary[concept] = self.get_lowest_level_node(concept)
+                pat_h_concepts.append(self.h_vocabulary[concept])
+            # TODO: for now we insert UNK, change to inserting ancestor for unseen tokens
+            else: # val/test
+                if concept not in self.vocabulary:
+                    pat_h_concepts.append(self.h_vocabulary['[UNK]'])
+                else:
+                    pat_h_concepts.append(self.h_vocabulary[concept])
         return pat_h_concepts
 
     def add_unknown_concept_to_hierarchy(self, concept:str)->None:
@@ -215,3 +224,6 @@ class H_EHRTokenizer(EHRTokenizer):
         torch.save(self.h_vocabulary, join(dest, "h_vocabulary.pt"))
         self.df_sks_names.to_csv(join(dest, "sks_names.csv"), index=None)
         self.df_sks_tuples.to_csv(join(dest, "sks_tuples.csv"), index=None)
+
+    def freeze_vocabulary(self, dest):
+        self.new_vocab = False

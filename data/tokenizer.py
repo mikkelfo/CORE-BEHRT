@@ -139,7 +139,7 @@ class H_EHRTokenizer(EHRTokenizer):
             self.df_sks_names = names_df
             self.df_sks_tuples = tuples_df
     def __call__(self, features: Dict[str,List[List]], padding:bool=True, truncation:int=512):
-        data = self.batch_encode(features, padding, truncation, hierarchical=True)
+        data = self.batch_encode(features, padding, truncation)
         self.inv_vocab = {v: k for k, v in self.vocabulary.items()}
         data['h_concept'] = self.batch_encode_hierarchy(data)
         return data
@@ -154,28 +154,24 @@ class H_EHRTokenizer(EHRTokenizer):
         return h_concepts
 
     
-    def h_encode_patient(self, patient_concept_tok: List[int]):
+    def h_encode_patient(self, patient_concept_tok: List[int])->List[tuple]:
+        """Encode concepts hierarchically as tuples for one patient"""
         pat_h_concepts = [] # list of tuples
-
         for concept_tok in patient_concept_tok:
             concept = self.inv_vocab[int(concept_tok)] # instead we map the integers to the corresponding concepts
-            if self.new_vocab: # train
-                if concept not in self.h_vocabulary:
-                    if concept not in self.df_sks_names.stack().unique(): # check if it's in the database
-                        print(concept, 'not in the database')
-                        self.add_unknown_concept_to_hierarchy(concept)
-                    self.h_vocabulary[concept] = self.get_lowest_level_node(concept)
-                pat_h_concepts.append(self.h_vocabulary[concept])
-            # TODO: for now we insert UNK, change to inserting ancestor for unseen tokens
-            else: # val/test
-                if concept not in self.h_vocabulary:
-                    pat_h_concepts.append(self.check_for_ancestor(concept))
-                else:
-                    pat_h_concepts.append(self.h_vocabulary[concept])
+            # We don't need to take care of freezing the vocabulary here, because we already did it in the batch_encode function
+            # all concepts that show up here are in the main vocabulary
+            if concept not in self.h_vocabulary:
+                if concept not in self.df_sks_names.stack().unique(): # check if it's in the database
+                    print(concept, 'not in the database')
+                    self.add_unknown_concept_to_hierarchy(concept)
+                self.h_vocabulary[concept] = self.get_lowest_level_node(concept)
+            pat_h_concepts.append(self.h_vocabulary[concept])
+            
         return pat_h_concepts
 
     def encode(self, concepts: list):
-        """Overwrite the encode function to add the concept to the vocabulary if it's not there yet"""
+        """Overwrite the encode function of base class to add the concept to the vocabulary if it's not there yet"""
         if self.new_vocab:
             for concept in concepts:
                 if concept not in self.vocabulary:
@@ -184,14 +180,13 @@ class H_EHRTokenizer(EHRTokenizer):
         return [self.vocabulary.get(concept, self.check_for_ancestor(concept)) for concept in concepts]
 
     def check_for_ancestor(self, concept):
-        """Check if the concept has an ancestor in the vocabulary"""
+        """Check if the concept has an ancestor in the vocabulary
+        If yes, return the tuple of the closest ancestor"""
         index = [(0,1)]
         while concept not in self.vocabulary and index[-1][1]>0: 
-            index = self.names.where(self.names == concept).stack().index
-            concept = self.names.iloc[index[-1][0], index[-1][1]-1] # get parent
-        return self.h_vocabulary.get(concept, self.h_vocabulary['[UNK]'])
-
-        
+            index = self.df_sks_names.where(self.df_sks_names == concept).stack().index
+            concept = self.df_sks_names.iloc[index[-1][0], index[-1][1]-1] # get parent
+        return self.vocabulary.get(concept, self.vocabulary['[UNK]'])
 
     def add_unknown_concept_to_hierarchy(self, concept:str)->None:
         """Add a new concept to the hierarchy."""
@@ -237,5 +232,5 @@ class H_EHRTokenizer(EHRTokenizer):
         self.df_sks_names.to_csv(join(dest, "sks_names.csv"), index=None)
         self.df_sks_tuples.to_csv(join(dest, "sks_tuples.csv"), index=None)
 
-    def freeze_vocabulary(self, dest):
+    def freeze_vocabulary(self):
         self.new_vocab = False

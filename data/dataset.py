@@ -87,7 +87,7 @@ class H_MLMDataset(MLMDataset):
         super().__init__(features, **kwargs)
         self.h_vocabulary = self.load_vocabulary(self.kwargs.get('h_vocabulary', 'h_vocabulary.pt'))
         self.default_rng = np.random.default_rng(seed)
-
+        print(self.vocabulary['[MASK]'])
         self.mask_sep = False
         if 'mask_sep' in kwargs:
             self.mask_sep = True
@@ -100,10 +100,10 @@ class H_MLMDataset(MLMDataset):
         return: dictionary with codes for patient with index 
         """ 
         patient = {key: values[index] for key, values in self.features.items()}
-        concepts, targets = self.random_mask(patient) 
+        masked_concepts, targets = self.random_mask(patient) 
 
         patient['target'] = targets
-        patient['concept'] = concepts
+        patient['concept'] = masked_concepts
             
         return patient
 
@@ -117,9 +117,10 @@ class H_MLMDataset(MLMDataset):
         targets = len(concepts) * [(-100,)*len(h_concepts[0])] # -100 is ignored in loss function
 
         for i, concept, target in zip(range(len(concepts)), concepts, h_concepts):
-            if i!=len(concepts)-1: # dont mask last sep token
-                if concept in self.special_ids: # dont mask special tokens
-                    continue
+            if concept in self.special_ids: # dont mask special tokens, if SEP token should be masked, it's excluded from special_ids
+                continue
+            if i==len(concepts)-1 and concept==self.vocabulary['[SEP]']: # dont mask last sep token
+                continue
             prob = self.default_rng.uniform()
             if prob<self.masked_ratio:
                 prob /= self.masked_ratio

@@ -27,7 +27,7 @@ class HierarchicalBertEHRModel(BertEHRModel):
         super().__init__(config)
         self.leaf_nodes = leaf_nodes
         self.lvl_mappings = self.get_level_mappings()
-        self.lvl_sel_mats, self.nodes = self.construct_level_selection_mats_and_graph() # when leaf_probs multiplied for lvl_sel_mat from the left -> probs on that level
+        self.lvl_sel_mats, self.nodes = self.construct_level_selection_mats_and_graph() # when leaf_probs multiplied with lvl_sel_mat from the left -> probs on that level
         self.weights = self.initialize_geometric_weights()
         if not trainable_loss_weights:
             self.weights.requires_grad = False
@@ -40,7 +40,7 @@ class HierarchicalBertEHRModel(BertEHRModel):
         inputs_embeds=None,
         target=None,    # Use this instead of labels (avoids CE loss)
     ):                                                                                                      # notice this
-        outputs = super().forward(input_ids, token_type_ids, attention_mask, position_ids, inputs_embeds, labels=None)
+        outputs = super().forward(input_ids, token_type_ids, attention_mask, position_ids, inputs_embeds, labels=None) # we should output hidden states, so we don't compute CE loss inside
         outputs.loss = self.get_loss(outputs.logits, target)
 
         return outputs
@@ -60,7 +60,7 @@ class HierarchicalBertEHRModel(BertEHRModel):
         return loss
         
     @staticmethod
-    def categorical_cross_entropy(y_pred, y_true):
+    def categorical_cross_entropy(y_pred, y_true, mask):
         """Takes predicted and true probabilities and returns categorical cross entropy."""
         y_pred = torch.clamp(y_pred, 1e-9, 1 - 1e-9)
         return -(y_true * torch.log(y_pred)).sum(dim=1).mean()

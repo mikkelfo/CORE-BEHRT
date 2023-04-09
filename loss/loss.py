@@ -64,7 +64,7 @@ class CE_FlatSoftmax_MOP(torch.nn.Module):
         """Args:
         leaf_nodes (torch.tensor): Leaf nodes (num_leaf_nodes, levels)
         trainable_weights (bool, optional): Whether to train the level weights. Defaults to False."""
-        super(CE_FlatSoftmax_MOP, self).__init__()  # Add this line
+        super(CE_FlatSoftmax_MOP, self).__init__()  
         self.ignore_index = ignore_index
         self.leaf_nodes = leaf_nodes
         self.lvl_mappings = self.get_level_mappings()

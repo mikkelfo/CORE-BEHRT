@@ -82,13 +82,10 @@ class MLMDataset(BaseDataset):
 
         return masked_concepts, target
 
-class H_MLMDataset(BaseDataset):
+class H_MLMDataset(MLMDataset):
     def __init__(self, features:Dict[str,List], seed:int=0, **kwargs):
         super().__init__(features, **kwargs)
-        self.vocabulary = self.load_vocabulary(self.kwargs.get('vocabulary', 'vocabulary.pt'))
         self.h_vocabulary = self.load_vocabulary(self.kwargs.get('h_vocabulary', 'h_vocabulary.pt'))
-
-        self.masked_ratio = self.kwargs.get('masked_ratio', 0.3)
         self.default_rng = np.random.default_rng(seed)
 
         self.mask_sep = False
@@ -124,8 +121,8 @@ class H_MLMDataset(BaseDataset):
                 if concept in self.special_ids: # dont mask special tokens
                     continue
             prob = self.default_rng.uniform()
-            if prob<self.mask_prob:
-                prob /= self.mask_prob
+            if prob<self.masked_ratio:
+                prob /= self.masked_ratio
                 # 80% of the time replace with [MASK] 
                 if prob < 0.8:
                     masked_concepts[i] = self.vocabulary['[MASK]']

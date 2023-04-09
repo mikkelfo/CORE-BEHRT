@@ -82,7 +82,7 @@ class MLMDataset(BaseDataset):
 
         return masked_concepts, target
 
-class H_MLM_Dataset(BaseDataset):
+class H_MLMDataset(BaseDataset):
     def __init__(self, features:Dict[str,List], seed:int=0, **kwargs):
         super().__init__(features, **kwargs)
         self.vocabulary = self.load_vocabulary(self.kwargs.get('vocabulary', 'vocabulary.pt'))
@@ -98,44 +98,41 @@ class H_MLM_Dataset(BaseDataset):
         if self.mask_sep:
             self.special_ids.remove(self.vocabulary['[SEP]'])
         
-
     def __getitem__(self, index:int):
         """
         return: dictionary with codes for patient with index 
         """ 
         patient = super().__getitem__(index)
-        concepts, labels = self.random_mask(patient) 
+        concepts, targets = self.random_mask(patient) 
 
-        patient['target'] = labels
+        patient['target'] = targets
         patient['concept'] = concepts
             
         return patient
 
-    def __len__(self):
-        return len(self.data)
-
     def random_mask(self, patient:Dict[str,List]):
-        """mask code with 15% probability, 80% of the time replace with [MASK], 
+        """mask code with certain probability, 80% of the time replace with [MASK], 
             10% of the time replace with random token, 10% of the time keep original"""
         
         concepts, h_concepts = patient['concept'], patient['h_concept']
 
         masked_concepts = torch.clone(concepts)
-        labels = len(concepts) * [(-100,)*len(h_concepts[0])]
-        print(labels)
-        for i, concept, label in zip(range(len(concepts)), concepts, h_concepts):
-            if concept in self.special_ids:
-                continue
+        targets = len(concepts) * [(-100,)*len(h_concepts[0])] # -100 is ignored in loss function
+
+        for i, concept, target in zip(range(len(concepts)), concepts, h_concepts):
+            if i!=len(concepts)-1: # dont mask last sep token
+                if concept in self.special_ids: # dont mask special tokens
+                    continue
             prob = self.default_rng.uniform()
             if prob<self.mask_prob:
-                prob = self.default_rng.uniform()  
+                prob /= self.mask_prob
                 # 80% of the time replace with [MASK] 
                 if prob < 0.8:
-                    masked_concepts[i] = self.vocab['[MASK]']
+                    masked_concepts[i] = self.vocabulary['[MASK]']
                 # 10% change token to random token
                 elif prob < 0.9:      
-                    masked_concepts[i] = self.default_rng.choice(self.nonspecial_ids) 
-                # 10% keep original
-                labels[i] = id
-        return masked_concepts, labels
+                    masked_concepts[i] = self.default_rng.choice(list(self.vocabulary.values()))
+                # 10% keep original 
+                targets[i] = target
+        return masked_concepts, targets
 

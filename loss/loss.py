@@ -1,7 +1,7 @@
 import torch
 from torch.nn import NLLLoss
 from torch import softmax
-from typing import List
+from typing import List, Tuple
 
 
 class CE_FlatSoftmax(torch.nn.Module):
@@ -79,11 +79,11 @@ class CE_FlatSoftmax_MOP(torch.nn.Module):
         predicted_leaf_probs = softmax(leaf_logits, dim=-1)
         for level, mat in enumerate(self.lvl_sel_mats):
             pred_probs_lvl = mat @ predicted_leaf_probs.T # shape (num_nodes, batchsize * seq_len)
-            target_probs_lvl = self.construct_target_probability_mat(y_true_enc, level) # we can already pass it as a target!
-            loss_lvl = self.categorical_cross_entropy(pred_probs_lvl.T, target_probs_lvl)         
+            target_probs_lvl, pad_mask = self.construct_target_probability_mat(y_true_enc, level) # we can already pass it as a target!
+            loss_lvl = self.categorical_cross_entropy(pred_probs_lvl.T, target_probs_lvl.T, pad_mask.T)         
             loss += loss_lvl * self.weights[level]
         return loss
-        
+    
     @staticmethod
     def categorical_cross_entropy(y_pred, y_true, mask=None):
         """Takes predicted and true probabilities and returns categorical cross entropy."""
@@ -129,9 +129,8 @@ class CE_FlatSoftmax_MOP(torch.nn.Module):
             mats.append(mat)
             nodes.append(unique_nodes)
         return mats, nodes
-    # write a function that takes torch.tensor([1,1,1,2,2]) and returns a matrix that looks like this torch.tensor([[1,1,1,0,0],[0,0,0,1,1]])
 
-    def construct_target_probability_mat(self, y_true_enc, level):
+    def construct_target_probability_mat(self, y_true_enc:torch.tensor, level:int)->Tuple(torch.tensor,torch.tensor):
         """For a specific level, construct a matrix of target probabilities.
         If target is given on level: one hot encoding
         elif target is given on a higher level: probabilities split equally among all children
@@ -144,7 +143,7 @@ class CE_FlatSoftmax_MOP(torch.nn.Module):
         nodes_lvl = self.nodes[level]
         num_nodes = nodes_lvl.shape[0]
         y_flat = torch.flatten(y_true_enc[:,:,:level+1], start_dim=0, end_dim=1) # flatten batch dim to simplify
-
+        pad_mask = self.get_mask(y_flat, level) # we get a (padding) mask for the current level
         probability_matrix = torch.zeros((num_nodes, y_flat.shape[0])) # we populate this matrix num_nodes x num_targets
 
         target_mask = self.get_target_mask(nodes_lvl, y_flat) # mask nodes that match target, shape: num_nodes x num_targets x levels
@@ -156,8 +155,11 @@ class CE_FlatSoftmax_MOP(torch.nn.Module):
         child_probabilities = self.get_child_probabilities(target_child_mask)
 
         probability_matrix[target_child_mask] = child_probabilities[target_child_mask]
-        return probability_matrix.T
+        return probability_matrix, pad_mask
 
+    def get_mask(self, y_flat:torch.tensor, level:int, ignore_index:int=-100):
+        """Returns a mask for the current level, such that we can ignore padding tokens."""
+        return (y_flat[:,:level+1] != ignore_index).all(dim=1)
     @staticmethod
     def create_leaf_selection_matrix(indices):
         """This function takes an array of integers and 

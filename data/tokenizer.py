@@ -51,6 +51,14 @@ class EHRTokenizer():
         
         return BatchEncoding(data, tensor_type='pt' if padding else None)
 
+    def encode(self, concepts: list):
+        if self.new_vocab:
+            for concept in concepts:
+                if concept not in self.vocabulary:
+                    self.vocabulary[concept] = len(self.vocabulary)
+
+        return [self.vocabulary.get(concept, self.vocabulary['[UNK]']) for concept in concepts]
+
     def truncate(self, patient: dict, max_len: int):
         # Find length of background sentence (+2 to include CLS token and SEP token)
         additional_tokens = int(self.config['cls_token']) + int(self.config['sep_tokens'])

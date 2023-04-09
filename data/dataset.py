@@ -3,6 +3,8 @@ import torch
 from typing import Dict, List
 import numpy as np
 
+
+
 class BaseDataset(Dataset):
     def __init__(self, features: dict, **kwargs):
         self.features = features
@@ -80,84 +82,60 @@ class MLMDataset(BaseDataset):
 
         return masked_concepts, target
 
-    
-
 class H_MLM_Dataset(BaseDataset):
-    def __init__(self, features, **kwargs):
+    def __init__(self, features:Dict[str,List], seed:int=0, **kwargs):
         super().__init__(features, **kwargs)
+        self.vocabulary = self.load_vocabulary(self.kwargs.get('vocabulary', 'vocabulary.pt'))
         self.h_vocabulary = self.load_vocabulary(self.kwargs.get('h_vocabulary', 'h_vocabulary.pt'))
+
+        self.masked_ratio = self.kwargs.get('masked_ratio', 0.3)
+        self.default_rng = np.random.default_rng(seed)
+
+        self.mask_sep = False
+        if 'mask_sep' in kwargs:
+            self.mask_sep = True
+        self.special_ids = [v for k,v in self.vocabulary.items() if '[' in k]
+        if self.mask_sep:
+            self.special_ids.remove(self.vocabulary['[SEP]'])
         
-    def __getitem__(self, index):
+
+    def __getitem__(self, index:int):
         """
         return: dictionary with codes for patient with index 
         """ 
         patient = super().__getitem__(index)
-        mask = self.get_mask(patient)
-        patient['attention_mask'] = mask
-        ids, labels = self.random_mask_ids(patient['idx']) 
-        patient['values'] = self.mask_values(ids, patient['values']) # otherwise model could infer e.g. lab test
-        # pad code sequence, segments and label
-        #patient['codes'] = codes
-        patient['idx'] = ids
-        patient['labels'] = labels
-        for channel in self.channels+['labels', 'idx']:
-            out_dic[channel] = self.seq_padding(patient[channel], 
-                self.pad_tokens[channel])    
-            #print(channel, out_dic[channel])    
-            out_dic[channel] = torch.LongTensor(out_dic[channel])    
+        concepts, labels = self.random_mask(patient) 
+
+        patient['target'] = labels
+        patient['concept'] = concepts
             
-        return out_dic
+        return patient
 
     def __len__(self):
         return len(self.data)
-    
-    def mask_values(self, ids, values):
-        """Mask values the same way ids were masked"""
-        mask_id = self.vocab['[MASK]']
-        mask = np.array(ids)==mask_id
-        values = np.array(values)
-        values[mask] = 1
-        return values.tolist()
 
-    def get_mask(self, patient):
-        mask = np.ones(self.pad_len)
-        mask[len(patient['codes']):] = 0
-        return mask
-
-    def init_pad_len(self, data, pad_len):
-        if isinstance(pad_len, type(None)):
-            lens = np.array([len(d['codes']) for d in data])
-            self.pad_len = int(np.max(lens)) 
-        else:
-            self.pad_len = pad_len
-
-    def init_nonspecial_ids(self):
-        """We use by default < as special sign for special tokens"""
-        self.nonspecial_ids = [v for k,v in self.vocab.items() if not k.startswith('[')]
-        
-    def seq_padding(self, seq, pad_token):
-        """Pad a sequence to the given length."""
-        return seq + (self.pad_len-len(seq)) * [pad_token]
-
-    def random_mask_ids(self, ids, seed=0):
+    def random_mask(self, patient:Dict[str,List]):
         """mask code with 15% probability, 80% of the time replace with [MASK], 
             10% of the time replace with random token, 10% of the time keep original"""
-        rng = default_rng(seed)
-        masked_ids = ids.copy()
-        labels = len(ids) * [-100] 
-        for i, id in enumerate(ids):
-            if id not in self.nonspecial_ids:
+        
+        concepts, h_concepts = patient['concept'], patient['h_concept']
+
+        masked_concepts = torch.clone(concepts)
+        labels = len(concepts) * [(-100,)*len(h_concepts[0])]
+        print(labels)
+        for i, concept, label in zip(range(len(concepts)), concepts, h_concepts):
+            if concept in self.special_ids:
                 continue
-            prob = rng.uniform()
+            prob = self.default_rng.uniform()
             if prob<self.mask_prob:
-                prob = rng.uniform()  
+                prob = self.default_rng.uniform()  
                 # 80% of the time replace with [MASK] 
                 if prob < 0.8:
-                    masked_ids[i] = self.vocab['[MASK]']
+                    masked_concepts[i] = self.vocab['[MASK]']
                 # 10% change token to random token
                 elif prob < 0.9:      
-                    masked_ids[i] = rng.choice(self.nonspecial_ids) 
+                    masked_concepts[i] = self.default_rng.choice(self.nonspecial_ids) 
                 # 10% keep original
                 labels[i] = id
-        return masked_ids, labels
+        return masked_concepts, labels
 

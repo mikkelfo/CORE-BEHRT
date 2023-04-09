@@ -99,7 +99,7 @@ class H_MLMDataset(MLMDataset):
         """
         return: dictionary with codes for patient with index 
         """ 
-        patient = super().__getitem__(index)
+        patient = {key: values[index] for key, values in self.features.items()}
         concepts, targets = self.random_mask(patient) 
 
         patient['target'] = targets
@@ -113,7 +113,7 @@ class H_MLMDataset(MLMDataset):
         
         concepts, h_concepts = patient['concept'], patient['h_concept']
 
-        masked_concepts = torch.clone(concepts)
+        masked_concepts = torch.clone(concepts).detach()
         targets = len(concepts) * [(-100,)*len(h_concepts[0])] # -100 is ignored in loss function
 
         for i, concept, target in zip(range(len(concepts)), concepts, h_concepts):

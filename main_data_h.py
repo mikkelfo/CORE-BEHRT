@@ -35,16 +35,21 @@ def main():
     print("Tokenize")
     tokenizer = H_EHRTokenizer(config=tokenizer_config)
     encoded_train = tokenizer(train, padding=tokenizer_config.padding, truncation=tokenizer_config.truncation)
+    print("Save vocab")
     tokenizer.save_vocab('data/tokenized/hierarchical/test')
     tokenizer.freeze_vocabulary() 
+    print("Tokenize test and val")
     # finds closest ancestor in the hierarchy for unknown tokens
     encoded_test = tokenizer(test, padding=tokenizer_config.padding, truncation=tokenizer_config.truncation)
     encoded_val = tokenizer(val, padding=tokenizer_config.padding, truncation=tokenizer_config.truncation)
 
+    print("Create datasets")
     # To dataset
     train_dataset = H_MLMDataset(encoded_train, vocabulary=tokenizer.vocabulary)
     test_dataset = H_MLMDataset(encoded_test, vocabulary=tokenizer.vocabulary)
     val_dataset = H_MLMDataset(encoded_val, vocabulary=tokenizer.vocabulary)
+
+    print("Save datasets")
     torch.save(train_dataset, 'data/tokenized/hierarchical/test/dataset.train')
     torch.save(test_dataset, 'data/tokenized/hierarchical/test/dataset.test')
     torch.save(val_dataset, 'data/tokenized/hierarchical/test/dataset.val')

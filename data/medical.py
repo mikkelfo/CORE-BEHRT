@@ -46,7 +46,8 @@ class MedicalCodes():
     codes can be accessed by prefix (D, L, M) or signature (lab, dia, ...).
     """
 
-    def __init__(self):
+    def __init__(self, test=False):
+        self.test = test
         with open(join(dirname(__file__), "SKScodes.pkl"), "rb") as f:
             self.sks_codes = list(pkl.load(f))
         with open(join(dirname(__file__), "NPUcodes.pkl"), "rb") as f:
@@ -68,6 +69,8 @@ class MedicalCodes():
 
     def get_codes_type(self, signature, min_len=2):
         codes =[c.strip(signature) for c in self.all_codes if c.startswith(signature)]
+        if self.test:
+            codes = codes[:500]
         return [c for c in codes if len(c)>=min_len]
 
     def get_lab(self):
@@ -76,7 +79,8 @@ class MedicalCodes():
         return sorted(self.get_codes_type('dia', min_len=4))
     def get_atc(self):
         codes = self.get_codes_type('atc', min_len=4)
-        codes[codes.index('N05CC10')] = 'MZ99' # thalidomid, wrongly generated code will be assigned a new code
+        if 'N05CC10' in codes:
+            codes[codes.index('N05CC10')] = 'MZ99' # thalidomid, wrongly generated code will be assigned a new code
         return sorted(codes)
     def get_adm(self):
         return sorted(self.get_codes_type('adm'))
@@ -99,13 +103,13 @@ class SKSVocabConstructor():
     Every integer of the tuple specifies a branch on a level. Integer 0 is reserved for empty node.
     Currently we have the hierarchy for medication and diagnosis implemented. 
     """
-    def __init__(self, main_vocab=None, code_types=['D', 'M'], num_levels=8):
+    def __init__(self, main_vocab=None, code_types=['D', 'M'], num_levels=8, test=False):	
         """
         main_vocab: initial vocabulary, if None, create a new one
         code_types: list of code types to include in the vocabulary (by prefix D, M, L)
         num_levels: number of levels in the hierarchy, don't change this if you don't know what you are doing.
         """
-        
+
         self.code_types = code_types
         for code_type in self.code_types:
             if code_type not in ['D', 'M']:
@@ -114,7 +118,7 @@ class SKSVocabConstructor():
         self.num_levels=num_levels
         self.vocabs = [{'[ZERO]':0} for _ in range(num_levels)] # these vocabularies will contain the tree
 
-        self.medcodes = MedicalCodes()
+        self.medcodes = MedicalCodes(test)
 
         # take care of special codes
         if isinstance(main_vocab, type(None)):
@@ -500,10 +504,10 @@ class SKSVocabConstructor():
 
 class TableConstructor():
     """Producing tables with names and tuples of the entire tree."""
-    def __init__(self, sks_tree=None, main_vocab=None, code_types=['D', 'M'], num_levels=8) -> None:
+    def __init__(self, sks_tree=None, main_vocab=None, code_types=['D', 'M'], num_levels=8, test=False) -> None:
         if isinstance(sks_tree, type(None)):
             print("Constructing SKS tree...")
-            _, self.sks_tree = SKSVocabConstructor(main_vocab, code_types, num_levels)()
+            _, self.sks_tree = SKSVocabConstructor(main_vocab, code_types, num_levels, test)()
         else:
             self.sks_tree = sks_tree
 

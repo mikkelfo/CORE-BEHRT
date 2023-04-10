@@ -1,10 +1,12 @@
-import torch
-from transformers import BatchEncoding
 from os.path import join
-from data import medical
-from typing import List, Dict, Tuple
+from typing import Dict, List, Tuple
+
 import pandas as pd
+import torch
 from tqdm import tqdm
+from transformers import BatchEncoding
+
+from data import medical
 
 
 class EHRTokenizer():
@@ -136,11 +138,11 @@ class H_EHRTokenizer(EHRTokenizer):
     In addition to integer encoding, also encode the hierarchy of the concepts as tuples
     and return hierarchical vocabulary. Also constructs a dataframe with the SKS names and coresponding tuples.
     """
-    def __init__(self, config:Dict, vocabulary:Dict=None, code_types=['D','M'], full_sks_vocab_ls:List[Dict]=None, names_df:pd.DataFrame=None, tuples_df:pd.DataFrame=None):
+    def __init__(self, config:Dict, vocabulary:Dict=None, code_types=['D','M'], full_sks_vocab_ls:List[Dict]=None, names_df:pd.DataFrame=None, tuples_df:pd.DataFrame=None, test=False):
         super(H_EHRTokenizer, self).__init__(config, vocabulary)
         self.h_vocabulary = {}
         if isinstance(full_sks_vocab_ls, type(None)) or isinstance(names_df, type(None)) or isinstance(tuples_df, type(None)):
-            constructor = medical.TableConstructor(main_vocab=self.vocabulary, code_types=code_types)
+            constructor = medical.TableConstructor(main_vocab=self.vocabulary, code_types=code_types, test=test)
             self.full_sks_vocab_ls, self.df_sks_names, self.df_sks_tuples = constructor()
         else:
             self.full_sks_vocab_ls = full_sks_vocab_ls
@@ -191,7 +193,10 @@ class H_EHRTokenizer(EHRTokenizer):
         """Check if the concept has an ancestor in the vocabulary
         If yes, return the tuple of the closest ancestor"""
         index = [(0,1)]
-        while concept not in self.vocabulary and index[-1][1]>0: 
+        i=0
+        while concept not in self.vocabulary and index[-1][1]>0 and i<10: 
+            i+=1
+            print(i)
             index = self.df_sks_names.where(self.df_sks_names == concept).stack().index
             concept = self.df_sks_names.iloc[index[-1][0], index[-1][1]-1] # get parent
         return self.vocabulary.get(concept, self.vocabulary['[UNK]'])

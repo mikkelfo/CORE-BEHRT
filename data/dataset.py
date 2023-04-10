@@ -87,7 +87,6 @@ class H_MLMDataset(MLMDataset):
         super().__init__(features, **kwargs)
         self.h_vocabulary = self.load_vocabulary(self.kwargs.get('h_vocabulary', 'h_vocabulary.pt'))
         self.default_rng = np.random.default_rng(seed)
-        print(self.vocabulary['[MASK]'])
         self.mask_sep = False
         if 'mask_sep' in kwargs:
             self.mask_sep = True

@@ -192,13 +192,15 @@ class H_EHRTokenizer(EHRTokenizer):
     def check_for_ancestor(self, concept):
         """Check if the concept has an ancestor in the vocabulary
         If yes, return the tuple of the closest ancestor"""
-        index = [(0,1)]
-        i=0
-        while concept not in self.vocabulary and index[-1][1]>0 and i<10: 
-            i+=1
-            print(i)
-            index = self.df_sks_names.where(self.df_sks_names == concept).stack().index
-            concept = self.df_sks_names.iloc[index[-1][0], index[-1][1]-1] # get parent
+        if concept not in self.df_sks_names.stack().unique():
+            return self.vocabulary['[UNK]']
+        
+        index = self.df_sks_names.where(self.df_sks_names == concept).stack().index
+        branch = index[-1][0]
+        level = index[-1][1]
+        while (concept not in self.vocabulary) and (level>0): # go up the hierarchy until you find a concept in the vocabulary
+            level -= 1 # go up the hierarchy
+            concept = self.df_sks_names.iloc[branch, level] # get parent
         return self.vocabulary.get(concept, self.vocabulary['[UNK]'])
 
     def add_unknown_concept_to_hierarchy(self, concept:str)->None:

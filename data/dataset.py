@@ -1,6 +1,6 @@
 from torch.utils.data import Dataset
 import torch
-from typing import Dict, List
+from typing import Dict, List, Tuple
 import numpy as np
 
 
@@ -93,7 +93,8 @@ class H_MLMDataset(MLMDataset):
         self.special_ids = [v for k,v in self.vocabulary.items() if '[' in k]
         if self.mask_sep:
             self.special_ids.remove(self.vocabulary['[SEP]'])
-        
+        self.leaf_nodes = self.get_leaf_nodes()
+
     def __getitem__(self, index:int):
         """
         return: dictionary with codes for patient with index 
@@ -106,7 +107,7 @@ class H_MLMDataset(MLMDataset):
             
         return patient
 
-    def random_mask(self, patient:Dict[str,List]):
+    def random_mask(self, patient:Dict[str,List])->Tuple[List,List]:
         """mask code with certain probability, 80% of the time replace with [MASK], 
             10% of the time replace with random token, 10% of the time keep original"""
         
@@ -131,5 +132,10 @@ class H_MLMDataset(MLMDataset):
                     masked_concepts[i] = self.default_rng.choice(list(self.vocabulary.values()))
                 # 10% keep original 
                 targets[i] = target
-        return masked_concepts, targets
+        return masked_concepts, torch.tensor(targets, dtype=torch.long)
 
+    def get_leaf_nodes(self)->List[Tuple[int]]:
+        """return list of leaf nodes"""
+        return [v for v in self.h_vocabulary.items() if 0 not in v]
+        
+            

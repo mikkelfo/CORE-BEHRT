@@ -1,10 +1,10 @@
 import pickle as pkl
-import random
 import string
 from os.path import dirname, join
 from typing import Dict, List, Tuple
-import torch
+
 import pandas as pd
+import torch
 from tqdm import tqdm
 
 """  
@@ -70,7 +70,7 @@ class MedicalCodes():
     def get_codes_type(self, signature, min_len=2):
         codes =[c.strip(signature) for c in self.all_codes if c.startswith(signature)]
         if self.test:
-            codes = codes[:500]
+            codes = sorted(codes)[:500]
         return [c for c in codes if len(c)>=min_len]
 
     def get_lab(self):

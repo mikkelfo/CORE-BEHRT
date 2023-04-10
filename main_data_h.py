@@ -33,7 +33,7 @@ def main():
 
     train, test, val = Splitter()(features)
     print("Tokenize")
-    tokenizer = H_EHRTokenizer(config=tokenizer_config)
+    tokenizer = H_EHRTokenizer(config=tokenizer_config, test=True)
     encoded_train = tokenizer(train, padding=tokenizer_config.padding, truncation=tokenizer_config.truncation)
     print("Save vocab")
     tokenizer.save_vocab('data/tokenized/hierarchical/test')
@@ -45,9 +45,10 @@ def main():
 
     print("Create datasets")
     # To dataset
-    train_dataset = H_MLMDataset(encoded_train, vocabulary=tokenizer.vocabulary)
-    test_dataset = H_MLMDataset(encoded_test, vocabulary=tokenizer.vocabulary)
-    val_dataset = H_MLMDataset(encoded_val, vocabulary=tokenizer.vocabulary)
+    dataset_kwargs = {'vocabulary': tokenizer.vocabulary, 'h_vocabulary': tokenizer.h_vocabulary}
+    train_dataset = H_MLMDataset(encoded_train, **dataset_kwargs)
+    test_dataset = H_MLMDataset(encoded_test, **dataset_kwargs)
+    val_dataset = H_MLMDataset(encoded_val, **dataset_kwargs)
 
     print("Save datasets")
     torch.save(train_dataset, 'data/tokenized/hierarchical/test/dataset.train')

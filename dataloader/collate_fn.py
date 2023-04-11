@@ -18,7 +18,12 @@ def dynamic_padding(data: list):
                 dtype = torch.float32
             else:
                 dtype = torch.long
-            patient[key] = torch.cat((torch.tensor(values, dtype=dtype), torch.zeros(difference, dtype=dtype)), dim=0)
+
+            if key == 'target':
+                filler = torch.ones(difference, dtype=dtype) * -100
+            else:
+                filler = torch.zeros(difference, dtype=dtype)
+            patient[key] = torch.cat((torch.tensor(values, dtype=dtype), filler), dim=0)
     
     padded_data = {
         key: torch.stack([patient[key] for patient in data])

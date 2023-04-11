@@ -59,7 +59,11 @@ class FeatureMaker():
             # Add outcomes
             for pid, patient in concepts.groupby('PID'):
                 for outcome in self.config.outcomes:
-                    outcomes[outcome].append((info_dict[pid][outcome] - origin_point).dt.total_seconds() / 60 / 60)
+                    patient_outcome = info_dict[pid][f'OUTCOME_{outcome}']
+                    if pd.isna(patient_outcome):
+                        outcomes[outcome].append(patient_outcome)
+                    else:
+                        outcomes[outcome].append((patient_outcome - origin_point).total_seconds() / 60 / 60)
 
         return self.features, outcomes
 

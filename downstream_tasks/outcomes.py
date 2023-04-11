@@ -30,12 +30,14 @@ class OutcomeMaker():
                 if key == 'MECHANICAL_VENTILATION':
                     patient_outcomes[pid]['MECHANICAL_VENTILATION'] = self.respirator(patient)
 
-        # Add patient_outcomes to patient info
-        for pid, patient in patients_info.groupby('PID'):
-            for key in self.outcomes:
-                patient[f'OUTCOME_{key}'] = patient_outcomes[pid][key]
-            
-        return patients_info
+        # Add patient_outcomes to patient info (converted to dict)
+        info = patients_info.set_index('PID').to_dict('index')
+        for pid, values in patient_outcomes.items():
+            for key, outcome in values.items():
+                info.setdefault(pid, {})[f'OUTCOME_{key}'] = outcome
+        
+        # Convert back to dataframe
+        return pd.DataFrame.from_dict(info, orient='index').reset_index().rename(columns={'index': 'PID'})
 
     @staticmethod
     def hospital_admission(patient: pd.DataFrame):

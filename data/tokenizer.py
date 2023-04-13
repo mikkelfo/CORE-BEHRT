@@ -151,22 +151,21 @@ class H_EHRTokenizer(EHRTokenizer):
     def __call__(self, features: Dict[str,List[List]], padding:bool=True, truncation:int=512):
         data = self.batch_encode(features, padding, truncation)
         self.inv_vocab = {v: k for k, v in self.vocabulary.items()}
-        data['h_concept'] = self.batch_encode_hierarchy(data)
+        data['target'] = self.batch_encode_hierarchy(data)
         return data
 
     def batch_encode_hierarchy(self, data:Dict[str, List[List[int]]])->List[List[tuple]]:
         """Encode the hierarchy of the concepts as tuple"""
-        h_concepts = [] # list of lists of tuples
-        for patient_concept_tok in tqdm(data['concept'], 'h_encode patients'): # these are endoded as integers
+        targets = [] # list of lists of tuples
+        for patient_concept_tok in tqdm(data['concept'], 'h_encode patients'): # these are encoded as integers
             # we can skip the padding and truncation here, because we already did it in the batch_encode function
             pat_h_enc_concepts = self.h_encode_patient(patient_concept_tok)
-            h_concepts.append(pat_h_enc_concepts)
-        return h_concepts
+            targets.append(pat_h_enc_concepts)
+        return targets
 
-    
     def h_encode_patient(self, patient_concept_tok: List[int])->List[tuple]:
         """Encode concepts hierarchically as tuples for one patient"""
-        pat_h_concepts = [] # list of tuples
+        pat_targets = [] # list of tuples
         for concept_tok in patient_concept_tok:
             concept = self.inv_vocab[int(concept_tok)] # instead we map the integers to the corresponding concepts
             # We don't need to take care of freezing the vocabulary here, because we already did it in the batch_encode function
@@ -176,9 +175,9 @@ class H_EHRTokenizer(EHRTokenizer):
                     print(concept, 'not in the database')
                     self.add_unknown_concept_to_hierarchy(concept)
                 self.h_vocabulary[concept] = self.get_lowest_level_node(concept)
-            pat_h_concepts.append(self.h_vocabulary[concept])
+            pat_targets.append(self.h_vocabulary[concept])
             
-        return pat_h_concepts
+        return pat_targets
 
     def encode(self, concepts: list):
         """Overwrite the encode function of base class to add the concept to the vocabulary if it's not there yet"""
@@ -220,7 +219,7 @@ class H_EHRTokenizer(EHRTokenizer):
         indices = self.df_sks_names[self.df_sks_names==name].stack().index
         max_id = indices.max()
         return self.df_sks_tuples.iloc[max_id[0], max_id[1]]
-
+ 
     @staticmethod
     def get_parent(node:Tuple[int])->Tuple[int]:
         """Get parent node of a node defined by a tuple."""
@@ -244,8 +243,17 @@ class H_EHRTokenizer(EHRTokenizer):
     def save_vocab(self, dest: str):
         torch.save(self.vocabulary, join(dest, "vocabulary.pt"))
         torch.save(self.h_vocabulary, join(dest, "h_vocabulary.pt"))
+        torch.save(self.get_leaf_nodes(), join(dest, "leaf_nodes.pt"))
         self.df_sks_names.to_csv(join(dest, "sks_names.csv"), index=None)
         self.df_sks_tuples.to_csv(join(dest, "sks_tuples.csv"), index=None)
 
+
     def freeze_vocabulary(self):
         self.new_vocab = False
+    
+    def get_leaf_nodes(self):
+        """Get all leaf nodes of the hierarchy"""
+        return torch.tensor(self.df_sks_tuples.iloc[:,-1].unique().tolist(), dtype=torch.long)
+
+
+

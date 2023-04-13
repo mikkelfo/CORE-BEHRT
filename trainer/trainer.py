@@ -97,7 +97,7 @@ class EHRTrainer():
         self.model.train()
         self.setup_run_folder()
         self.save_setup()
-        dataloader = DataLoader(self.train_dataset, batch_size=self.args['batch_size'], shuffle=True, collate_fn=self.args.get('collate_fn', dynamic_padding))
+        dataloader = DataLoader(self.train_dataset, batch_size=self.args['batch_size'], shuffle=True, collate_fn=self.args.get('collate_fn', dynamic_padding)) # TODO: Add hydra.instantiate to specify collate_fn in config
         return dataloader
 
     def train_step(self, batch: dict):
@@ -140,16 +140,21 @@ class EHRTrainer():
         val_loop = tqdm(dataloader, total=len(dataloader))
         val_loop.set_description('Validation')
         val_loss = 0
-        metric_values = {name: [] for name in self.metrics}
+        if not isinstance(self.metrics, type(None)):
+            metric_values = {name: [] for name in self.metrics}
         for batch in val_loop:
             outputs = self.forward_pass(batch)
             val_loss += self.get_loss(outputs, batch).item()
-
-            for name, func in self.metrics.items():
-                metric_values[name].append(func(outputs, batch))
+            if not isinstance(self.metrics, type(None)):
+            
+                for name, func in self.metrics.items():
+                    metric_values[name].append(func(outputs, batch))
 
         self.model.train()
-        return val_loss / len(val_loop), {name: sum(values) / len(values) for name, values in metric_values.items()}
+        if not isinstance(self.metrics, type(None)):
+            return val_loss / len(val_loop), {name: sum(values) / len(values) for name, values in metric_values.items()}
+        else: 
+            return val_loss / len(val_loop), {}
 
     def to_device(self, batch: dict) -> dict:
         return {key: value.to(self.device) for key, value in batch.items()}

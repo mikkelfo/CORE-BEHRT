@@ -76,9 +76,9 @@ class DataGenerator(super):
         absolute_position = self.generate_absolute_position(ages, los, birthdate) # in days
         sex_int = self.generate_sex()
         if sex_int == 1:
-            sex = '[BG_MALE]'
+            sex = 'BG_MALE'
         else:
-            sex = '[BG_FEMALE]'
+            sex = 'BG_FEMALE'
         concepts = [sex, '[SEP]'] + codes
         ages = [0,0] + ages
         visits = [0,0] + visits

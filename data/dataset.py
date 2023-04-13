@@ -86,14 +86,14 @@ class H_MLMDataset(MLMDataset):
     def __init__(self, features:Dict[str,List], seed:int=0, **kwargs):
         super().__init__(features, **kwargs)
         self.h_vocabulary = self.load_vocabulary(self.kwargs.get('h_vocabulary', 'h_vocabulary.pt'))
+        self.leaf_nodes = self.load_leaf_nodes(self.kwargs.get('leaf_nodes', 'leaf_nodes.pt'))
         self.default_rng = np.random.default_rng(seed)
         self.mask_sep = False
         if 'mask_sep' in kwargs:
-            self.mask_sep = True
+            self.mask_sep = kwargs['mask_sep']
         self.special_ids = [v for k,v in self.vocabulary.items() if '[' in k]
         if self.mask_sep:
             self.special_ids.remove(self.vocabulary['[SEP]'])
-        self.leaf_nodes = self.get_leaf_nodes()
 
     def __getitem__(self, index:int):
         """
@@ -104,19 +104,24 @@ class H_MLMDataset(MLMDataset):
 
         patient['target'] = targets
         patient['concept'] = masked_concepts
-            
+        for k, v in patient.items():
+            if k in ['age', 'abspos']:
+                dtype = torch.float
+            else:
+                dtype = torch.long
+            patient[k] = torch.tensor(v, dtype=dtype)
         return patient
-
+    # TODO: make sure at least one concept is masked per sequence
     def random_mask(self, patient:Dict[str,List])->Tuple[List,List]:
         """mask code with certain probability, 80% of the time replace with [MASK], 
             10% of the time replace with random token, 10% of the time keep original"""
         
-        concepts, h_concepts = patient['concept'], patient['h_concept']
+        concepts, targets = patient['concept'], patient['target']
 
-        masked_concepts = torch.clone(concepts).detach()
-        targets = len(concepts) * [(-100,)*len(h_concepts[0])] # -100 is ignored in loss function
+        masked_concepts = concepts
+        masked_targets = len(concepts) * [(-100,)*len(targets[0])] # -100 is ignored in loss function
 
-        for i, concept, target in zip(range(len(concepts)), concepts, h_concepts):
+        for i, concept, target in zip(range(len(concepts)), concepts, targets):
             if concept in self.special_ids: # dont mask special tokens, if SEP token should be masked, it's excluded from special_ids
                 continue
             if i==len(concepts)-1 and concept==self.vocabulary['[SEP]']: # dont mask last sep token
@@ -131,11 +136,19 @@ class H_MLMDataset(MLMDataset):
                 elif prob < 0.9:      
                     masked_concepts[i] = self.default_rng.choice(list(self.vocabulary.values()))
                 # 10% keep original 
-                targets[i] = target
-        return masked_concepts, torch.tensor(targets, dtype=torch.long)
+                masked_targets[i] = target
+        
+        return masked_concepts, targets
 
-    def get_leaf_nodes(self)->List[Tuple[int]]:
-        """return list of leaf nodes"""
-        return [v for v in self.h_vocabulary.items() if 0 not in v]
+    def load_leaf_nodes(self, leaf_nodes):
+        if isinstance(leaf_nodes, str):
+            return torch.load(leaf_nodes)
+        elif isinstance(leaf_nodes, torch.Tensor):
+            return leaf_nodes
+        elif isinstance(leaf_nodes, list):
+            return torch.tensor(leaf_nodes, dtype=torch.long)
+        else:
+            raise TypeError(f'Unsupported leaf_nodes input {type(leaf_nodes)}')
+
         
             

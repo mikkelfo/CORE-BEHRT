@@ -7,11 +7,13 @@ from data.concept_loader import ConceptLoader
 from data_fixes.infer import Inferrer
 from data.featuremaker import FeatureMaker
 from data_fixes.handle import Handler
+from tqdm import tqdm
 
 def main():
     with initialize(config_path='configs'):
         features_config = compose(config_name='featuremaker.yaml')
         tokenizer_config = compose(config_name='tokenizer.yaml')
+        dataset_config = compose(config_name='dataset.yaml')
 
     # Load concepts
     # concepts, patients_info = ConceptLoader()(features_config.data_dir)
@@ -27,7 +29,7 @@ def main():
     # torch.save(features, 'features.pt')
 
     print("Load sequences")
-    features = torch.load("C:\\Users\\fjn197\\PhD\\projects\\PHAIR\\pipelines\\patbert\\data\\sequence\\synthetic\\synthetic.pt")
+    features = torch.load("C:\\Users\\fjn197\\PhD\\projects\\PHAIR\\pipelines\\ehr2vec\\data\\sequence\\synthetic\\synthetic.pt")
     print("Split")
 
 
@@ -36,20 +38,22 @@ def main():
     tokenizer = H_EHRTokenizer(config=tokenizer_config, test=True)
     encoded_train = tokenizer(train, padding=tokenizer_config.padding, truncation=tokenizer_config.truncation)
     print("Save vocab")
-    tokenizer.save_vocab('data/tokenized/hierarchical/test')
     tokenizer.freeze_vocabulary() 
     print("Tokenize test and val")
     # finds closest ancestor in the hierarchy for unknown tokens
     encoded_test = tokenizer(test, padding=tokenizer_config.padding, truncation=tokenizer_config.truncation)
     encoded_val = tokenizer(val, padding=tokenizer_config.padding, truncation=tokenizer_config.truncation)
+    tokenizer.save_vocab('data/tokenized/hierarchical/test')
 
     print("Create datasets")
     # To dataset
-    dataset_kwargs = {'vocabulary': tokenizer.vocabulary, 'h_vocabulary': tokenizer.h_vocabulary}
+    dataset_kwargs = {'vocabulary': tokenizer.vocabulary, 'h_vocabulary': tokenizer.h_vocabulary,
+            'leaf_nodes':tokenizer.get_leaf_nodes()}
+    dataset_kwargs.update(dataset_config)
     train_dataset = H_MLMDataset(encoded_train, **dataset_kwargs)
     test_dataset = H_MLMDataset(encoded_test, **dataset_kwargs)
     val_dataset = H_MLMDataset(encoded_val, **dataset_kwargs)
-
+    
     print("Save datasets")
     torch.save(train_dataset, 'data/tokenized/hierarchical/test/dataset.train')
     torch.save(test_dataset, 'data/tokenized/hierarchical/test/dataset.test')

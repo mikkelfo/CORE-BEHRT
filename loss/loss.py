@@ -23,7 +23,6 @@ class CE_FlatSoftmax(torch.nn.Module):
         """
         leaf_probs = softmax(leaf_logits, dim=-1)
         selected_leaf_probs = self.get_leaf_node_probabilities(leaf_probs, y_true_enc)
-        # print(selected_leaf_probs)
         log_probs = torch.log(selected_leaf_probs)
         log_probs = log_probs.flatten() # batchsize * seq_len
         loss = self.nllloss(log_probs.unsqueeze(-1), torch.zeros_like(log_probs, dtype=torch.int64))
@@ -81,7 +80,7 @@ class CE_FlatSoftmax_MOP(torch.nn.Module):
         for level, mat in enumerate(self.lvl_sel_mats):
             pred_probs_lvl = mat @ predicted_leaf_probs.T # shape (num_nodes, batchsize * seq_len)
             target_probs_lvl, pad_mask = self.construct_target_probability_mat(y_true_enc, level) # we can already pass it as a target!
-            loss_lvl = self.categorical_cross_entropy(pred_probs_lvl.T, target_probs_lvl.T, pad_mask.T)         
+            loss_lvl = self.categorical_cross_entropy(pred_probs_lvl.T, target_probs_lvl.T, pad_mask)         
             loss += loss_lvl * self.weights[level]
         return loss
     
@@ -146,7 +145,9 @@ class CE_FlatSoftmax_MOP(torch.nn.Module):
         y_flat = torch.flatten(y_true_enc[:,:,:level+1], start_dim=0, end_dim=1) # flatten batch dim to simplify
         in_tree_mask = ((y_flat==nodes_lvl[:,None]).all(dim=-1).any(dim=0) | (y_flat==self.ignore_index).all(dim=-1)) | (y_flat==0).any(dim=-1) # we check that all targets are in the tree
         if not in_tree_mask.all():
+            print(nodes_lvl)
             raise ValueError(f"Target node {y_flat[~in_tree_mask]} is not in the tree") # check that all targets are in the nodes
+            
         pad_mask = self.get_mask(y_flat, level) # we get a (padding) mask for the current level
         probability_matrix = torch.zeros((num_nodes, y_flat.shape[0])) # we populate this matrix num_nodes x num_targets
         target_mask = self.get_target_mask(nodes_lvl, y_flat) # mask nodes that match target, shape: num_nodes x num_targets x levels

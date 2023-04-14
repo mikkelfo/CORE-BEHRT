@@ -8,22 +8,27 @@ from model.model import HierarchicalBertEHRModel
 from transformers import BertConfig
 
 
-
 def main():
     with initialize(config_path='configs'):
-        cfg: dict = compose(config_name='trainer.yaml')
+        cfg: dict = compose(config_name='trainer_h.yaml')
 
+    print('Loading datasets...')
     train_dataset = torch.load(cfg.get('train_dataset', 'dataset.train'))
     val_dataset = torch.load(cfg.get('val_dataset', 'dataset.val'))
-
+    
+    # Instantiate model
+    print('Instantiating model...')
     model = HierarchicalBertEHRModel(
         BertConfig(
-            vocab_size=len(train_dataset.vocabulary),
+            emb_vocab_size=len(train_dataset.vocabulary),
+            vocab_size=len(train_dataset.leaf_nodes),
             type_vocab_size=train_dataset.max_segments,
             **cfg.get('model', {}),
-        )
+        ), 
+        leaf_nodes=train_dataset.leaf_nodes,
     )
 
+    print('Instantiating optimizer...')
     opt = cfg.get('optimizer', {})
     optimizer = AdamW(
         model.parameters(),
@@ -32,12 +37,15 @@ def main():
         eps=opt.get('epsilon', 1e-8),
     )
     
+    print('Instantiating metrics...')
     # Instantiate metrics
     if 'metrics' in cfg:
         metrics = {k: instantiate(v) for k, v in cfg.metrics.items()}
     else:
         metrics = None
-
+    
+    print('Instantiating trainer...')
+    # Instantiate trainer
     trainer = EHRTrainer( 
         model=model, 
         optimizer=optimizer,

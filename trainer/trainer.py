@@ -102,7 +102,7 @@ class EHRTrainer():
 
     def train_step(self, batch: dict):
         outputs = self.forward_pass(batch)
-        loss = self.get_loss(outputs, batch)
+        loss = outputs['loss']
         self.backward_pass(loss)
 
         return loss
@@ -120,14 +120,6 @@ class EHRTrainer():
             target=batch['target'] if 'target' in batch else None
         )
 
-    def get_loss(self, outputs: dict, batch: dict):
-        if self.args.get('custom_loss') is not None:
-            return self.args['custom_loss'](outputs, batch)
-        elif 'loss' in outputs:
-            return outputs['loss']
-        else:
-            raise Exception('No loss found in outputs and no custom loss function provided')
-
     def backward_pass(self, loss):
         loss.backward()
 
@@ -144,7 +136,7 @@ class EHRTrainer():
             metric_values = {name: [] for name in self.metrics}
         for batch in val_loop:
             outputs = self.forward_pass(batch)
-            val_loss += self.get_loss(outputs, batch).item()
+            val_loss += outputs['loss']
             if not isinstance(self.metrics, type(None)):
             
                 for name, func in self.metrics.items():

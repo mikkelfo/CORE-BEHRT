@@ -4,6 +4,7 @@ from os.path import dirname, join
 from typing import Dict, List, Tuple
 
 import pandas as pd
+import numpy as np
 import torch
 from tqdm import tqdm
 
@@ -519,7 +520,7 @@ class TableConstructor():
         names, tuples = self.construct_h_table_from_dics(self.extended_tree_ls) # full table of the SKS vocab tree
         return self.extended_tree_ls, names, tuples
     
-    def construct_h_table_from_dics(self, tree:List[Dict[str, tuple]])->tuple[pd.DataFrame, pd.DataFrame]:
+    def construct_h_table_from_dics(self, tree:List[Dict[str, Tuple]])->Tuple[pd.DataFrame, pd.DataFrame]:
         """
         Main function to construct the SKS vocab tree.
         From a list of dictionaries construct two pands dataframes, where each dictionary represents a column
@@ -591,7 +592,7 @@ class TableConstructor():
         return ls_ls_tup
 
     @staticmethod
-    def replicate_nodes_to_match_lower_level(top_nodes: List[tuple], bottom_nodes:List[tuple], bottom_level:int)->List[tuple]:
+    def replicate_nodes_to_match_lower_level(top_nodes: List[Tuple], bottom_nodes:List[Tuple], bottom_level:int)->List[tuple]:
         """Given two lists of nodes on two adjacent levels, replicate nodes of dic0 to match dic1."""
         new_top_nodes = []
         for bottom_node in tqdm(bottom_nodes, desc='replicate node'):
@@ -603,6 +604,47 @@ class TableConstructor():
     @staticmethod
     def invert_dic(dic:Dict)->Dict:
             return {v:k for k,v in dic.items()}
+
+
+class Tree:
+
+    def __init__(self, tree: pd.DataFrame):
+        """Tree class for navigating the tree structure
+        The tree itself is a pandas df with names as the values"""
+        self.tree = tree
+        self.counts = np.zeros_like(tree.to_numpy())
+
+    def get_parents(self, node:Tuple):
+        """For a specific node, get the parent nodes in the tree"""
+        parent_node = (node[0], node[1]-1)
+        parent_name = self.tree.iloc[parent_node]
+        parent_nodes = self.tree[self.tree==parent_name].stack().index.tolist()
+        parent_nodes = [node for node in parent_nodes if node[1] == parent_node[1]]
+        return parent_nodes
+
+    def get_lowest_siblings(self, concept):
+        """For a specific concept, get the lowest level siblings in the tree"""
+        matching_nodes = self.tree[self.tree == concept].stack().index.tolist()
+        lowest_matching_node = matching_nodes[-1]
+        lowest_siblings = [node for node in matching_nodes if node[-1]==lowest_matching_node[-1]]
+        return lowest_siblings
+
+    def increment_count(counts, nodes):
+        for node in nodes:
+            counts[node] += 1
+        return counts
+
+    def populate_counts(self, concepts):
+        """For a list of concepts, populate the counts of the tree"""
+        for concept in concepts:
+            siblings = self.get_lowest_siblings(concept)
+            counts = self.increment_count(counts, siblings)
+            # access parent
+            node = siblings[0]
+            while node[1]>0:
+                parents = self.get_parents(node)
+                counts = self.increment_count(counts, parents)
+                node = parents[0]
 
 
 

@@ -607,14 +607,15 @@ class TableConstructor():
 
 
 class Tree:
-
+    """Tree class for populating the tree with counts"""
     def __init__(self, tree: pd.DataFrame):
-        """Tree class for navigating the tree structure
-        The tree itself is a pandas df with names as the values"""
         self.tree = tree
         self.counts = np.zeros_like(tree.to_numpy())
 
-    def get_parents(self, node:Tuple):
+    def __call__(self, concepts: List[str]):
+        self.populate_counts(concepts)
+
+    def get_parents(self, node:Tuple)->List[Tuple]:
         """For a specific node, get the parent nodes in the tree"""
         parent_node = (node[0], node[1]-1)
         parent_name = self.tree.iloc[parent_node]
@@ -622,28 +623,27 @@ class Tree:
         parent_nodes = [node for node in parent_nodes if node[1] == parent_node[1]]
         return parent_nodes
 
-    def get_lowest_siblings(self, concept):
+    def get_lowest_siblings(self, concept: str)->List[Tuple]:
         """For a specific concept, get the lowest level siblings in the tree"""
         matching_nodes = self.tree[self.tree == concept].stack().index.tolist()
         lowest_matching_node = matching_nodes[-1]
         lowest_siblings = [node for node in matching_nodes if node[-1]==lowest_matching_node[-1]]
         return lowest_siblings
 
-    def increment_count(counts, nodes):
+    def increment_count(self, nodes: List[Tuple])->np.array:
         for node in nodes:
-            counts[node] += 1
-        return counts
+            self.counts[node] += 1
 
-    def populate_counts(self, concepts):
+    def populate_counts(self, concepts: List[str])->None:
         """For a list of concepts, populate the counts of the tree"""
         for concept in concepts:
             siblings = self.get_lowest_siblings(concept)
-            counts = self.increment_count(counts, siblings)
+            self.increment_count(siblings)
             # access parent
             node = siblings[0]
             while node[1]>0:
                 parents = self.get_parents(node)
-                counts = self.increment_count(counts, parents)
+                self.increment_count(parents)
                 node = parents[0]
 
 

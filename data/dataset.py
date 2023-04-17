@@ -16,7 +16,7 @@ class BaseDataset(Dataset):
 
     def get_max_segments(self):
         if 'segment' not in self.features:
-            raise ValueError('No segment data found. Please add segment data to dataset')
+            return None
         return max([max(segment) for segment in self.features['segment']]) + 1
 
 
@@ -27,7 +27,7 @@ class MLMDataset(BaseDataset):
         self.vocabulary = vocabulary
         self.masked_ratio = masked_ratio
         if ignore_special_tokens:
-            self.n_special_tokens = 5   # TODO: Find a dynamic way to get this
+            self.n_special_tokens = 5   # TODO: Find a dynamic way to get this (e.g. count tokens that startswith.('[') )
 
     def __getitem__(self, index):
         patient = super().__getitem__(index)
@@ -48,13 +48,13 @@ class MLMDataset(BaseDataset):
         target = torch.ones(N, dtype=torch.long) * -100
 
         # Apply special token mask and create MLM mask
-        eligble_mask = masked_concepts >= self.n_special_tokens
-        eligble_concepts = masked_concepts[eligble_mask]        # Ignore special tokens
-        rng = torch.rand(len(eligble_concepts))                 # Random number for each token
+        eligible_mask = masked_concepts >= self.n_special_tokens
+        eligible_concepts = masked_concepts[eligible_mask]        # Ignore special tokens
+        rng = torch.rand(len(eligible_concepts))                 # Random number for each token
         masked = rng < self.masked_ratio                        # Mask tokens with probability masked_ratio
 
         # Get masked MLM concepts
-        selected_concepts = eligble_concepts[masked]            # Select set % of the tokens
+        selected_concepts = eligible_concepts[masked]            # Select set % of the tokens
         adj_rng = rng[masked].div(self.masked_ratio)            # Fix ratio to 0-100 interval
 
         # Operation masks
@@ -68,8 +68,8 @@ class MLMDataset(BaseDataset):
         # selected_concepts = torch.where(rng_keep, selected_concepts, selected_concepts)       # Redundant
 
         # Update outputs
-        target[eligble_mask][masked] = eligble_concepts[masked] # Set "true" token
-        eligble_concepts[masked] = selected_concepts            # Set masked token in concepts (masked_concepts is updated by eligble_concepts)
+        target[eligible_mask.nonzero()[:,0][masked]] = eligible_concepts[masked]    # Set "true" token
+        masked_concepts[eligible_mask.nonzero()[:,0][masked]]= selected_concepts    # Sets new concepts
 
         return masked_concepts, target
 
@@ -84,41 +84,44 @@ class MLMDataset(BaseDataset):
 
 class CensorDataset(BaseDataset):
     """
-        Uses .index, so it finds first occurence of censor token
-        Takes censor_token as int (post-tokenizer)
         n_hours can be both negative and positive (indicating before/after censor token)
+        outcomes is a list of the outcome timestamps to predict
+        censor_outcomes is a list of the censor timestamps to use
     """
-    def __init__(self, features: dict, censor_token: int, n_hours: int, outcomes: dict):
+    def __init__(self, features: dict, outcomes: list, censor_outcomes: list, n_hours: int):
         super().__init__(features)
 
-        self.censor_token = censor_token
-        self.n_hours = n_hours
         self.outcomes = outcomes
+        self.censor_outcomes = censor_outcomes
+        self.n_hours = n_hours
 
     def __getitem__(self, index: int) -> dict:
         patient = super().__getitem__(index)
-        patient['target'] = pd.isna(self.outcomes[index])   # TODO: Boolean target or int?
+        censor_timestamp = self.censor_outcomes[index]
+        patient['target'] = int(pd.notna(self.outcomes[index]))
 
-        return self._censor(patient)
+        return self._censor(patient, censor_timestamp)
 
-    def _censor(self, patient: dict) -> dict:
-        # Find first occurence of censor token
-        token_idx = patient['concept'].index(self.censor_token)
+    def _censor(self, patient: dict, event_timestamp: float) -> dict:
+        if pd.isna(event_timestamp):
+            return patient
+        background_end = patient['segment'].index(1)
+        event_idx = patient['abspos'].index(event_timestamp)
 
         # Only required when padding
         mask = torch.tensor(patient['attention_mask'])
         N_nomask = len(mask[mask==1])
 
-        # Remove padding 
+        # Remove padding and replace background 0s with first non-background pos
         pos = patient['abspos'][:N_nomask]
+        pos[:background_end] = pos[background_end]
 
         # censor the last n_hours
-        dont_censor = (pos - pos[token_idx] - self.n_hours) <= 0    # Include n_hours or not? (<= or <)
+        dont_censor = (pos - pos[event_idx] - self.n_hours) <= 0    # Include n_hours or not? (<= or <)
 
         # TODO: This removes padding as well - is this ok?
         for key, value in patient.items():
             patient[key] = value[dont_censor]
 
         return patient
-
 

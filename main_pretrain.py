@@ -36,12 +36,6 @@ def main_train():
         weight_decay=opt.get('weight_decay', 0.01),
         eps=opt.get('epsilon', 1e-8),
     )
-    
-    # Instantiate metrics
-    if 'metrics' in cfg:
-        metrics = {k: instantiate(v) for k, v in cfg.metrics.items()}
-    else:
-        metrics = None
 
     trainer = EHRTrainer( 
         model=model, 
@@ -49,7 +43,7 @@ def main_train():
         train_dataset=train_dataset, 
         val_dataset=val_dataset, 
         args=cfg.get('trainer_args', {}),
-        metrics=metrics,
+        metrics=cfg.metrics,
     )
     trainer.train()
 

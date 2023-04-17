@@ -3,7 +3,8 @@ loader:
   patients_info: patients_info.csv
   concepts: [
     diagnose,
-    medication
+    medication,
+    custom_events
   ]
 
 features: 

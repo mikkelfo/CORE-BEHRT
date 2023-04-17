@@ -18,3 +18,14 @@ def top_k(outputs, batch, topk=10) -> dict:
     else:
         return correct.any(0).float().mean().item()
 
+def binary_hit(outputs, batch, threshold=0.5):
+    logits = outputs.logits
+    target = batch['target']
+
+    probs = torch.nn.functional.sigmoid(logits)
+    predictions = (probs > threshold).long().view(-1)         # TODO: Add uncertainty measure
+
+    correct = (predictions == target).float().mean().item()
+
+    return correct
+

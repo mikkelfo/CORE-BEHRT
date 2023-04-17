@@ -7,7 +7,7 @@ vocabulary: 'vocabulary.pt'
 outcome: 
   type: HOSPITAL_ADMISSION
   n_hours: 12
-  censor_token: 0
+  censor_type: HOSPITAL_ADMISSION
 
 model:
   max_position_embeddings: 512
@@ -27,8 +27,10 @@ trainer_args:
   effective_batch_size: 512
   epochs: 10
   info: true
-
+  custom_loss:
+    _target_: torch.nn.BCEWithLogitsLoss
+    pos_weight: 1
 metrics:
-  # Accuracy?
-  # Precision?
-  # Recall?
+  accuracy:
+    _target_: evaluation.metrics.binary_hit
+    _partial_: true

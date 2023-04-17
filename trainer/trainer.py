@@ -5,6 +5,7 @@ import os
 import uuid
 import json
 from dataloader.collate_fn import dynamic_padding
+from hydra.utils import instantiate
 
 
 class EHRTrainer():
@@ -26,6 +27,7 @@ class EHRTrainer():
         self.val_dataset = val_dataset
         self.optimizer = optimizer
         self.scheduler = scheduler
+        self.metrics = {k: instantiate(v) for k, v in metrics.items()}
         self.metrics = metrics
 
         default_args = {
@@ -36,6 +38,11 @@ class EHRTrainer():
             'save_every_k_steps': float('inf'),
             'custom_loss': None,
         }
+        if 'collate_fn' in args:
+            args.collate_fn = instantiate(args['collate_fn'])
+        if 'custom_loss' in args:
+            args.custom_loss = instantiate(args['custom_loss'])
+        
         self.args = {**default_args, **args}
 
     def update_attributes(self, **kwargs):
@@ -102,10 +109,9 @@ class EHRTrainer():
 
     def train_step(self, batch: dict):
         outputs = self.forward_pass(batch)
-        loss = self.get_loss(outputs, batch)
-        self.backward_pass(loss)
+        self.backward_pass(outputs.loss)
 
-        return loss
+        return outputs.loss
 
     def forward_pass(self, batch: dict):
         batch = self.to_device(batch)
@@ -119,14 +125,6 @@ class EHRTrainer():
             },
             labels=batch['target'] if 'target' in batch else None
         )
-
-    def get_loss(self, outputs: dict, batch: dict):
-        if self.args.get('custom_loss') is not None:
-            return self.args['custom_loss'](outputs, batch)
-        elif 'loss' in outputs:
-            return outputs['loss']
-        else:
-            raise Exception('No loss found in outputs and no custom loss function provided')
 
     def backward_pass(self, loss):
         loss.backward()
@@ -143,7 +141,7 @@ class EHRTrainer():
         metric_values = {name: [] for name in self.metrics}
         for batch in val_loop:
             outputs = self.forward_pass(batch)
-            val_loss += self.get_loss(outputs, batch).item()
+            val_loss += outputs.loss.item()
 
             for name, func in self.metrics.items():
                 metric_values[name].append(func(outputs, batch))

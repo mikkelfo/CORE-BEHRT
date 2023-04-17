@@ -607,13 +607,16 @@ class TableConstructor():
 
 
 class Tree:
-    """Tree class for populating the tree with counts"""
+
     def __init__(self, tree: pd.DataFrame):
+        """Tree class for navigating the tree structure
+        The tree itself is a pandas df with names as the values"""
         self.tree = tree
         self.counts = np.zeros_like(tree.to_numpy())
 
     def __call__(self, concepts: List[str]):
         self.populate_counts(concepts)
+        self.propagate_counts()
 
     def get_parents(self, node:Tuple)->List[Tuple]:
         """For a specific node, get the parent nodes in the tree"""
@@ -645,6 +648,47 @@ class Tree:
                 parents = self.get_parents(node)
                 self.increment_count(parents)
                 node = parents[0]
+    def get_unique_concepts(self, level:int):
+        """For a specific level, get the unique concepts in the tree"""
+        return self.tree.iloc[:,level].unique()
+
+    def get_copies_nodes(self, concept: str, level:int)->List[Tuple]:
+        """For a specific concept, get the nodes of all copies of the concept a specific level in the tree"""
+        all_nodes = self.tree[self.tree==concept].stack().index.tolist()
+        node_copies = [node for node in all_nodes if node[1]==level]
+        return node_copies
+
+    def get_children(self, concept:Union[Tuple, str], level)->List[Tuple]:
+        """For a specific concept, get the child nodes in the tree"""
+        if isinstance(concept, str):
+            copies = self.get_copies_nodes(concept, level)
+        else:
+            concept = self.tree.iloc[concept]
+            copies = self.get_copies_nodes(concept, level)
+        children = [(node[0], node[1]+1) for node in copies]
+        return children
+
+    def get_unique_nodes(self, nodes:List[Tuple])->List[Tuple]:
+        """For a list of nodes, get the unique nodes"""
+        concepts = [self.tree.iloc[node] for node in nodes]
+        unique_concepts = list(set(concepts))
+        unique_nodes = [self.tree[self.tree==concept].stack().index.tolist()[0] for concept in unique_concepts]
+        return sorted(unique_nodes)
+    # TODO: think whether onelings should get counts from their parents
+    # TODO: implement probability calculation
+    def propagate_counts(self):
+        """Propagate the counts from the top of the tree to the bottom"""
+        depth = self.tree.shape[1]
+        for level in tqdm(range(0, depth-1), desc='Propagating counts'):
+            unique_parents = self.get_unique_concepts(level)
+            for unq_parent in unique_parents:
+                parent_copies_nodes = self.get_copies_nodes(unq_parent, level)
+                children_nodes = self.get_children(parent_copies_nodes[0], level)
+                unique_children_nodes = self.get_unique_nodes(children_nodes)
+                children_sum = sum([self.counts[child] for child in unique_children_nodes])
+                parent_count = self.counts[parent_copies_nodes[0]]
+                for child_node in children_nodes:
+                    tree.counts[child_node] *=  0 if children_sum==0 else parent_count/children_sum 
 
 
 

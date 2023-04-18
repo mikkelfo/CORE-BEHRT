@@ -1,7 +1,7 @@
 import pickle as pkl
 import string
 from os.path import dirname, join
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 
 import pandas as pd
 import numpy as np
@@ -613,10 +613,13 @@ class Tree:
         The tree itself is a pandas df with names as the values"""
         self.tree = tree
         self.counts = np.zeros_like(tree.to_numpy())
+        self.leaf_probabilities = np.zeros_like(self.counts.shape[0])
 
     def __call__(self, concepts: List[str]):
         self.populate_counts(concepts)
         self.propagate_counts()
+        self.increment_all_counts()
+        self.compute_probabilities()
 
     def get_parents(self, node:Tuple)->List[Tuple]:
         """For a specific node, get the parent nodes in the tree"""
@@ -658,7 +661,7 @@ class Tree:
         node_copies = [node for node in all_nodes if node[1]==level]
         return node_copies
 
-    def get_children(self, concept:Union[Tuple, str], level)->List[Tuple]:
+    def get_children(self, concept: Union[Tuple, str], level)->List[Tuple]:
         """For a specific concept, get the child nodes in the tree"""
         if isinstance(concept, str):
             copies = self.get_copies_nodes(concept, level)
@@ -668,7 +671,7 @@ class Tree:
         children = [(node[0], node[1]+1) for node in copies]
         return children
 
-    def get_unique_nodes(self, nodes:List[Tuple])->List[Tuple]:
+    def get_unique_nodes(self, nodes: List[Tuple])->List[Tuple]:
         """For a list of nodes, get the unique nodes"""
         concepts = [self.tree.iloc[node] for node in nodes]
         unique_concepts = list(set(concepts))
@@ -688,7 +691,14 @@ class Tree:
                 children_sum = sum([self.counts[child] for child in unique_children_nodes])
                 parent_count = self.counts[parent_copies_nodes[0]]
                 for child_node in children_nodes:
-                    tree.counts[child_node] *=  0 if children_sum==0 else parent_count/children_sum 
-
-
+                    if len(unique_children_nodes)>1:
+                        tree.counts[child_node] *=  0 if children_sum==0 else parent_count/children_sum 
+                    else: # only child
+                        tree.counts[child_node] = parent_count
+    def increment_all_counts(self):
+        self.counts += 1
+        
+    def compute_leaf_probabilities(self):
+        """Compute the probabilities of each node in the tree"""
+        self.leaf_probabilities = self.counts[:,-1]/self.counts[:,-1].sum()
 

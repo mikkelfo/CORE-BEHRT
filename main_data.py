@@ -4,6 +4,7 @@ from data.concept_loader import ConceptLoader
 from data_fixes.infer import Inferrer
 from data.featuremaker import FeatureMaker
 from data_fixes.handle import Handler
+from data_fixes.exclude import Excluder
 from data.tokenizer import EHRTokenizer
 from data.split import Splitter
 from downstream_tasks.outcomes import OutcomeMaker
@@ -33,6 +34,9 @@ def main_data():
     
     # Overwrite nans and other incorrect values
     features = Handler()(features)
+
+    # Exclude patients with <k concepts
+    features, outcomes = Excluder()(features, outcomes)
 
     # Save final features and outcomes
     torch.save(features, 'features.pt')

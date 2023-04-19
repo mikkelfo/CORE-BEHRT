@@ -40,8 +40,6 @@ class EHRTrainer():
         }
         if 'collate_fn' in args:
             args.collate_fn = instantiate(args['collate_fn'])
-        if 'custom_loss' in args:
-            args.custom_loss = instantiate(args['custom_loss'])
         
         self.args = {**default_args, **args}
 

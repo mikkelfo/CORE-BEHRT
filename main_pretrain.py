@@ -1,6 +1,5 @@
 import torch
 from hydra import initialize, compose
-from hydra.utils import instantiate
 from torch.optim import AdamW
 from data.dataset import MLMDataset
 

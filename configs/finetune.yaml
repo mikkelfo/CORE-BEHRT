@@ -16,6 +16,7 @@ model:
   num_hidden_layers: 6
   num_attention_heads: 6
   intermediate_size: 64
+  pool_type: cls
 
 optimizer:
   lr: 5e-5
@@ -27,9 +28,7 @@ trainer_args:
   effective_batch_size: 512
   epochs: 10
   info: true
-  custom_loss:
-    _target_: torch.nn.BCEWithLogitsLoss
-    pos_weight: 1
+
 metrics:
   accuracy:
     _target_: evaluation.metrics.binary_hit

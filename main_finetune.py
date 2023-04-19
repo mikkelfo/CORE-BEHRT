@@ -1,10 +1,9 @@
 import torch
 from hydra import initialize, compose
-from hydra.utils import instantiate
 from torch.optim import AdamW
 from data.dataset import CensorDataset
 from trainer.trainer import EHRTrainer
-from model.model import BertEHRModel
+from model.model import BertForFineTuning
 from transformers import BertConfig
 
 
@@ -15,16 +14,16 @@ def main_finetune():
     # Finetune specific
     train_encoded = torch.load(cfg.get('train_encoded', 'train_encoded.pt'))
     train_outcomes = torch.load(cfg.get('train_outcomes', 'train_outcomes.pt'))
-    test_encoded = torch.load(cfg.get('test_encoded', 'test_encoded.pt'))
-    test_outcomes = torch.load(cfg.get('test_outcomes', 'test_outcomes.pt'))
+    val_encoded = torch.load(cfg.get('val_encoded', 'val_encoded.pt'))
+    val_outcomes = torch.load(cfg.get('val_outcomes', 'val_outcomes.pt'))
     vocabulary = torch.load(cfg.get('vocabulary', 'vocabulary.pt'))
     n_hours, outcome_type, censor_type = cfg.outcome.n_hours, cfg.outcome.censor_type, cfg.outcome.type
     train_dataset = CensorDataset(train_encoded, n_hours=n_hours, outcomes=train_outcomes[outcome_type], censor_outcomes=train_outcomes[censor_type])
-    test_dataset = CensorDataset(test_encoded, n_hours=n_hours, outcomes=test_outcomes[outcome_type], censor_outcomes=test_outcomes[censor_type])
+    val_dataset = CensorDataset(val_encoded, n_hours=n_hours, outcomes=val_outcomes[outcome_type], censor_outcomes=val_outcomes[censor_type])
 
     print(f'Setting up finetune task on [{outcome_type}] with [{n_hours}] hours censoring')
 
-    model = BertEHRModel(
+    model = BertForFineTuning(
         BertConfig(
             vocab_size=len(vocabulary),
             type_vocab_size=train_dataset.max_segments,
@@ -32,7 +31,6 @@ def main_finetune():
         )
     )
     model.load_state_dict(torch.load(cfg.get('pretrained_model', 'pretrained_model.pt')))
-    model.replace_head()
 
     opt = cfg.get('optimizer', {})
     optimizer = AdamW(
@@ -46,11 +44,11 @@ def main_finetune():
         model=model, 
         optimizer=optimizer,
         train_dataset=train_dataset, 
-        test_dataset=test_dataset, 
+        val_dataset=val_dataset, 
         args=cfg.get('trainer_args', {}),
         metrics=cfg.metrics,
     )
-    trainer.test()
+    trainer.train()
 
 
 if __name__ == '__main__':

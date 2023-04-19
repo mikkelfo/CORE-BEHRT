@@ -98,30 +98,30 @@ class CensorDataset(BaseDataset):
     def __getitem__(self, index: int) -> dict:
         patient = super().__getitem__(index)
         censor_timestamp = self.censor_outcomes[index]
-        patient['target'] = int(pd.notna(self.outcomes[index]))
+        patient = self._censor(patient, censor_timestamp)
+        patient['target'] = float(pd.notna(self.outcomes[index]))
 
-        return self._censor(patient, censor_timestamp)
+        return patient
 
     def _censor(self, patient: dict, event_timestamp: float) -> dict:
         if pd.isna(event_timestamp):
             return patient
-        background_end = patient['segment'].index(1)
-        event_idx = patient['abspos'].index(event_timestamp)
+        background_end = patient['concept'].index(2)    # First [SEP] token
 
         # Only required when padding
         mask = torch.tensor(patient['attention_mask'])
         N_nomask = len(mask[mask==1])
 
         # Remove padding and replace background 0s with first non-background pos
-        pos = patient['abspos'][:N_nomask]
+        pos = torch.tensor(patient['abspos'][:N_nomask])
         pos[:background_end] = pos[background_end]
 
         # censor the last n_hours
-        dont_censor = (pos - pos[event_idx] - self.n_hours) <= 0    # Include n_hours or not? (<= or <)
+        dont_censor = (pos - event_timestamp - self.n_hours) <= 0    # Include n_hours or not? (<= or <)
 
         # TODO: This removes padding as well - is this ok?
         for key, value in patient.items():
-            patient[key] = value[dont_censor]
+            patient[key] = torch.tensor(value)[dont_censor]
 
         return patient
 

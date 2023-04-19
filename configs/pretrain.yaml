@@ -15,7 +15,7 @@ optimizer:
   lr: 3e-4
   weight_decay: 0
   epsilon: 1e-6
-x
+
 trainer_args:
   batch_size: 32
   effective_batch_size: 512

@@ -5,7 +5,6 @@ from data_fixes.infer import Inferrer
 from data.featuremaker import FeatureMaker
 from data_fixes.handle import Handler
 from data.tokenizer import EHRTokenizer
-from data.dataset import MLMDataset
 from data.split import Splitter
 from downstream_tasks.outcomes import OutcomeMaker
 

@@ -13,7 +13,7 @@ class OutcomeMaker():
             death = pd.Series(patients_info['DATE_OF_DEATH'].values, index=patients_info['PID']).to_dict()
 
         for pid, patient in concepts.groupby('PID'):    # For each patient
-            for key in self.outcomes:               # For each outcome
+            for key in self.outcomes:                   # For each outcome
                 # Hospital admission
                 if key == 'HOSPITAL_ADMISSION':
                     patient_outcomes[pid]['HOSPITAL_ADMISSION'] = self.hospital_admission(patient)

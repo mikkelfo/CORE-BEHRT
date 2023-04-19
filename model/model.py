@@ -1,14 +1,14 @@
 from transformers import BertModel
 from embeddings.ehr import EhrEmbeddings
 import torch.nn as nn
-from heads import MLMHead, FineTuneHead
+from model.heads import MLMHead, FineTuneHead
 
 
 class BertEHRModel(BertModel):
     def __init__(self, config):
         super().__init__(config)
 
-        self.bert.embeddings = EhrEmbeddings(config)
+        self.embeddings = EhrEmbeddings(config)
         self.loss_fct = nn.CrossEntropyLoss()
         
         self.cls = MLMHead(config)
@@ -50,5 +50,15 @@ class BertForFineTuning(BertEHRModel):
         self.cls = FineTuneHead(config)
 
     def get_loss(self, logits, labels):
-        return self.loss_fct(logits.view(-1), labels.view(-1))
+        pool_type = self.config.pool_type
+        if pool_type == 'cls':
+            pooled_output = logits[:, 0]
+        elif pool_type == 'mean':
+            pooled_output = logits.mean(dim=1)
+        elif pool_type == 'sum':
+            pooled_output = logits.sum(dim=1)
+        else:
+            pooled_output = logits[:, 0]        # Default to cls
+    
+        return self.loss_fct(pooled_output.view(-1), labels.view(-1))
 

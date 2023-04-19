@@ -27,7 +27,7 @@ class AbsposCreator(BaseCreator):
         # Calculate hours since origin point
         abspos = (concepts['TIMESTAMP'] - origin_point).dt.total_seconds() / 60 / 60
 
-        concepts['ABSPOS'] = abspos
+        concepts['ABSPOS'] = abspos.round(0)
         return concepts
 
 class SegmentCreator(BaseCreator):

@@ -14,6 +14,8 @@ class Handler():
 
             patient = self.handle_nans(patient, concept_fill=concept_fill, num_fill=num_fill, drop=drop)
 
+            patient['segment'] = self.normalize_segments(patient['segment'])
+
             for key, values in patient.items():
                 handled_patients[key].append(values)
 
@@ -47,4 +49,12 @@ class Handler():
                 patient[key] = [filler if pd.isna(v) else v for v in values]
 
         return patient
+
+    @staticmethod
+    def normalize_segments(segments: list) -> list:
+        segment_set = sorted(set(segments))
+        correct_segments = list(range(len(segment_set)))
+        converter = {k: v for (k,v) in zip(segment_set, correct_segments)}
+
+        return [converter[segment] for segment in segments]
 

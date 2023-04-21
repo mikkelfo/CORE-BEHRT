@@ -1,18 +1,26 @@
 import pandas as pd
 
-class OutcomeMaker():
-    def __init__(self, outcomes: dict):
-        self.outcomes = outcomes
+from data.concept_loader import ConceptLoader
 
-    def __call__(self, concepts: pd.DataFrame, patients_info: pd.DataFrame):
+class OutcomeMaker():
+    def __init__(self, config: dict):
+        # We reload concepts to load in custom events
+        self.concepts_with_custom, _ = ConceptLoader()(
+            concepts=config.loader.concepts + ['custom_events'], 
+            data_dir=config.loader.data_dir,
+            patients_info=config.loader.patients_info,
+        )
+        self.outcomes = config.outcomes
+
+    def __call__(self, patients_info: pd.DataFrame):
         # Initalize patient_outcomes dict
-        patient_outcomes = {pid: {k: None for k in self.outcomes} for pid in concepts['PID'].unique()}
+        patient_outcomes = {pid: {k: None for k in self.outcomes} for pid in self.concepts_with_custom['PID'].unique()}
 
         # Create {PID: DATE_OF_DEATH} dict
-        if self.outcomes.get('DEATH', False):
+        if self.outcomes.DEATH:
             death = pd.Series(patients_info['DATE_OF_DEATH'].values, index=patients_info['PID']).to_dict()
 
-        for pid, patient in concepts.groupby('PID'):    # For each patient
+        for pid, patient in self.concepts_with_custom.groupby('PID'):    # For each patient
             for key in self.outcomes:                   # For each outcome
                 # Hospital admission
                 if key == 'HOSPITAL_ADMISSION':

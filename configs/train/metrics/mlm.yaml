@@ -1,0 +1,20 @@
+top1:
+  _target_: evaluation.metrics.top_k
+  _partial_: true
+  topk: 1
+top10:
+  _target_: evaluation.metrics.top_k
+  _partial_: true
+  topk: 10
+top30:
+  _target_: evaluation.metrics.top_k
+  _partial_: true
+  topk: 30
+top50:
+  _target_: evaluation.metrics.top_k
+  _partial_: true
+  topk: 50
+top100:
+  _target_: evaluation.metrics.top_k
+  _partial_: true
+  topk: 100

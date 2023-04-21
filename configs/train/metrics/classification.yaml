@@ -1,0 +1,3 @@
+accuracy:
+  _target_: evaluation.metrics.binary_hit
+  _partial_: true

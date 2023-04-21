@@ -27,7 +27,9 @@ class MLMDataset(BaseDataset):
         self.vocabulary = vocabulary
         self.masked_ratio = masked_ratio
         if ignore_special_tokens:
-            self.n_special_tokens = 5   # TODO: Find a dynamic way to get this (e.g. count tokens that startswith.('[') )
+            self.n_special_tokens = len([token for token in vocabulary if token.startswith('[')])
+        else:
+            self.n_special_tokens = 0
 
     def __getitem__(self, index):
         patient = super().__getitem__(index)

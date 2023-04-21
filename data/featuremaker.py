@@ -51,19 +51,18 @@ class FeatureMaker():
                 value.append(patient[feature.upper()].tolist())
 
         # Add outcomes if in config
-        if self.config.get('outcomes') is not None:
-            outcomes = {outcome: [] for outcome in self.config.outcomes}
-            info_dict = patients_info.set_index('PID').to_dict('index')
-            origin_point = datetime(**self.config.features.abspos)
-            
-            # Add outcomes
-            for pid, patient in concepts.groupby('PID'):
-                for outcome in self.config.outcomes:
-                    patient_outcome = info_dict[pid][f'OUTCOME_{outcome}']
-                    if pd.isna(patient_outcome):
-                        outcomes[outcome].append(patient_outcome)
-                    else:
-                        outcomes[outcome].append((patient_outcome - origin_point).total_seconds() / 60 / 60)
+        outcomes = {outcome: [] for outcome in self.config.outcomes}
+        info_dict = patients_info.set_index('PID').to_dict('index')
+        origin_point = datetime(**self.config.features.abspos)
+        
+        # Add outcomes
+        for pid, patient in concepts.groupby('PID'):
+            for outcome in self.config.outcomes:
+                patient_outcome = info_dict[pid][f'OUTCOME_{outcome}']
+                if pd.isna(patient_outcome):
+                    outcomes[outcome].append(patient_outcome)
+                else:
+                    outcomes[outcome].append((patient_outcome - origin_point).total_seconds() / 60 / 60)
 
         return self.features, outcomes
 

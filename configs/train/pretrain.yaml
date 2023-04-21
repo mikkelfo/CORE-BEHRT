@@ -1,0 +1,18 @@
+defaults:
+  - metrics: mlm
+  - model: defaults
+  - optimizer: defaults
+  - paths: defaults
+  - trainer_args: defaults
+
+  - override hydra/hydra_logging: disabled  
+  - override hydra/job_logging: disabled  
+  - _self_
+  
+hydra:  
+  output_subdir: null
+  run:  
+    dir: .
+
+ignore_special_tokens: true
+

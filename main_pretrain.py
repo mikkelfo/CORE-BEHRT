@@ -1,5 +1,5 @@
 import torch
-from hydra import initialize, compose
+import hydra
 from torch.optim import AdamW
 from data.dataset import MLMDataset
 
@@ -7,33 +7,28 @@ from trainer.trainer import EHRTrainer
 from model.model import BertEHRModel
 from transformers import BertConfig
 
-
-
-def main_train():
-    with initialize(config_path='configs'):
-        cfg: dict = compose(config_name='pretrain.yaml')
-
+@hydra.main(version_base=None, config_path="configs/train", config_name="pretrain")
+def main_train(cfg):
     # MLM specific
-    train_encoded = torch.load(cfg.get('train_encoded', 'train_encoded.pt'))
-    val_encoded = torch.load(cfg.get('val_encoded', 'val_encoded.pt'))
-    vocabulary = torch.load(cfg.get('vocabulary', 'vocabulary.pt'))
-    train_dataset = MLMDataset(train_encoded, vocabulary=vocabulary)
-    val_dataset = MLMDataset(val_encoded, vocabulary=vocabulary)
+    train_encoded = torch.load(cfg.path.train_encoded)
+    val_encoded = torch.load(cfg.path.val_encoded)
+    vocabulary = torch.load(cfg.path.vocabulary)
+    train_dataset = MLMDataset(train_encoded, vocabulary=vocabulary, ignore_special_tokens=cfg.ignore_special_tokens)
+    val_dataset = MLMDataset(val_encoded, vocabulary=vocabulary, ignore_special_tokens=cfg.ignore_special_tokens)
 
     model = BertEHRModel(
         BertConfig(
             vocab_size=len(vocabulary),
             type_vocab_size=train_dataset.max_segments,
-            **cfg.get('model', {}),
+            **cfg.model,
         )
     )
 
-    opt = cfg.get('optimizer', {})
     optimizer = AdamW(
         model.parameters(),
-        lr=opt.get('lr', 1e-4),
-        weight_decay=opt.get('weight_decay', 0.01),
-        eps=opt.get('epsilon', 1e-8),
+        lr=cfg.optimizer.lr,
+        weight_decay=cfg.optimizer.weight_decay,
+        eps=cfg.optimizer.epsilon,
     )
 
     trainer = EHRTrainer( 
@@ -41,7 +36,7 @@ def main_train():
         optimizer=optimizer,
         train_dataset=train_dataset, 
         val_dataset=val_dataset, 
-        args=cfg.get('trainer_args', {}),
+        args=cfg.trainer_args,
         metrics=cfg.metrics,
     )
     trainer.train()

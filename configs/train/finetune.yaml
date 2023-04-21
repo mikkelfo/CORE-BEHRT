@@ -1,0 +1,21 @@
+defaults:
+  - metrics: classification
+  - model: defaults
+  - optimizer: defaults
+  - paths: defaults
+  - trainer_args: defaults
+
+  - override hydra/hydra_logging: disabled  
+  - override hydra/job_logging: disabled  
+  - _self_
+  
+hydra:  
+  output_subdir: null
+  run:  
+    dir: .
+
+outcome: 
+  type: HOSPITAL_ADMISSION
+  n_hours: 12
+  censor_type: HOSPITAL_ADMISSION
+

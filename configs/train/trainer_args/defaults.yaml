@@ -1,0 +1,6 @@
+batch_size: 32
+effective_batch_size: 512
+epochs: 30
+info: true
+collate_fn:
+  _target_: dataloader.collate_fn.dynamic_padding

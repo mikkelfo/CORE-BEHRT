@@ -18,14 +18,11 @@ class EHRTokenizer():
             self.new_vocab = False
             self.vocabulary = vocabulary
 
-        self.padding = config.get('padding', False)
-        self.truncation = config.get('truncation', 512)
-
     def __call__(self, features: dict, padding=None, truncation=None):
         if padding is None:
-            padding = self.padding
+            padding = self.config.padding
         if truncation is None:
-            truncation = self.truncation
+            truncation = self.config.truncation
         return self.batch_encode(features, padding, truncation)
 
     def batch_encode(self, features: dict, padding=True, truncation=512):
@@ -63,7 +60,7 @@ class EHRTokenizer():
     @staticmethod
     def truncate(patient: dict, max_len: int):
         # Find length of background sentence (+2 to include CLS token and SEP token)
-        background_length = len([x for x in patient.get('concept', []) if x[:3] == "BG_"]) + 2
+        background_length = len([x for x in patient.get('concept', []) if x.startswith('BG_')]) + 2
         truncation_length = max_len - background_length
         
         # Do not start seq with SEP token (SEP token is included in background sentence)
@@ -87,12 +84,12 @@ class EHRTokenizer():
         return padded_data
 
     def insert_special_tokens(self, patient: dict):
-        if self.config['sep_tokens']:
+        if self.config.sep_tokens:
             if 'segment' not in patient:
                 raise Exception('Cannot insert [SEP] tokens without segment information')
             patient = self.insert_sep_tokens(patient)
 
-        if self.config['cls_token']:
+        if self.config.cls_token:
             patient = self.insert_cls_token(patient)
         
         return patient

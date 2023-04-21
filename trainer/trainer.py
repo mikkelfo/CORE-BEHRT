@@ -36,10 +36,8 @@ class EHRTrainer():
             'epochs': 10,
             'info': True,
             'save_every_k_steps': float('inf'),
-            'custom_loss': None,
         }
-        if 'collate_fn' in args:
-            args.collate_fn = instantiate(args['collate_fn'])
+        args.collate_fn = instantiate(args.collate_fn)
         
         self.args = {**default_args, **args}
 
@@ -59,10 +57,10 @@ class EHRTrainer():
         self.update_attributes(**kwargs)
         self.validate_training()
 
-        accumulation_steps: int = self.args['effective_batch_size'] // self.args['batch_size']
+        accumulation_steps: int = self.args.effective_batch_size // self.args.batch_size
         dataloader = self.setup_training()
 
-        for epoch in range(self.args['epochs']):
+        for epoch in range(self.args.epochs):
             train_loop = tqdm(enumerate(dataloader), total=len(dataloader))
             train_loop.set_description(f'Train {epoch}')
             epoch_loss = []
@@ -84,7 +82,7 @@ class EHRTrainer():
                     step_loss = 0
 
                 # Save iteration checkpoint
-                if ((i+1) / accumulation_steps) % self.args['save_every_k_steps'] == 0:
+                if ((i+1) / accumulation_steps) % self.args.save_every_k_steps == 0:
                     self.save_checkpoint(id=f'epoch{epoch}_step{(i+1) // accumulation_steps}', train_loss=step_loss / accumulation_steps)
 
             # Validate (returns None if no validation set is provided)
@@ -102,7 +100,7 @@ class EHRTrainer():
         self.model.train()
         self.setup_run_folder()
         self.save_setup()
-        dataloader = DataLoader(self.train_dataset, batch_size=self.args['batch_size'], shuffle=True, collate_fn=self.args.get('collate_fn', dynamic_padding))
+        dataloader = DataLoader(self.train_dataset, batch_size=self.args.batch_size, shuffle=True, collate_fn=self.args.collate_fn)
         return dataloader
 
     def train_step(self, batch: dict):
@@ -132,7 +130,7 @@ class EHRTrainer():
             return None, None
 
         self.model.eval()
-        dataloader = DataLoader(self.val_dataset, batch_size=self.args['batch_size'], shuffle=True, collate_fn=self.args.get('collate_fn', dynamic_padding))
+        dataloader = DataLoader(self.val_dataset, batch_size=self.args.batch_size, shuffle=True, collate_fn=self.args.collate_fn)
         val_loop = tqdm(dataloader, total=len(dataloader))
         val_loop.set_description('Validation')
         val_loss = 0
@@ -155,8 +153,8 @@ class EHRTrainer():
         if self.args.get('run_name') is None:
             random_runname = uuid.uuid4().hex
             self.info(f'Run name not provided. Using random run name: {random_runname}')
-            self.args['run_name'] = random_runname
-        self.run_folder = os.path.join('runs', self.args['run_name'])
+            self.args.run_name = random_runname
+        self.run_folder = os.path.join('runs', self.args.run_name)
 
         if os.path.exists(self.run_folder):
             self.info(f'Run folder {self.run_folder} already exists. Writing files to existing folder')
@@ -185,5 +183,5 @@ class EHRTrainer():
         }, checkpoint_name)
 
     def info(self, message):
-        if self.args['info']:
+        if self.args.info:
             print(f'[INFO] {message}')

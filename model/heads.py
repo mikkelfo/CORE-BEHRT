@@ -28,11 +28,19 @@ class MLMHead(torch.nn.Module):
 class FineTuneHead(torch.nn.Module):
     def __init__(self, config):
         super().__init__()
-        self.dropout = torch.nn.Dropout(config.hidden_dropout_prob)
         self.classifier = torch.nn.Linear(config.hidden_size, 1)
 
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
-        x = self.dropout(hidden_states)
-        x = self.classifier(x)
+        pool_type = self.config.pool_type
+        if pool_type == 'cls':
+            pooled_output = hidden_states[:, 0]
+        elif pool_type == 'mean':
+            pooled_output = hidden_states.mean(dim=1)
+        elif pool_type == 'sum':
+            pooled_output = hidden_states.sum(dim=1)
+        else:
+            pooled_output = hidden_states[:, 0]        # Default to cls
+
+        x = self.classifier(pooled_output)
 
         return x

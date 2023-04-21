@@ -1,5 +1,5 @@
 import torch
-from hydra import initialize, compose
+import hydra
 from data.concept_loader import ConceptLoader
 from data_fixes.infer import Inferrer
 from data.featuremaker import FeatureMaker
@@ -9,28 +9,30 @@ from data.tokenizer import EHRTokenizer
 from data.split import Splitter
 from downstream_tasks.outcomes import OutcomeMaker
 
-def main_data():
-    with initialize(config_path='configs'):
-        data_config = compose(config_name='data.yaml')
+@hydra.main(version_base=None, config_path="configs/data", config_name="data")
+def main_data(cfg):
     """
-        Loads
+        Loads data
         Infers nans
+        Finds outcomes
         Creates features
-        Overwrite nans
-        Tokenize
-        To dataset
+        Handles wrong data
+        Excludes patients with <k concepts
+        Splits data
+        Tokenizes
+        Saves
     """
     # Load concepts
-    concepts, patients_info = ConceptLoader()(**data_config.loader)
+    concepts, patients_info = ConceptLoader()(**cfg.loader)
 
     # Infer missing values
     concepts = Inferrer()(concepts)
 
     # Make outcomes
-    patients_info = OutcomeMaker(data_config.outcomes)(concepts, patients_info)
+    patients_info = OutcomeMaker(cfg)(concepts, patients_info)
 
     # Create feature sequences and outcomes
-    features, outcomes = FeatureMaker(data_config)(concepts, patients_info)
+    features, outcomes = FeatureMaker(cfg)(concepts, patients_info)
     
     # Overwrite nans and other incorrect values
     features = Handler()(features)
@@ -47,7 +49,7 @@ def main_data():
     train_outcomes, test_outcomes, val_outcomes = Splitter()(outcomes)
 
     # Tokenize
-    tokenizer = EHRTokenizer(data_config.tokenizer)
+    tokenizer = EHRTokenizer(cfg.tokenizer)
     train_encoded = tokenizer(train_features)
     tokenizer.freeze_vocabulary()
     test_encoded = tokenizer(test_features)

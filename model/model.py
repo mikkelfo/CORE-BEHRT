@@ -49,16 +49,6 @@ class BertForFineTuning(BertEHRModel):
         self.loss_fct = nn.BCEWithLogitsLoss()
         self.cls = FineTuneHead(config)
 
-    def get_loss(self, logits, labels):
-        pool_type = self.config.pool_type
-        if pool_type == 'cls':
-            pooled_output = logits[:, 0]
-        elif pool_type == 'mean':
-            pooled_output = logits.mean(dim=1)
-        elif pool_type == 'sum':
-            pooled_output = logits.sum(dim=1)
-        else:
-            pooled_output = logits[:, 0]        # Default to cls
-    
-        return self.loss_fct(pooled_output.view(-1), labels.view(-1))
+    def get_loss(self, hidden_states, labels):    
+        return self.loss_fct(hidden_states.view(-1), labels.view(-1))
 

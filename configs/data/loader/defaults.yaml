@@ -1,0 +1,6 @@
+data_dir: formatted_data
+patients_info: patients_info.csv
+concepts: [
+  diagnose,
+  medication
+]

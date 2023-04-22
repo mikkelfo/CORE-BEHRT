@@ -615,11 +615,13 @@ class Tree:
         self.counts = np.zeros_like(tree.to_numpy())
         self.leaf_probabilities = np.zeros_like(self.counts.shape[0])
 
-    def __call__(self, concepts: List[str]):
+    def __call__(self, concepts: List[List[str]]):
+        # flatten
+        concepts = [item for sublist in concepts for item in sublist]
         self.populate_counts(concepts)
         self.propagate_counts()
         self.increment_all_counts()
-        self.compute_probabilities()
+        self.compute_leaf_probabilities()
 
     def get_parents(self, node:Tuple)->List[Tuple]:
         """For a specific node, get the parent nodes in the tree"""
@@ -677,8 +679,7 @@ class Tree:
         unique_concepts = list(set(concepts))
         unique_nodes = [self.tree[self.tree==concept].stack().index.tolist()[0] for concept in unique_concepts]
         return sorted(unique_nodes)
-    # TODO: think whether onelings should get counts from their parents
-    # TODO: implement probability calculation
+
     def propagate_counts(self):
         """Propagate the counts from the top of the tree to the bottom"""
         depth = self.tree.shape[1]
@@ -702,4 +703,6 @@ class Tree:
         """Compute the probabilities of each node in the tree"""
         self.leaf_probabilities = self.counts[:,-1]/self.counts[:,-1].sum()
 
-
+    def save_leaf_probabilities(self, path: str):
+        """Save the leaf probabilities to a pickle file"""
+        torch.save(torch.from_numpy(self.leaf_probabilities), join(path, 'leaf_probs.pt'))

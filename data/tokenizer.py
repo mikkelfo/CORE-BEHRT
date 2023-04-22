@@ -170,6 +170,7 @@ class H_EHRTokenizer(EHRTokenizer):
             concept = self.inv_vocab[int(concept_tok)] # instead we map the integers to the corresponding concepts
             # We don't need to take care of freezing the vocabulary here, because we already did it in the batch_encode function
             # all concepts that show up here are in the main vocabulary
+            # TODO: think whether we should try partial matching here e.g. D10.011 not in vocabulary, but D10.01 is
             if concept not in self.h_vocabulary:
                 if concept not in self.df_sks_names.stack().unique(): # check if it's in the database
                     print(concept, 'not in the database')

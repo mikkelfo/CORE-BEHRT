@@ -692,13 +692,14 @@ class Tree:
                 parent_count = self.counts[parent_copies_nodes[0]]
                 for child_node in children_nodes:
                     if len(unique_children_nodes)>1:
-                        tree.counts[child_node] *=  0 if children_sum==0 else parent_count/children_sum 
+                        self.counts[child_node] *=  0 if children_sum==0 else parent_count/children_sum 
                     else: # only child
-                        tree.counts[child_node] = parent_count
+                        self.counts[child_node] = parent_count
     def increment_all_counts(self):
         self.counts += 1
         
     def compute_leaf_probabilities(self):
         """Compute the probabilities of each node in the tree"""
         self.leaf_probabilities = self.counts[:,-1]/self.counts[:,-1].sum()
+
 

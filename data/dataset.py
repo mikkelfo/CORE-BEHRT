@@ -138,7 +138,7 @@ class H_MLMDataset(MLMDataset):
                 # 10% keep original 
                 masked_targets[i] = target
         
-        return masked_concepts, targets
+        return masked_concepts, masked_targets
 
     def load_leaf_nodes(self, leaf_nodes):
         if isinstance(leaf_nodes, str):

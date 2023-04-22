@@ -1,5 +1,5 @@
 from typing import List, Tuple
-
+import torch
 from embeddings.ehr import EhrEmbeddings
 from loss import loss
 from transformers import BertForMaskedLM
@@ -27,11 +27,11 @@ class BertEHRModel(BertForMaskedLM):
 
 
 class HierarchicalBertEHRModel(BertEHRModel):
-    def __init__(self, config, leaf_nodes: List[Tuple], trainable_loss_weights=True):
+    def __init__(self, config, leaf_nodes: List[Tuple], base_leaf_probs: torch.tensor=None, trainable_loss_weights=True):
         super().__init__(config)
         config.vocab_size = config.emb_vocab_size
         # self.bert.embeddings = EhrEmbeddings(config)
-        self.h_loss = loss.CE_FlatSoftmax_MOP(leaf_nodes, trainable_loss_weights, )
+        self.h_loss = loss.CE_FlatSoftmax_MOP(leaf_nodes, trainable_loss_weights, base_leaf_probs)
         # we need to add loss params to model params
     def forward(self,
         input_ids,

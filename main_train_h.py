@@ -26,6 +26,7 @@ def main():
             **cfg.get('model', {}),
         ), 
         leaf_nodes=train_dataset.leaf_nodes,
+        base_leaf_probs = train_dataset.base_leaf_probs
     )
 
     print('Instantiating optimizer...')

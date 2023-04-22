@@ -59,18 +59,23 @@ class CE_FlatSoftmax_MOP(torch.nn.Module):
 
     The call method takes the predicted leaf probabilities (batchsize, seq_len, num_leaf_nodes) and the target vector (batchsize, seq_len, levels), and returns the loss.
     """
-    def __init__(self, leaf_nodes: torch.tensor, trainable_weights=False, ignore_index=-100) -> None:
+    def __init__(self, leaf_nodes: torch.tensor, trainable_weights=False, ignore_index=-100, base_leaf_probs=None) -> None:
         """Args:
         leaf_nodes (torch.tensor): Leaf nodes (num_leaf_nodes, levels)
         trainable_weights (bool, optional): Whether to train the level weights. Defaults to False."""
         super(CE_FlatSoftmax_MOP, self).__init__()  
         self.ignore_index = ignore_index
+        
         self.leaf_nodes = leaf_nodes
         self.lvl_mappings = self.get_level_mappings()
         self.lvl_sel_mats, self.nodes = self.construct_level_selection_mats_and_graph() # when leaf_probs multiplied fir lvl_sel_mat from the left -> probs on that level
         self.weights = self.initialize_geometric_weights()
         if trainable_weights:
             self.weights.requires_grad = True
+        if not isinstance(base_leaf_probs, type(None)):
+            assert len(leaf_nodes)==len(base_leaf_probs), "Number of leaf nodes and number of base leaf probabilities must be equal."
+            self.base_leaf_probs = base_leaf_probs
+            self.base_probs = self.compute_base_probabilities()
 
     def forward(self, leaf_logits:torch.tensor, y_true_enc:torch.tensor)->float:
         loss = 0 # we will sum the losses on each level
@@ -89,6 +94,13 @@ class CE_FlatSoftmax_MOP(torch.nn.Module):
         """Takes predicted and true probabilities and returns categorical cross entropy."""
         y_pred = torch.clamp(y_pred, 1e-9, 1 - 1e-9) # we clip to avoid log(0)
         return -(y_true * torch.log(y_pred))[mask].sum()/y_true.shape[0] # we divide by n_samples to get mean
+
+    def compute_base_probabilities(self)->List[torch.tensor]:
+        """Computes the base probabilities for each level, i.e. the probabilities that are used below the target level."""
+        probability_list = []
+        for mat in self.lvl_sel_mats:
+            probability_list.append(mat @ self.base_leaf_probs)
+        return probability_list
 
     def initialize_geometric_weights(self):
         """We initialize weights as e**(-i)"""

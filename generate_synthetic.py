@@ -15,6 +15,7 @@ class DataGenerator(super):
     def __init__(self, num_patients, min_num_visits, max_num_visits, 
         min_num_codes_per_visit, max_num_codes_per_visit, min_los, 
         max_los, num_atc_codes, num_icd_codes, num_lab_test=500, age_lower_bound=0, seed=42,
+        test=True,
         start_date=datetime(2010, 1, 1)):
         """
         Simulates data as lists:
@@ -35,6 +36,7 @@ class DataGenerator(super):
         self.num_lab_tests = num_lab_test
         self.start_date = start_date
         self.rng = np.random.default_rng(seed)
+        self.test = test
 
     def __call__(self) -> Dict:
         """Generates a dictionary which contains concepts, visits, ages and absolute positions"""
@@ -57,7 +59,7 @@ class DataGenerator(super):
         los = self.rng.integers(self.min_los, self.max_los, size=num_visits)\
             .tolist()
         los = np.repeat(los, num_codes_per_visit_ls).tolist()
-        medcodes = medical.MedicalCodes(test=True)
+        medcodes = medical.MedicalCodes(test=self.test)
         icd_codes = sample(medcodes.get_codes_by_prefix('D'), self.num_icd_codes)
         atc_codes = sample(medcodes.get_codes_by_prefix('M'), self.num_atc_codes)
         # lab_tests = sample(medcodes.get_lab(), self.num_lab_tests)
@@ -147,10 +149,11 @@ def main(save_name: str = typer.Option('synthetic',
         num_atc_codes: int = typer.Option(1000),
         num_icd_codes: int = typer.Option(1000),
         num_lab_tests: int = typer.Option(1000),
-        seed: int = typer.Option(42)):
+        seed: int = typer.Option(42),
+        test: bool = typer.Option(True)):
     generator = DataGenerator(num_patients, min_num_visits, max_num_visits, 
         min_num_codes_per_visit, max_num_codes_per_visit, 
-        min_los, max_los, num_atc_codes, num_icd_codes, num_lab_tests, seed=seed)
+        min_los, max_los, num_atc_codes, num_icd_codes, num_lab_tests, seed=seed, test=test)
 
     base_dir = dirname(dirname(realpath(__file__)))
     save_path = join(base_dir, 'data', 'sequence', 'synthetic' ,save_name + '.pt')

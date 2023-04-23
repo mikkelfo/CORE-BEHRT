@@ -87,7 +87,7 @@ class H_MLMDataset(MLMDataset):
         super().__init__(features, **kwargs)
         self.h_vocabulary = self.load_vocabulary(self.kwargs.get('h_vocabulary', 'h_vocabulary.pt'))
         self.leaf_nodes = self.load_leaf_nodes(self.kwargs.get('leaf_nodes', 'leaf_nodes.pt'))
-        self.base_leaf_probs = self.load_leaf_nodes(self.kwargs.get('base_leaf_probs', 'base_leaf_probs.pt'))
+        self.base_leaf_probs = self.load_leaf_probs(self.kwargs.get('base_leaf_probs', 'base_leaf_probs.pt'))
         self.default_rng = np.random.default_rng(seed)
         self.mask_sep = False
         if 'mask_sep' in kwargs:
@@ -151,7 +151,7 @@ class H_MLMDataset(MLMDataset):
         elif isinstance(leaf_nodes, list):
             return torch.tensor(leaf_nodes, dtype=torch.long)
         else:
-            raise TypeError(f'Unsupported leaf_nodes input {type(leaf_nodes)}')
+            raise TypeError(f'Unsupported leaf_nodes/leaf_probs input {type(leaf_nodes)}')
  
-        
-            
+    def load_leaf_probs(self, leaf_probs):
+        return self.load_leaf_nodes(leaf_probs)

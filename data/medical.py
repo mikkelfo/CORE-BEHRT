@@ -612,8 +612,8 @@ class Tree:
         """Tree class for navigating the tree structure
         The tree itself is a pandas df with names as the values"""
         self.tree = tree
-        self.counts = np.zeros_like(tree.to_numpy())
-        self.leaf_probabilities = np.zeros_like(self.counts.shape[0])
+        self.counts = np.zeros_like(tree.to_numpy(), dtype=np.float32)
+        self.leaf_probabilities = np.zeros_like(self.counts.shape[0], dtype=np.float32)
 
     def __call__(self, concepts: List[List[str]]):
         # flatten
@@ -697,7 +697,7 @@ class Tree:
                     else: # only child
                         self.counts[child_node] = parent_count
     def increment_all_counts(self):
-        self.counts += 1
+        self.counts = self.counts + 1
         
     def compute_leaf_probabilities(self):
         """Compute the probabilities of each node in the tree"""

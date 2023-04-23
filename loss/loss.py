@@ -59,7 +59,7 @@ class CE_FlatSoftmax_MOP(torch.nn.Module):
 
     The call method takes the predicted leaf probabilities (batchsize, seq_len, num_leaf_nodes) and the target vector (batchsize, seq_len, levels), and returns the loss.
     """
-    def __init__(self, leaf_nodes: torch.tensor, trainable_weights=False, ignore_index=-100, base_leaf_probs=None) -> None:
+    def __init__(self, leaf_nodes: torch.tensor, trainable_weights=False, base_leaf_probs=None, ignore_index=-100) -> None:
         """Args:
         leaf_nodes (torch.tensor): Leaf nodes (num_leaf_nodes, levels)
         trainable_weights (bool, optional): Whether to train the level weights. Defaults to False."""
@@ -155,10 +155,6 @@ class CE_FlatSoftmax_MOP(torch.nn.Module):
         nodes_lvl = self.nodes[level]
         num_nodes = nodes_lvl.shape[0]
         y_flat = torch.flatten(y_true_enc[:,:,:level+1], start_dim=0, end_dim=1) # flatten batch dim to simplify
-        in_tree_mask = ((y_flat==nodes_lvl[:,None]).all(dim=-1).any(dim=0) | (y_flat==self.ignore_index).all(dim=-1)) | (y_flat==0).any(dim=-1) # we check that all targets are in the tree
-        if not in_tree_mask.all():
-            print(nodes_lvl)
-            raise ValueError(f"Target node {y_flat[~in_tree_mask]} is not in the tree") # check that all targets are in the nodes
             
         pad_mask = self.get_mask(y_flat, level) # we get a (padding) mask for the current level
         probability_matrix = torch.zeros((num_nodes, y_flat.shape[0])) # we populate this matrix num_nodes x num_targets

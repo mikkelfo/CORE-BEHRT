@@ -620,6 +620,7 @@ class Tree:
         concepts = [item for sublist in concepts for item in sublist]
         self.populate_counts(concepts)
         self.propagate_counts()
+        print("Incrementing all counts and computing leaf probabilities")
         self.increment_all_counts()
         self.compute_leaf_probabilities()
 
@@ -644,7 +645,7 @@ class Tree:
 
     def populate_counts(self, concepts: List[str])->None:
         """For a list of concepts, populate the counts of the tree"""
-        for concept in concepts:
+        for concept in tqdm(concepts, desc='Populate counts'):
             siblings = self.get_lowest_siblings(concept)
             self.increment_count(siblings)
             # access parent
@@ -683,7 +684,7 @@ class Tree:
     def propagate_counts(self):
         """Propagate the counts from the top of the tree to the bottom"""
         depth = self.tree.shape[1]
-        for level in tqdm(range(0, depth-1), desc='Propagating counts'):
+        for level in tqdm(range(0, depth-1), desc='Propagate counts'):
             unique_parents = self.get_unique_concepts(level)
             for unq_parent in unique_parents:
                 parent_copies_nodes = self.get_copies_nodes(unq_parent, level)

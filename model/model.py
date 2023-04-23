@@ -31,7 +31,8 @@ class HierarchicalBertEHRModel(BertEHRModel):
         super().__init__(config)
         config.vocab_size = config.emb_vocab_size
         # self.bert.embeddings = EhrEmbeddings(config)
-        self.h_loss = loss.CE_FlatSoftmax_MOP(leaf_nodes, trainable_loss_weights, base_leaf_probs)
+        self.h_loss = loss.CE_FlatSoftmax_MOP(
+            leaf_nodes=leaf_nodes, trainable_weights=trainable_loss_weights, base_leaf_probs=base_leaf_probs)
         # we need to add loss params to model params
     def forward(self,
         input_ids,

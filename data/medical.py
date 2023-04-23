@@ -615,9 +615,10 @@ class Tree:
         self.counts = np.zeros_like(tree.to_numpy(), dtype=np.float32)
         self.leaf_probabilities = np.zeros_like(self.counts.shape[0], dtype=np.float32)
 
-    def __call__(self, concepts: List[List[str]]):
+    def __call__(self, concepts: Union[List[List[str]], List[str]]):
         # flatten
-        concepts = [item for sublist in concepts for item in sublist]
+        if isinstance(concepts[0], list):
+            concepts = [item for sublist in concepts for item in sublist]
         self.populate_counts(concepts)
         self.propagate_counts()
         print("Incrementing all counts and computing leaf probabilities")

@@ -144,6 +144,8 @@ class H_MLMDataset(MLMDataset):
     def load_leaf_nodes(self, leaf_nodes):
         if isinstance(leaf_nodes, str):
             return torch.load(leaf_nodes)
+        elif isinstance(leaf_nodes,  np.ndarray):
+            return torch.from_numpy(leaf_nodes)
         elif isinstance(leaf_nodes, torch.Tensor):
             return leaf_nodes
         elif isinstance(leaf_nodes, list):

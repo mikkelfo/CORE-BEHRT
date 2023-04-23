@@ -17,7 +17,7 @@ def main(test: bool = typer.Option(False)):
         features_config = compose(config_name='featuremaker.yaml')
         tokenizer_config = compose(config_name='tokenizer.yaml')
         dataset_config = compose(config_name='dataset.yaml')
-    data_dir = "data\\features\\hierarchical\\small_test"
+    data_dir = "data\\features\\hierarchical\\test"
     if not test:
         # Load concepts
         concepts, patients_info = ConceptLoader()(features_config.data_dir)
@@ -32,7 +32,7 @@ def main(test: bool = typer.Option(False)):
         torch.save(features, 'features.pt')
     else:
         print("Load sequences")
-        features = torch.load("C:\\Users\\fjn197\\PhD\\projects\\PHAIR\\pipelines\\ehr2vec\\data\\sequence\\synthetic\\synthetic_small.pt")
+        features = torch.load("C:\\Users\\fjn197\\PhD\\projects\\PHAIR\\pipelines\\ehr2vec\\data\\sequence\\synthetic\\synthetic.pt")
     
     print("Split")
     train, test, val = Splitter()(features)
@@ -50,7 +50,7 @@ def main(test: bool = typer.Option(False)):
 
     print("Populate tree")
     tree = Tree(tokenizer.df_sks_names)
-    tree(features['concept'])
+    tree(train['concept'])
 
     print("Create datasets")
     # To dataset

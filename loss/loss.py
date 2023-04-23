@@ -65,13 +65,11 @@ class CE_FlatSoftmax_MOP(torch.nn.Module):
         trainable_weights (bool, optional): Whether to train the level weights. Defaults to False."""
         super(CE_FlatSoftmax_MOP, self).__init__()  
         self.ignore_index = ignore_index
-        
+        self.trainable_weights = trainable_weights
         self.leaf_nodes = leaf_nodes
         self.lvl_mappings = self.get_level_mappings()
         self.lvl_sel_mats, self.nodes = self.construct_level_selection_mats_and_graph() # when leaf_probs multiplied fir lvl_sel_mat from the left -> probs on that level
         self.weights = self.initialize_geometric_weights()
-        if trainable_weights:
-            self.weights.requires_grad = True
         if not isinstance(base_leaf_probs, type(None)):
             assert len(leaf_nodes)==len(base_leaf_probs), "Number of leaf nodes and number of base leaf probabilities must be equal."
             self.base_leaf_probs = base_leaf_probs
@@ -82,11 +80,14 @@ class CE_FlatSoftmax_MOP(torch.nn.Module):
         # predictions is in shape (batchsize, seq_len, num_leaf_nodes), we reshape to (batchsize * seq_len, num_leaf_nodes)
         leaf_logits = leaf_logits.reshape(-1, leaf_logits.shape[-1])
         predicted_leaf_probs = softmax(leaf_logits, dim=-1)
-        for level, mat in enumerate(self.lvl_sel_mats):
+        for level, mat in enumerate(self.lvl_sel_mats): # this can be parallelized
             pred_probs_lvl = mat @ predicted_leaf_probs.T # shape (num_nodes, batchsize * seq_len)
             target_probs_lvl, pad_mask = self.construct_target_probability_mat(y_true_enc, level) # we can already pass it as a target!
-            loss_lvl = self.categorical_cross_entropy(pred_probs_lvl.T, target_probs_lvl.T, pad_mask)         
-            loss += loss_lvl * self.weights[level]
+            loss_lvl = self.categorical_cross_entropy(pred_probs_lvl.T, target_probs_lvl.T, pad_mask)   
+            if level>0:      
+                loss += loss_lvl * self.weights[level] - torch.log(self.weights[level]) # we subtract the log of the weight to prevent the weights from going to zero
+            else:
+                loss += loss_lvl
         return loss
     
     @staticmethod
@@ -104,7 +105,7 @@ class CE_FlatSoftmax_MOP(torch.nn.Module):
 
     def initialize_geometric_weights(self):
         """We initialize weights as e**(-i)"""
-        return torch.nn.Parameter(torch.exp(-torch.arange(len(self.lvl_sel_mats))))
+        return torch.nn.Parameter(torch.exp(-torch.arange(1, len(self.lvl_sel_mats))), trainable=self.trainable_weights)
 
     def get_level_mappings(self):
         """Returns a dictionary, where the key is the level and the value is a tensor

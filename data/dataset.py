@@ -31,11 +31,15 @@ class BaseDataset(Dataset):
             raise TypeError(f'Unsupported vocabulary input {type(vocabulary)}')
 
 class MLMDataset(BaseDataset):
-    def __init__(self, features: dict, **kwargs):
+    def __init__(self, features: dict, ignore_special_tokens=True,**kwargs):
         super().__init__(features, **kwargs)
 
         self.vocabulary = self.load_vocabulary(self.kwargs.get('vocabulary', 'vocabulary.pt'))
         self.masked_ratio = self.kwargs.get('masked_ratio', 0.3)
+        if ignore_special_tokens:
+            self.n_special_tokens = len([token for token in self.vocabulary if token.startswith('[')])
+        else:
+            self.n_special_tokens = 0
 
     def __getitem__(self, index):
         patient = super().__getitem__(index)
@@ -57,13 +61,14 @@ class MLMDataset(BaseDataset):
         masked_concepts = torch.clone(concepts)
         target = torch.ones(N, dtype=torch.long) * -100
 
-        # Apply special token mask and create MLM mask
-        eligble_concepts = masked_concepts[1:N_nomask-1]        # We dont mask CLS and last SEP token
-        rng = torch.rand(len(eligble_concepts))                 # Random number for each token
+       # Apply special token mask and create MLM mask
+        eligible_mask = masked_concepts >= self.n_special_tokens
+        eligible_concepts = masked_concepts[eligible_mask]        # Ignore special tokens
+        rng = torch.rand(len(eligible_concepts))                 # Random number for each token
         masked = rng < self.masked_ratio                        # Mask tokens with probability masked_ratio
 
         # Get masked MLM concepts
-        selected_concepts = eligble_concepts[masked]            # Select set % of the tokens
+        selected_concepts = eligible_concepts[masked]            # Select set % of the tokens
         adj_rng = rng[masked].div(self.masked_ratio)            # Fix ratio to 0-100 interval
 
         # Operation masks
@@ -77,8 +82,8 @@ class MLMDataset(BaseDataset):
         # selected_concepts = torch.where(rng_keep, selected_concepts, selected_concepts)   # Redundant
 
         # Update outputs
-        target[1:N_nomask-1][masked] = eligble_concepts[masked] # Set "true" token
-        eligble_concepts[masked] = selected_concepts            # Set masked token in concepts (masked_concepts is updated by eligble_concepts)
+        target[1:N_nomask-1][masked] = eligible_concepts[masked] # Set "true" token
+        eligible_concepts[masked] = selected_concepts            # Set masked token in concepts (masked_concepts is updated by eligble_concepts)
 
         return masked_concepts, target
 

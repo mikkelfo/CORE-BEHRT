@@ -15,13 +15,13 @@ def main_finetune(cfg):
     train_outcomes = torch.load(cfg.paths.train_outcomes)
     val_encoded = torch.load(cfg.paths.val_encoded)
     val_outcomes = torch.load(cfg.paths.val_outcomes)
-    n_hours, outcome_type, censor_type = cfg.outcome.n_hours, cfg.outcome.censor_type, cfg.outcome.type
+    n_hours, outcome_type, censor_type = cfg.outcome.n_hours, cfg.outcome.type, cfg.outcome.censor_type
     train_dataset = CensorDataset(train_encoded, n_hours=n_hours, outcomes=train_outcomes[outcome_type], censor_outcomes=train_outcomes[censor_type])
     val_dataset = CensorDataset(val_encoded, n_hours=n_hours, outcomes=val_outcomes[outcome_type], censor_outcomes=val_outcomes[censor_type])
 
     pos_weight = sum(pd.isna(val_outcomes[outcome_type])) / sum(pd.notna(val_outcomes[outcome_type]))
 
-    print(f'Setting up finetune task on [{outcome_type}] with [{n_hours}] hours censoring using pos_weight [{pos_weight}]')
+    print(f'Setting up finetune task on [{outcome_type}] with [{n_hours}] hours censoring at [{censor_type}] using pos_weight [{pos_weight}]')
 
     model = BertForFineTuning(
         BertConfig(

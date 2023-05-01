@@ -29,7 +29,7 @@ def main_data(cfg):
     concepts = Inferrer()(concepts)
 
     # Make outcomes
-    patients_info = OutcomeMaker(cfg)(concepts, patients_info)
+    patients_info = OutcomeMaker(cfg)(patients_info)
 
     # Create feature sequences and outcomes
     features, outcomes = FeatureMaker(cfg)(concepts, patients_info)

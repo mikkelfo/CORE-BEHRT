@@ -9,7 +9,7 @@ from data.tokenizer import EHRTokenizer
 from data.split import Splitter
 from downstream_tasks.outcomes import OutcomeMaker
 
-@hydra.main(version_base=None, config_path="configs/data", config_name="data")
+@hydra.main(config_path="configs/data", config_name="data")
 def main_data(cfg):
     """
         Loads data

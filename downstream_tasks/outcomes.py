@@ -1,6 +1,8 @@
 import pandas as pd
 
 from data.concept_loader import ConceptLoader
+from data_fixes.infer import Inferrer
+
 
 class OutcomeMaker():
     def __init__(self, config: dict):
@@ -10,6 +12,7 @@ class OutcomeMaker():
             data_dir=config.loader.data_dir,
             patients_info=config.loader.patients_info,
         )
+        self.concepts_with_custom = Inferrer()(self.concepts_with_custom)
         self.outcomes = config.outcomes
 
     def __call__(self, patients_info: pd.DataFrame):

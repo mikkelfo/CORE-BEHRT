@@ -15,7 +15,7 @@ hydra:
     dir: .
 
 outcome: 
-  type: HOSPITAL_ADMISSION
+  type: DEATH
   n_hours: 12
   censor_type: HOSPITAL_ADMISSION
 

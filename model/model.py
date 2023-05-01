@@ -2,6 +2,7 @@ from transformers import BertModel
 from embeddings.ehr import EhrEmbeddings
 import torch.nn as nn
 from model.heads import MLMHead, FineTuneHead
+import torch
 
 
 class BertEHRModel(BertModel):
@@ -32,6 +33,7 @@ class BertEHRModel(BertModel):
 
         sequence_output = outputs[0]    # Last hidden state
         logits = self.cls(sequence_output)
+        outputs.logits = logits
 
         if labels is not None:
             outputs.loss = self.get_loss(logits, labels)
@@ -46,7 +48,7 @@ class BertForFineTuning(BertEHRModel):
     def __init__(self, config):
         super().__init__(config)
 
-        self.loss_fct = nn.BCEWithLogitsLoss()
+        self.loss_fct = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(config.pos_weight))
         self.cls = FineTuneHead(config)
 
     def get_loss(self, hidden_states, labels):    

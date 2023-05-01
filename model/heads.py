@@ -30,17 +30,26 @@ class FineTuneHead(torch.nn.Module):
         super().__init__()
         self.classifier = torch.nn.Linear(config.hidden_size, 1)
 
-    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
-        pool_type = self.config.pool_type
+        pool_type = config.pool_type
         if pool_type == 'cls':
-            pooled_output = hidden_states[:, 0]
+            self.pool = self.pool_cls
         elif pool_type == 'mean':
-            pooled_output = hidden_states.mean(dim=1)
+            self.pool = self.pool_mean
         elif pool_type == 'sum':
-            pooled_output = hidden_states.sum(dim=1)
+            self.pool = self.pool_sum
         else:
-            pooled_output = hidden_states[:, 0]        # Default to cls
+            self.pool = self.pool_cls
 
-        x = self.classifier(pooled_output)
-
+    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+        x = self.pool(hidden_states)
+        x = self.classifier(x)
         return x
+
+    def pool_cls(self, x):
+        return x[:, 0]
+
+    def pool_mean(self, x):
+        return x.mean(dim=1)
+
+    def pool_sum(self, x):
+        return x.syn(dim=1)

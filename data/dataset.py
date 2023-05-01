@@ -12,7 +12,7 @@ class BaseDataset(Dataset):
         return len(self.features['concept'])
 
     def __getitem__(self, index):
-        return {key: values[index] for key, values in self.features.items()}
+        return {key: torch.tensor(values[index]) for key, values in self.features.items()}
 
     def get_max_segments(self):
         if 'segment' not in self.features:
@@ -41,7 +41,7 @@ class MLMDataset(BaseDataset):
         return patient
 
     def _mask(self, patient: dict):
-        concepts = torch.tensor(patient['concept'])
+        concepts = patient['concept']
 
         N = len(concepts)
 
@@ -108,22 +108,20 @@ class CensorDataset(BaseDataset):
     def _censor(self, patient: dict, event_timestamp: float) -> dict:
         if pd.isna(event_timestamp):
             return patient
-        background_end = patient['concept'].index(2)    # First [SEP] token
+        else:
+            # Only required when padding
+            mask = patient['attention_mask']
+            N_nomask = len(mask[mask==1])
 
-        # Only required when padding
-        mask = torch.tensor(patient['attention_mask'])
-        N_nomask = len(mask[mask==1])
+            # Remove padding and replace background 0s with first non-background pos
+            pos = patient['abspos'][:N_nomask]
 
-        # Remove padding and replace background 0s with first non-background pos
-        pos = torch.tensor(patient['abspos'][:N_nomask])
-        pos[:background_end] = pos[background_end]
+            # censor the last n_hours
+            dont_censor = (pos - event_timestamp - self.n_hours) <= 0
 
-        # censor the last n_hours
-        dont_censor = (pos - event_timestamp - self.n_hours) <= 0    # Include n_hours or not? (<= or <)
-
-        # TODO: This removes padding as well - is this ok?
-        for key, value in patient.items():
-            patient[key] = torch.tensor(value)[dont_censor]
+            # TODO: This removes padding as well - is this ok?
+            for key, value in patient.items():
+                patient[key] = value[dont_censor]
 
         return patient
 

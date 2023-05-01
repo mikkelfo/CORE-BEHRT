@@ -15,7 +15,7 @@ class AgeCreator(BaseCreator):
         # Create PID -> BIRTHDATE dict
         birthdates = pd.Series(patients_info['BIRTHDATE'].values, index=patients_info['PID']).to_dict()
         # Calculate approximate age
-        ages = (concepts['TIMESTAMP'] - concepts['PID'].map(birthdates)).dt.days // 365.25
+        ages = (((concepts['TIMESTAMP'] - concepts['PID'].map(birthdates)).dt.days / 365.25) + 0.5).round()
 
         concepts['AGE'] = ages
         return concepts
@@ -49,10 +49,18 @@ class BackgroundCreator(BaseCreator):
                 [(self.prepend_token + patients_info[col].astype(str)).tolist() for col in self.config.features.background])
         }
 
-        # Set optional features to 0
-        for feature in self.config.features:
-            if feature in ['age', 'abspos', 'segment']:
-                background[feature.upper()] = 0
+        if 'segment' in self.config.features:
+            background['SEGMENT'] = 0
+
+        if 'age' in self.config.features:
+            background['AGE'] = -1
+
+        if 'abspos' in self.config.features:
+            origin_point = datetime(**self.config.features.abspos)
+            start = (origin_point - patients_info['BIRTHDATE']).dt.total_seconds() / 60 / 60
+            background['ABSPOS'] = start.tolist() * len(self.config.features.background)
+
+        # background['AGE'] = -1
 
         # Prepend background to concepts
         background = pd.DataFrame(background)

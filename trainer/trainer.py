@@ -28,7 +28,6 @@ class EHRTrainer():
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.metrics = {k: instantiate(v) for k, v in metrics.items()}
-        self.metrics = metrics
 
         default_args = {
             'batch_size': 32,
@@ -36,8 +35,8 @@ class EHRTrainer():
             'epochs': 10,
             'info': True,
             'save_every_k_steps': float('inf'),
+            'collate_fn': dynamic_padding
         }
-        args.collate_fn = instantiate(args.collate_fn)
         
         self.args = {**default_args, **args}
 
@@ -92,7 +91,7 @@ class EHRTrainer():
             self.save_checkpoint(id=f'epoch{epoch}_end', train_loss=epoch_loss, val_loss=val_loss, metrics=metrics, final_step_loss=epoch_loss[-1])
 
             # Print epoch info
-            self.info(f'Epoch {epoch} train loss: {sum(epoch_loss) / len(train_loop)}')
+            self.info(f'Epoch {epoch} train loss: {sum(epoch_loss) / (len(train_loop) / accumulation_steps)}')
             self.info(f'Epoch {epoch} val loss: {val_loss}')
             self.info(f'Epoch {epoch} metrics: {metrics}\n')
 
@@ -168,7 +167,7 @@ class EHRTrainer():
         with open(config_name, 'w') as f:
             json.dump({
                 'model_config': self.model.config.to_dict(),    # Maybe .to_diff_dict()?
-                'args': self.args
+                # 'args': self.args
             }, f)
 
     def save_checkpoint(self, id, **kwargs):

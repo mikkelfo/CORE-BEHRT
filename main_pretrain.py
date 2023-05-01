@@ -7,20 +7,18 @@ from trainer.trainer import EHRTrainer
 from model.model import BertEHRModel
 from transformers import BertConfig
 
-@hydra.main(version_base=None, config_path="configs/train", config_name="pretrain")
+@hydra.main(config_path="configs/train", config_name="pretrain")
 def main_train(cfg):
     # MLM specific
-    train_encoded = torch.load(cfg.path.train_encoded)
-    val_encoded = torch.load(cfg.path.val_encoded)
-    vocabulary = torch.load(cfg.path.vocabulary)
+    train_encoded = torch.load(cfg.paths.train_encoded)
+    val_encoded = torch.load(cfg.paths.val_encoded)
+    vocabulary = torch.load(cfg.paths.vocabulary)
     train_dataset = MLMDataset(train_encoded, vocabulary=vocabulary, ignore_special_tokens=cfg.ignore_special_tokens)
     val_dataset = MLMDataset(val_encoded, vocabulary=vocabulary, ignore_special_tokens=cfg.ignore_special_tokens)
 
     model = BertEHRModel(
         BertConfig(
-            vocab_size=len(vocabulary),
-            type_vocab_size=train_dataset.max_segments,
-            **cfg.model,
+            **cfg.model
         )
     )
 

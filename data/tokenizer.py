@@ -114,7 +114,7 @@ class EHRTokenizer():
     @staticmethod
     def insert_cls_token(patient: dict):
         for key, values in patient.items():
-            token = '[CLS]' if key == 'concept' else 0          # Determine token value (CLS for concepts, 0 for rest)
+            token = '[CLS]' if key == 'concept' else values[0]          # Determine token value (CLS for concepts, 0 for rest)
             patient[key] = [token] + values
         return patient
 

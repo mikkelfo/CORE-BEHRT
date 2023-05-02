@@ -57,7 +57,7 @@ class BackgroundCreator(BaseCreator):
 
         if 'abspos' in self.config.features:
             origin_point = datetime(**self.config.features.abspos)
-            start = (origin_point - patients_info['BIRTHDATE']).dt.total_seconds() / 60 / 60
+            start = (patients_info['BIRTHDATE'] - origin_point).dt.total_seconds() / 60 / 60
             background['ABSPOS'] = start.tolist() * len(self.config.features.background)
 
         # background['AGE'] = -1

@@ -21,10 +21,10 @@ class BaseDataset(Dataset):
 
 
 class MLMDataset(BaseDataset):
-    def __init__(self, features: dict, vocabulary: dict, masked_ratio=0.3, ignore_special_tokens=True):
+    def __init__(self, features: dict, vocabulary='vocabulary.pt', masked_ratio=0.3, ignore_special_tokens=True):
         super().__init__(features)
 
-        self.vocabulary = vocabulary
+        self.vocabulary = self.load_vocabulary(vocabulary)
         self.masked_ratio = masked_ratio
         if ignore_special_tokens:
             self.n_special_tokens = len([token for token in vocabulary if token.startswith('[')])
@@ -51,12 +51,12 @@ class MLMDataset(BaseDataset):
 
         # Apply special token mask and create MLM mask
         eligible_mask = masked_concepts >= self.n_special_tokens
-        eligible_concepts = masked_concepts[eligible_mask]        # Ignore special tokens
-        rng = torch.rand(len(eligible_concepts))                 # Random number for each token
+        eligible_concepts = masked_concepts[eligible_mask]      # Ignore special tokens
+        rng = torch.rand(len(eligible_concepts))                # Random number for each token
         masked = rng < self.masked_ratio                        # Mask tokens with probability masked_ratio
 
         # Get masked MLM concepts
-        selected_concepts = eligible_concepts[masked]            # Select set % of the tokens
+        selected_concepts = eligible_concepts[masked]           # Select set % of the tokens
         adj_rng = rng[masked].div(self.masked_ratio)            # Fix ratio to 0-100 interval
 
         # Operation masks
@@ -69,13 +69,14 @@ class MLMDataset(BaseDataset):
         selected_concepts = torch.where(rng_replace, torch.randint(self.n_special_tokens, len(self.vocabulary), (len(selected_concepts),)), selected_concepts) # Replace with random word
         # selected_concepts = torch.where(rng_keep, selected_concepts, selected_concepts)       # Redundant
 
-        # Update outputs
+        # Update outputs (nonzero for double masking)
         target[eligible_mask.nonzero()[:,0][masked]] = eligible_concepts[masked]    # Set "true" token
         masked_concepts[eligible_mask.nonzero()[:,0][masked]]= selected_concepts    # Sets new concepts
 
         return masked_concepts, target
 
-    def load_vocabulary(self, vocabulary):
+    @staticmethod
+    def load_vocabulary(vocabulary):
         if isinstance(vocabulary, str):
             return torch.load(vocabulary)
         elif isinstance(vocabulary, dict):

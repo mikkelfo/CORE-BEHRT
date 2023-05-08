@@ -1,7 +1,7 @@
 import torch
 
 """Computes the precision@k for the specified value of k"""
-def top_k(outputs, batch, topk=10) -> dict:
+def top_k(outputs, batch, topk=10, average=False) -> dict:
     logits = outputs.logits
     target = batch['target']
     
@@ -15,6 +15,8 @@ def top_k(outputs, batch, topk=10) -> dict:
     correct = pred.eq(target)
     if correct.numel() == 0:
         return 0
+    if not average:
+        return correct.any(0).float()
     else:
         return correct.any(0).float().mean().item()
 

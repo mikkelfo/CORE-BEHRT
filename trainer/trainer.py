@@ -30,10 +30,6 @@ class EHRTrainer():
         self.metrics = {k: instantiate(v) for k, v in metrics.items()}
 
         default_args = {
-            'batch_size': 32,
-            'effective_batch_size': 512,
-            'epochs': 10,
-            'info': True,
             'save_every_k_steps': float('inf'),
             'collate_fn': dynamic_padding
         }
@@ -76,7 +72,8 @@ class EHRTrainer():
                         self.scheduler.step()
 
                     train_loop.set_postfix(loss=step_loss / accumulation_steps)
-                    tqdm.write(f'Train loss {(i+1) // accumulation_steps}: {step_loss / accumulation_steps}')
+                    if self.args['info']:
+                        tqdm.write(f'Train loss {(i+1) // accumulation_steps}: {step_loss / accumulation_steps}')
                     epoch_loss.append(step_loss / accumulation_steps)
                     step_loss = 0
 
@@ -91,9 +88,9 @@ class EHRTrainer():
             self.save_checkpoint(id=f'epoch{epoch}_end', train_loss=epoch_loss, val_loss=val_loss, metrics=metrics, final_step_loss=epoch_loss[-1])
 
             # Print epoch info
-            self.info(f'Epoch {epoch} train loss: {sum(epoch_loss) / (len(train_loop) / accumulation_steps)}')
-            self.info(f'Epoch {epoch} val loss: {val_loss}')
-            self.info(f'Epoch {epoch} metrics: {metrics}\n')
+            tqdm.write(f'Epoch {epoch} train loss: {sum(epoch_loss) / (len(train_loop) / accumulation_steps)}')
+            tqdm.write(f'Epoch {epoch} val loss: {val_loss}')
+            tqdm.write(f'Epoch {epoch} metrics: {metrics}\n')
 
     def setup_training(self) -> tqdm:
         self.model.train()

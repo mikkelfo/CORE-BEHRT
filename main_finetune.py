@@ -6,6 +6,7 @@ from trainer.trainer import EHRTrainer
 from model.model import BertForFineTuning
 from transformers import BertConfig
 import pandas as pd
+from torch.utils.data import WeightedRandomSampler
 
 
 @hydra.main(config_path="configs/train", config_name="finetune")
@@ -19,9 +20,22 @@ def main_finetune(cfg):
     train_dataset = CensorDataset(train_encoded, n_hours=n_hours, outcomes=train_outcomes[outcome_type], censor_outcomes=train_outcomes[censor_type])
     val_dataset = CensorDataset(val_encoded, n_hours=n_hours, outcomes=val_outcomes[outcome_type], censor_outcomes=val_outcomes[censor_type])
 
-    pos_weight = sum(pd.isna(val_outcomes[outcome_type])) / sum(pd.notna(val_outcomes[outcome_type]))
+    if cfg.trainer_args['sampler']:
+        labels = pd.Series(train_outcomes[outcome_type]).notna().astype(int)
+        label_weight = 1 / labels.value_counts()
+        weights = labels.map(label_weight).values
+        sampler = WeightedRandomSampler(
+            weights=weights,
+            num_samples=len(train_dataset),
+            replacement=True
+        )
+        cfg.train_args['sampler'] = sampler
+        pos_weight = None
+    else:
+        cfg.train_args['sampler'] = None
+        pos_weight = sum(pd.isna(train_outcomes[outcome_type])) / sum(pd.notna(train_outcomes[outcome_type]))
 
-    print(f'Setting up finetune task on [{outcome_type}] with [{n_hours}] hours censoring at [{censor_type}] using pos_weight [{pos_weight}]')
+    print(f'Setting up finetune task on [{outcome_type}] with [{n_hours}] hours censoring at [{censor_type}] using pos_weight [{pos_weight}] and [{sampler}]')
 
     model = BertForFineTuning(
         BertConfig(

@@ -19,3 +19,5 @@ outcome:
   n_hours: 12
   censor_type: HOSPITAL_ADMISSION
 
+trainer_args:
+  sampler: true

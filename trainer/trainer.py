@@ -96,7 +96,7 @@ class EHRTrainer():
         self.model.train()
         self.setup_run_folder()
         self.save_setup()
-        dataloader = DataLoader(self.train_dataset, batch_size=self.args['batch_size'], shuffle=True, collate_fn=self.args['collate_fn'])
+        dataloader = DataLoader(self.train_dataset, batch_size=self.args['batch_size'], shuffle=True, collate_fn=self.args['collate_fn'], sampler=self.args['sampler'])
         return dataloader
 
     def train_step(self, batch: dict):

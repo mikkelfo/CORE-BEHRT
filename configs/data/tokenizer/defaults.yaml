@@ -2,3 +2,4 @@ sep_tokens: true
 cls_token: true
 padding: false
 truncation: 512
+max_vocab_length: false

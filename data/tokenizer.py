@@ -50,6 +50,8 @@ class EHRTokenizer():
         return BatchEncoding(data, tensor_type='pt' if padding else None)
 
     def encode(self, concepts: list):
+        if self.config.max_concept_length:
+            concepts = self.limit_concepts_length(concepts, max_len=self.config.max_concept_length) # Truncate concepts to max_concept_length
         if self.new_vocab:
             for concept in concepts:
                 if concept not in self.vocabulary:
@@ -117,6 +119,10 @@ class EHRTokenizer():
             token = '[CLS]' if key == 'concept' else values[0]          # Determine token value (CLS for concepts, 0 for rest)
             patient[key] = [token] + values
         return patient
+
+    @staticmethod
+    def limit_concepts_length(concepts: list, max_len: int, categories=('D', 'M')):
+        return [concept[:max_len] if concept.startswith(categories) else concept for concept in concepts]
 
     @staticmethod
     def _patient_iterator(features: dict):

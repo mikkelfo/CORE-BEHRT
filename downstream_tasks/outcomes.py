@@ -7,39 +7,46 @@ from data_fixes.infer import Inferrer
 class OutcomeMaker():
     def __init__(self, config: dict):
         # We reload concepts to load in custom events
-        self.concepts_with_custom, _ = ConceptLoader()(
-            concepts=config.loader.concepts + ['custom_events'], 
+        self.concepts_plus, _ = ConceptLoader()(
+            concepts=config.loader.concepts + ['custom_events'] + ['labtests'], 
             data_dir=config.loader.data_dir,
             patients_info=config.loader.patients_info,
         )
-        self.concepts_with_custom = Inferrer()(self.concepts_with_custom)
+        self.concepts_plus = Inferrer()(self.concepts_plus)
         self.outcomes = config.outcomes
 
     def __call__(self, patients_info: pd.DataFrame):
         # Initalize patient_outcomes dict
-        patient_outcomes = {pid: {k: None for k in self.outcomes} for pid in self.concepts_with_custom['PID'].unique()}
+        patient_outcomes = {pid: {k: None for k in self.outcomes} for pid in self.concepts_plus['PID'].unique()}
 
         # Create {PID: DATE_OF_DEATH} dict
         if self.outcomes.DEATH:
             death = pd.Series(patients_info['DATE_OF_DEATH'].values, index=patients_info['PID']).to_dict()
 
-        for pid, patient in self.concepts_with_custom.groupby('PID'):    # For each patient
+        for pid, patient in self.concepts_plus.groupby('PID'):    # For each patient
             for key in self.outcomes:                   # For each outcome
                 # Hospital admission
                 if key == 'HOSPITAL_ADMISSION':
                     patient_outcomes[pid]['HOSPITAL_ADMISSION'] = self.hospital_admission(patient)
                 
                 # Death
-                if key == 'DEATH':
+                elif key == 'DEATH':
                     patient_outcomes[pid]['DEATH'] = death.get(pid)
 
                 # ICU admission
-                if key == 'ICU_ADMISSION':
+                elif key == 'ICU_ADMISSION':
                     patient_outcomes[pid]['ICU_ADMISSION'] = self.icu_admission(patient)
 
                 # Mechanical ventilation
-                if key == 'MECHANICAL_VENTILATION':
+                elif key == 'MECHANICAL_VENTILATION':
                     patient_outcomes[pid]['MECHANICAL_VENTILATION'] = self.respirator(patient)
+
+                # COVID-19 diagnosis
+                elif key == 'COVID':
+                    patient_outcomes[pid]['COVID'] = self.covid(patient)
+
+                else:
+                    raise KeyError('Unknown outcome key')
 
         # Add patient_outcomes to patient info (converted to dict)
         info = patients_info.set_index('PID').to_dict('index')
@@ -49,6 +56,15 @@ class OutcomeMaker():
         
         # Convert back to dataframe
         return pd.DataFrame.from_dict(info, orient='index').reset_index().rename(columns={'index': 'PID'})
+
+    @staticmethod
+    def covid(patient: pd.DataFrame):
+        concepts = patient['CONCEPT'].values
+        values = patient['VALUE'].values
+        for idx in range(len(concepts)):
+            if concepts[idx] == 'COVID_TEST' and values[idx] == 'Positiv':
+                return patient['TIMESTAMP'].iloc[idx]
+        return None
 
     @staticmethod
     def hospital_admission(patient: pd.DataFrame):

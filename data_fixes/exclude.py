@@ -37,3 +37,18 @@ class Excluder():
 
         return features, outcomes
 
+    @staticmethod
+    def exclude_covid_negative(features: dict, outcomes: dict):
+        kept_indices = []
+        for i, result in enumerate(outcomes['COVID']):
+            if pd.notna(result):
+                kept_indices.append(i)
+
+        for key, values in features.items():
+            features[key] = [values[i] for i in kept_indices]
+
+        for key, values in outcomes.items():
+            outcomes[key] = [values[i] for i in kept_indices]
+
+        return features, outcomes
+

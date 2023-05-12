@@ -31,9 +31,12 @@ def main_finetune(cfg):
         )
         cfg.train_args['sampler'] = sampler
         pos_weight = None
-    else:
+    elif cfg.trainer_args['pos_weight']:
         cfg.train_args['sampler'] = None
         pos_weight = sum(pd.isna(train_outcomes[outcome_type])) / sum(pd.notna(train_outcomes[outcome_type]))
+    else:
+        cfg.train_args['sampler'] = None
+        pos_weight = None
 
     print(f'Setting up finetune task on [{outcome_type}] with [{n_hours}] hours censoring at [{censor_type}] using pos_weight [{pos_weight}] and [{sampler}]')
 

@@ -21,3 +21,4 @@ outcome:
 
 trainer_args:
   sampler: true
+  pos_weight: false

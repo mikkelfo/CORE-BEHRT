@@ -20,5 +20,5 @@ outcome:
   censor_type: HOSPITAL_ADMISSION
 
 trainer_args:
-  sampler: true
-  pos_weight: false
+  sampler: null
+  pos_weight: null

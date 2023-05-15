@@ -47,8 +47,12 @@ class BertEHRModel(BertModel):
 class BertForFineTuning(BertEHRModel):
     def __init__(self, config):
         super().__init__(config)
+        if config.pos_weight:
+            pos_weight = torch.tensor(config.pos_weight)
+        else:
+            pos_weight = None
 
-        self.loss_fct = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(config.pos_weight))
+        self.loss_fct = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
         self.cls = FineTuneHead(config)
 
     def get_loss(self, hidden_states, labels):    

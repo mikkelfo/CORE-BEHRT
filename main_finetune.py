@@ -19,7 +19,8 @@ def main_finetune(cfg):
     n_hours, outcome_type, censor_type = cfg.outcome.n_hours, cfg.outcome.type, cfg.outcome.censor_type
     train_dataset = CensorDataset(train_encoded, n_hours=n_hours, outcomes=train_outcomes[outcome_type], censor_outcomes=train_outcomes[censor_type])
     val_dataset = CensorDataset(val_encoded, n_hours=n_hours, outcomes=val_outcomes[outcome_type], censor_outcomes=val_outcomes[censor_type])
-
+    
+    sampler, pos_weight = None, None
     if cfg.trainer_args['sampler']:
         labels = pd.Series(train_outcomes[outcome_type]).notna().astype(int)
         label_weight = 1 / labels.value_counts()
@@ -29,14 +30,8 @@ def main_finetune(cfg):
             num_samples=len(train_dataset),
             replacement=True
         )
-        cfg.trainer_args['sampler'] = sampler
-        pos_weight = None
     elif cfg.trainer_args['pos_weight']:
-        cfg.trainer_args['sampler'] = None
         pos_weight = sum(pd.isna(train_outcomes[outcome_type])) / sum(pd.notna(train_outcomes[outcome_type]))
-    else:
-        cfg.trainer_args['sampler'] = None
-        pos_weight = None
 
     print(f'Setting up finetune task on [{outcome_type}] with [{n_hours}] hours censoring at [{censor_type}] using pos_weight [{pos_weight}] and sampler [{cfg.trainer_args["sampler"]}]')
 
@@ -62,6 +57,7 @@ def main_finetune(cfg):
         val_dataset=val_dataset, 
         args=cfg.trainer_args,
         metrics=cfg.metrics,
+        sampler=sampler
     )
     trainer.train()
 

@@ -18,6 +18,7 @@ class EHRTrainer():
         scheduler: torch.optim.lr_scheduler.StepLR = None,
         metrics: dict = {},
         args: dict = {},
+        sampler = None,
     ):
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
@@ -28,6 +29,7 @@ class EHRTrainer():
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.metrics = {k: instantiate(v) for k, v in metrics.items()}
+        self.sampler = sampler
 
         default_args = {
             'save_every_k_steps': float('inf'),
@@ -96,7 +98,8 @@ class EHRTrainer():
         self.model.train()
         self.setup_run_folder()
         self.save_setup()
-        dataloader = DataLoader(self.train_dataset, batch_size=self.args['batch_size'], shuffle=True, collate_fn=self.args['collate_fn'], sampler=self.args['sampler'])
+        
+        dataloader = DataLoader(self.train_dataset, batch_size=self.args['batch_size'], shuffle=self.sampler is None, collate_fn=self.args['collate_fn'], sampler=self.sampler)
         return dataloader
 
     def train_step(self, batch: dict):

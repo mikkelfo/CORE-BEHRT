@@ -6,6 +6,7 @@ import uuid
 import json
 from dataloader.collate_fn import dynamic_padding
 from hydra.utils import instantiate
+from omegaconf import OmegaConf
 
 
 class EHRTrainer():
@@ -19,6 +20,7 @@ class EHRTrainer():
         metrics: dict = {},
         args: dict = {},
         sampler = None,
+        cfg = None,
     ):
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
@@ -30,6 +32,7 @@ class EHRTrainer():
         self.scheduler = scheduler
         self.metrics = {k: instantiate(v) for k, v in metrics.items()}
         self.sampler = sampler
+        self.cfg = cfg
 
         default_args = {
             'save_every_k_steps': float('inf'),
@@ -167,6 +170,7 @@ class EHRTrainer():
         with open(config_name, 'w') as f:
             json.dump({
                 'model_config': self.model.config.to_dict(),    # Maybe .to_diff_dict()?
+                'cfg': OmegaConf.to_container(self.cfg, resolve=True)
                 # 'args': self.args
             }, f)
 

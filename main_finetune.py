@@ -57,7 +57,8 @@ def main_finetune(cfg):
         val_dataset=val_dataset, 
         args=cfg.trainer_args,
         metrics=cfg.metrics,
-        sampler=sampler
+        sampler=sampler,
+        cfg=cfg
     )
     trainer.train()
 

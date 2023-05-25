@@ -1,5 +1,7 @@
 import torch
 import hydra
+from omegaconf import OmegaConf
+import json
 from data.concept_loader import ConceptLoader
 from data_fixes.infer import Inferrer
 from data.featuremaker import FeatureMaker
@@ -11,6 +13,11 @@ from downstream_tasks.outcomes import OutcomeMaker
 
 @hydra.main(config_path="configs/data", config_name="data")
 def main_data(cfg):
+    with open('data_config.json', 'w') as f:
+        json.dump(
+            OmegaConf.to_container(cfg, resolve=True)
+        , f)
+
     """
         Loads data
         Infers nans

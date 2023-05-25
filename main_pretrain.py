@@ -36,6 +36,7 @@ def main_train(cfg):
         val_dataset=val_dataset, 
         args=cfg.trainer_args,
         metrics=cfg.metrics,
+        cfg=cfg
     )
     trainer.train()
 

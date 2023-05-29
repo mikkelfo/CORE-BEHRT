@@ -2,35 +2,48 @@ import torch
 
 
 class Splitter():
-    def __call__(self, data: dict, ratios: list = [0.7, 0.2, 0.1]):
-        return self.split(data, ratios)
+    def __init__(self, ratios: dict = {'train':0.7, 'val':0.2, 'test':0.1}) -> None:
+        self.ratios = ratios
+        self.ratios_list = [ratio for ratio in self.ratios.values()]
+        self.splits = None
+    def __call__(self, features: dict, )-> dict:
+        return self.split_features(features)
 
-    def split(self, data: dict, ratios: list = [0.7, 0.2, 0.1]):
-        if round(sum(ratios), 5) != 1:
-            raise ValueError(f'Sum of ratios ({ratios}) != 1 ({round(sum(ratios), 5)})')
-
-        N = len(next(iter(data.values())))  # Get length of first value in dict
-
-        splits = self._split_indices(N, ratios)
-
-        for split in splits:
-            yield {key: [values[s] for s in split] for key, values in data.items()}
-
-    @staticmethod
-    def _split_indices(N: int, ratios: list = [0.7, 0.2, 0.1]):
+    def split_features(self, features: dict)-> dict:
+        """
+        Split features into train, validation and test sets
+        """
+        if round(sum(self.ratios_list), 5) != 1:
+            raise ValueError(f'Sum of ratios ({self.ratios_list}) != 1 ({round(sum(self.ratios_list), 5)})')
         torch.manual_seed(0)
 
+        N = len(features['concept'])
+
+        self._split_indices(N)
+        split_dic = {}
+        for set_, split in self.splits.items():
+            split_dic[set_] = {key: [values[s] for s in split] for key, values in features.items()}
+        return split_dic
+    @staticmethod
+    def _split_indices(self, N: int)-> dict:
         indices = torch.randperm(N)
-        splits = []
-        for ratio in ratios:
+        self.splits = {}
+        for set_, ratio in self.ratios.items():
             N_split = round(N * ratio)
-            splits.append(indices[:N_split])
+            self.splits[set_] = indices[:N_split]
             indices = indices[N_split:]
 
         # Add remaining indices to last split - incase of rounding error
         if len(indices) > 0:
-            splits[-1] = torch.cat((splits[-1], indices))
+            self.splits[set_] = torch.cat((self.splits[set_], indices))
 
-        print(f'Resulting split ratios: {[round(len(s) / N, 2) for s in splits]}')
-        return splits
+        print(f'Resulting split ratios: {[round(len(s) / N, 2) for s in self.splits.values()]}')
+        
+    def split_outcomes(self, outcomes: list)-> dict:
+        outcomes_splits = {}
+        for set_, split in self.splits.items():
+            outcomes_splits[set_] = outcomes[split] 
+        return outcomes_splits
+    def save(self, dest: str):
+        torch.save(self.splits, join(dest, 'splits.pt'))
 

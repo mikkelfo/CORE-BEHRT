@@ -22,7 +22,7 @@ class Excluder():
         return features
     
     @staticmethod
-    def exclude_short_sequences(features: dict, outcomes: dict, k: int = 2) -> tuple:
+    def exclude_short_sequences(features: dict, outcomes: dict=None, k: int = 2) -> pd.DataFrame:
         kept_indices = []
         for i, concepts in enumerate(features['concept']):
             unique_codes = set([code for code in concepts if not code.startswith('[')])
@@ -31,11 +31,12 @@ class Excluder():
 
         for key, values in features.items():
             features[key] = [values[i] for i in kept_indices]
-
-        for key, values in outcomes.items():
-            outcomes[key] = [values[i] for i in kept_indices]
-
-        return features, outcomes
+        if outcomes:
+            outcomes = [outcomes[i] for i in kept_indices]
+        if outcomes:
+            return features, outcomes
+        else:
+            return features
 
     @staticmethod
     def exclude_covid_negative(features: dict, outcomes: dict):
@@ -51,4 +52,3 @@ class Excluder():
             outcomes[key] = [values[i] for i in kept_indices]
 
         return features, outcomes
-

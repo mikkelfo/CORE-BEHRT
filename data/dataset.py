@@ -84,6 +84,26 @@ class MLMDataset(BaseDataset):
         else:
             raise TypeError(f'Unsupported vocabulary input {type(vocabulary)}')
 
+class MLMLargeDataset(MLMDataset):
+    def __init__(self, data_files, **kwargs):
+        super().__init__()
+        self.kwargs = kwargs
+        self.vocabulary = self.load_vocabulary(self.kwargs.get('vocabulary', 'vocabulary.pt'))
+        self.masked_ratio = self.kwargs.get('masked_ratio', 0.3)
+        self.data_files = data_files
+    
+    def __len__(self):
+        return len(self.data_files)
+    
+    def __getitem__(self, idx):
+        file_name = self.data_files[idx]
+        patient_dict = torch.load(file_name)
+        
+        for patient in patient_dict['concepts']:
+            masked_concepts, target = self._mask(patient)
+            patient['concept'] = masked_concepts
+            patient['target'] = target
+            yield patient
 
 class CensorDataset(BaseDataset):
     """

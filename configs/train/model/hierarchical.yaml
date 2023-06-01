@@ -1,0 +1,9 @@
+max_position_embeddings: 512
+linear: true
+hidden_size: 192
+num_hidden_layers: 6
+num_attention_heads: 6
+intermediate_size: 64
+vocab_size: 7859
+type_vocab_size: 306
+pool_type: mean

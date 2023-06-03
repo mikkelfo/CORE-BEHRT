@@ -83,37 +83,6 @@ class MLMDataset(BaseDataset):
             return vocabulary
         else:
             raise TypeError(f'Unsupported vocabulary input {type(vocabulary)}')
-
-# class MLMLargeDataset(MLMDataset):
-#     """Loads only the files necessary to generate a batch into memory."""
-#     def __init__(self, data_files, **kwargs):
-#         super().__init__(None, **kwargs)
-#         self.kwargs = kwargs
-#         self.vocabulary = self.load_vocabulary(self.kwargs.get('vocabulary', 'vocabulary.pt'))
-#         self.masked_ratio = self.kwargs.get('masked_ratio', 0.3)
-
-#         self.patient_index_mapping = []
-#         for file_name in data_files:
-#             patient_dict = torch.load(file_name)
-#             num_patients = len(patient_dict['concept'])
-#             self.patient_index_mapping.extend([(file_name, i) for i in range(num_patients)])
-
-#     def __len__(self):
-#         return len(self.patient_index_mapping)
-    
-#     def __getitem__(self, idx):
-#         file_name, patient_idx = self.patient_index_mapping[idx]
-#         patient_dict = torch.load(file_name)
-#         return self.get_patient(patient_dict, patient_idx)
-
-#     def get_patient(self, patient_dict, patient_index):
-#         return {key: torch.tensor(values[patient_index]) for key, values in patient_dict.items()}
-
-#     def num_patients(self, patient_dict):
-#         return range(len(patient_dict['concept']))
-
-#     def get_max_segments(self):
-#         return None
     
 class MLMLargeDataset(IterableDataset):
     def __init__(self, data_files :list[str], **kwargs):
@@ -138,7 +107,6 @@ class MLMLargeDataset(IterableDataset):
         features = torch.load(file_name)
         num_patients = len(features['concept'])
         for patient_index in range(num_patients):
-            print(f'Loading patient {patient_index} from file {file_name}')
             patient = self.get_patient_dic(features, patient_index)
             masked_concepts, target = self.mlm._mask(patient)
             patient['concept'] = masked_concepts

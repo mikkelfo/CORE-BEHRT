@@ -113,7 +113,6 @@ class EHRTrainer():
 
     def forward_pass(self, batch: dict):
         batch = self.to_device(batch)
-        print(batch['concept'].shape)
         return self.model(
             input_ids=batch['concept'],
             attention_mask=batch['attention_mask'],

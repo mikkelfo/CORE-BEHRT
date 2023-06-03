@@ -5,7 +5,7 @@ paths:
   
 ignore_special_tokens: true
 trainer_args:
-  batch_size: 32
+  batch_size: 10
   effective_batch_size: 512
   epochs: 30
   info: false
@@ -18,8 +18,7 @@ model:
   num_hidden_layers: 6
   num_attention_heads: 6
   intermediate_size: 64
-  vocab_size: 7859
-  type_vocab_size: 306
+  type_vocab_size: 1000
   pool_type: mean
 
 optimizer:

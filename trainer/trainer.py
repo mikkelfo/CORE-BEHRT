@@ -3,10 +3,11 @@ import torch
 from tqdm import tqdm
 import os
 import uuid
-import json
 from dataloader.collate_fn import dynamic_padding
 from data.utils import instantiate, get_function
 import yaml
+from data.utils import Config
+yaml.add_representer(Config, lambda dumper, data: data.yaml_repr(dumper))
 
 class EHRTrainer():
     def __init__(self, 
@@ -166,8 +167,7 @@ class EHRTrainer():
         self.info(f'Run folder: {self.run_folder}')
 
     def save_setup(self):
-        model_config_name = os.path.join(self.run_folder, 'config.json')
-        self.model.config.save_pretrained(model_config_name)  
+        self.model.config.save_pretrained(self.run_folder)  
         with open(os.path.join(self.run_folder, 'pretrain_config.yaml'), 'w') as file:
             yaml.dump(self.cfg.to_dict(), file)
 

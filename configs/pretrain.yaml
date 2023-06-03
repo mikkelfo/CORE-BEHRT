@@ -1,6 +1,6 @@
 paths:
-  train_encoded: 'output/train_dataset.pt'
-  val_encoded: 'output/val_dataset.pt'
+  train_dataset: 'output/train_dataset.pt'
+  val_dataset: 'output/val_dataset.pt'
   vocabulary: 'output/vocabulary.pt'
   
 ignore_special_tokens: true
@@ -48,6 +48,4 @@ metrics:
     _target_: evaluation.metrics.PrecisionAtK
     _partial_: true
     topk: 100
-collate_fn: 
-  _target_: dataloader.collate_fn.dynamic_padding
   

@@ -15,11 +15,9 @@ cfg = utils.load_config(config_path)
 
 def main_train(cfg):
     # MLM specific
-    train_encoded = torch.load(cfg.paths.train_encoded)
-    val_encoded = torch.load(cfg.paths.val_encoded)
+    train_dataset = torch.load(cfg.paths.train_dataset)
+    val_dataset = torch.load(cfg.paths.val_dataset)
     vocabulary = torch.load(cfg.paths.vocabulary)
-    train_dataset = MLMDataset(train_encoded, vocabulary=vocabulary, ignore_special_tokens=cfg.ignore_special_tokens)
-    val_dataset = MLMDataset(val_encoded, vocabulary=vocabulary, ignore_special_tokens=cfg.ignore_special_tokens)
 
     model = BertEHRModel(
         BertConfig(

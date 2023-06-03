@@ -7,12 +7,17 @@ class BaseCreator():
         self.config = config
 
     def __call__(self, concepts: pd.DataFrame, patients_info: pd.DataFrame):
+         # Create PID -> BIRTHDATE dict
+        if 'BIRTHDATE' not in patients_info.columns:
+            if 'DATE_OF_BIRTH' in patients_info.columns:
+                patients_info = patients_info.rename(columns={'DATE_OF_BIRTH': 'BIRTHDATE'})
+            else:
+                raise KeyError('BIRTHDATE column not found in patients_info')
         return self.create(concepts, patients_info)
 
 class AgeCreator(BaseCreator):
     feature = id = 'age'
     def create(self, concepts: pd.DataFrame, patients_info: pd.DataFrame):
-        # Create PID -> BIRTHDATE dict
         birthdates = pd.Series(patients_info['BIRTHDATE'].values, index=patients_info['PID']).to_dict()
         # Calculate approximate age
         ages = (((concepts['TIMESTAMP'] - concepts['PID'].map(birthdates)).dt.days / 365.25) + 0.5).round()
@@ -21,9 +26,10 @@ class AgeCreator(BaseCreator):
         return concepts
 
 class AbsposCreator(BaseCreator):
+    
     feature = id = 'abspos'
     def create(self, concepts: pd.DataFrame, patients_info: pd.DataFrame):
-        origin_point = datetime(**self.config.features.abspos)
+        origin_point = datetime(**self.config.abspos)
         # Calculate hours since origin point
         abspos = (concepts['TIMESTAMP'] - origin_point).dt.total_seconds() / 60 / 60
 
@@ -44,21 +50,21 @@ class BackgroundCreator(BaseCreator):
     def create(self, concepts: pd.DataFrame, patients_info: pd.DataFrame):
         # Create background concepts
         background = {
-            'PID': patients_info['PID'].tolist() * len(self.config.features.background),
+            'PID': patients_info['PID'].tolist() * len(self.config.background),
             'CONCEPT': itertools.chain.from_iterable(
-                [(self.prepend_token + patients_info[col].astype(str)).tolist() for col in self.config.features.background])
+                [(self.prepend_token + patients_info[col].astype(str)).tolist() for col in self.config.background])
         }
 
-        if 'segment' in self.config.features:
+        if 'segment' in self.config:
             background['SEGMENT'] = 0
 
-        if 'age' in self.config.features:
+        if 'age' in self.config:
             background['AGE'] = -1
 
-        if 'abspos' in self.config.features:
-            origin_point = datetime(**self.config.features.abspos)
+        if 'abspos' in self.config:
+            origin_point = datetime(**self.config.abspos)
             start = (patients_info['BIRTHDATE'] - origin_point).dt.total_seconds() / 60 / 60
-            background['ABSPOS'] = start.tolist() * len(self.config.features.background)
+            background['ABSPOS'] = start.tolist() * len(self.config.background)
 
         # background['AGE'] = -1
 

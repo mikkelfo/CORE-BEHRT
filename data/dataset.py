@@ -1,7 +1,7 @@
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, IterableDataset
 import torch
 import pandas as pd
-
+import numpy as np
 
 class BaseDataset(Dataset):
     def __init__(self, features: dict):
@@ -84,28 +84,76 @@ class MLMDataset(BaseDataset):
         else:
             raise TypeError(f'Unsupported vocabulary input {type(vocabulary)}')
 
-class MLMLargeDataset(MLMDataset):
-    def __init__(self, data_files, **kwargs):
-        super().__init__(None, **kwargs)
+# class MLMLargeDataset(MLMDataset):
+#     """Loads only the files necessary to generate a batch into memory."""
+#     def __init__(self, data_files, **kwargs):
+#         super().__init__(None, **kwargs)
+#         self.kwargs = kwargs
+#         self.vocabulary = self.load_vocabulary(self.kwargs.get('vocabulary', 'vocabulary.pt'))
+#         self.masked_ratio = self.kwargs.get('masked_ratio', 0.3)
+
+#         self.patient_index_mapping = []
+#         for file_name in data_files:
+#             patient_dict = torch.load(file_name)
+#             num_patients = len(patient_dict['concept'])
+#             self.patient_index_mapping.extend([(file_name, i) for i in range(num_patients)])
+
+#     def __len__(self):
+#         return len(self.patient_index_mapping)
+    
+#     def __getitem__(self, idx):
+#         file_name, patient_idx = self.patient_index_mapping[idx]
+#         patient_dict = torch.load(file_name)
+#         return self.get_patient(patient_dict, patient_idx)
+
+#     def get_patient(self, patient_dict, patient_index):
+#         return {key: torch.tensor(values[patient_index]) for key, values in patient_dict.items()}
+
+#     def num_patients(self, patient_dict):
+#         return range(len(patient_dict['concept']))
+
+#     def get_max_segments(self):
+#         return None
+    
+class MLMLargeDataset(IterableDataset):
+    def __init__(self, data_files :list[str], **kwargs):
         self.kwargs = kwargs
-        self.vocabulary = self.load_vocabulary(self.kwargs.get('vocabulary', 'vocabulary.pt'))
+        self.vocabulary = MLMDataset.load_vocabulary(self.kwargs.get('vocabulary', 'vocabulary.pt'))
         self.masked_ratio = self.kwargs.get('masked_ratio', 0.3)
         self.data_files = data_files
-    
+        self.batch_size = kwargs.get('batch_size', 1)
+        self.mlm = MLMDataset({'concept':[[1]],'segment':[[1]]}, **kwargs)
+
+        if kwargs.get('ignore_special_tokens', True):
+            self.n_special_tokens = len([token for token in self.vocabulary if token.startswith('[')])
+        else:
+            self.n_special_tokens = 0
+
     def __len__(self):
+        """Number of data files"""
         return len(self.data_files)
-    
-    def __getitem__(self, idx):
-        file_name = self.data_files[idx]
-        patient_dict = torch.load(file_name)
-        
-        for patient in patient_dict['concept']:
-            masked_concepts, target = self._mask(patient)
-            patient['concep'] = masked_concepts
+
+    def get_patient(self, file_name: str):
+        """Loads a single patient from a file"""
+        features = torch.load(file_name)
+        num_patients = len(features['concept'])
+        for patient_index in range(num_patients):
+            print(f'Loading patient {patient_index} from file {file_name}')
+            patient = self.get_patient_dic(features, patient_index)
+            masked_concepts, target = self.mlm._mask(patient)
+            patient['concept'] = masked_concepts
             patient['target'] = target
             yield patient
-    def get_max_segments(self):
-        return None
+
+    def get_patient_dic(self, features: dict[list[list]], patient_index: int):
+        """Get a patient dictionary from a patient index"""
+        return {key: torch.tensor(values[patient_index]) for key, values in features.items()}
+
+    def __iter__(self):
+        np.random.shuffle(self.data_files)  # Shuffle the file names
+        for file_name in self.data_files:
+            yield from self.get_patient(file_name)
+
 
 class CensorDataset(BaseDataset):
     """

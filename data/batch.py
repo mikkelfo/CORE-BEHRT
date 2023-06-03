@@ -1,6 +1,9 @@
-import numpy as np
 from os.path import join
+
+import numpy as np
 import torch
+from tqdm import tqdm
+
 
 def split_batches(num_batches, split_ratios):
     batches = np.arange(num_batches)
@@ -16,7 +19,7 @@ def split_batches(num_batches, split_ratios):
 
 def batch_tokenize(cfg, tokenizer, batches, mode='train'):
     files = []
-    for batch in batches:
+    for batch in tqdm(batches, desc=f'Tokenizing {mode} batches'):
         features = torch.load(join(cfg.output_dir, f'features{batch}.pt'))
         train_encoded = tokenizer(features)
         torch.save(train_encoded, join(cfg.output_dir, f'encoded_{mode}{batch}.pt'))

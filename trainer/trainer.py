@@ -102,7 +102,6 @@ class EHRTrainer():
         self.model.train()
         self.setup_run_folder()
         self.save_setup()
-        print(self.train_dataset[0])
         dataloader = DataLoader(self.train_dataset, batch_size=self.args['batch_size'], shuffle=False, collate_fn=self.args['collate_fn'])
         return dataloader
 
@@ -114,6 +113,7 @@ class EHRTrainer():
 
     def forward_pass(self, batch: dict):
         batch = self.to_device(batch)
+        print(batch['concept'].shape)
         return self.model(
             input_ids=batch['concept'],
             attention_mask=batch['attention_mask'],

@@ -60,6 +60,13 @@ def instantiate(config, kwargs={}):
     instance = class_(**kwargs)
     return instance
 
+def get_function(config):
+    """Gets a function from a config object."""
+    module_path, function_name = config._target_.rsplit(".", 1)
+    module = importlib.import_module(module_path)
+    function = getattr(module, function_name)
+    return function
+
 def load_config(config_file):
     """Loads a yaml config file."""
     with open(config_file, 'r') as ymlfile:

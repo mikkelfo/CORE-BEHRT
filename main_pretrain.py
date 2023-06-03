@@ -21,7 +21,8 @@ def main_train(cfg):
 
     model = BertEHRModel(
         BertConfig(
-            **cfg.model
+            **cfg.model,
+            vocab_size=len(vocabulary)
         )
     )
 

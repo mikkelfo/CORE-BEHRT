@@ -85,7 +85,8 @@ class MLMDataset(BaseDataset):
             raise TypeError(f'Unsupported vocabulary input {type(vocabulary)}')
     
 class MLMLargeDataset(IterableDataset):
-    def __init__(self, data_files :list[str], **kwargs):
+    def __init__(self, data_files :list[str],  **kwargs):
+        self.num_patients = kwargs.get('num_patients', None)
         self.kwargs = kwargs
         self.vocabulary = MLMDataset.load_vocabulary(self.kwargs.get('vocabulary', 'vocabulary.pt'))
         self.masked_ratio = self.kwargs.get('masked_ratio', 0.3)
@@ -98,9 +99,9 @@ class MLMLargeDataset(IterableDataset):
         else:
             self.n_special_tokens = 0
 
-    # def __len__(self):
-        # """Number of data files"""
-        # return len(self.data_files)
+    def __len__(self):
+        """Number of data files"""
+        return self.num_patients
 
     def get_patient(self, file_name: str):
         """Loads a single patient from a file"""

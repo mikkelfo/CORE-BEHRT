@@ -41,7 +41,9 @@ def main_data(cfg):
     handler = Handler()
     excluder = Excluder(cfg)
     num_batches = 0
+    num_patients = 0
     for i, (concept_batch, patient_batch) in enumerate(tqdm(conceptloader(), desc='Process')):
+        num_patients += len(patient_batch)
         concept_batch = inferrer(concept_batch)
         # patient_batch = OutcomeMaker(cfg)(patient_batch)
         features_batch = feature_maker(concept_batch, patient_batch)
@@ -63,9 +65,11 @@ def main_data(cfg):
     val_files = batch_tokenize(cfg, tokenizer, val_batches, mode='val')
     test_files = batch_tokenize(cfg, tokenizer, test_batches, mode='test')
     print('Saving datasets')
-    train_dataset = MLMLargeDataset(train_files, vocabulary=tokenizer.vocabulary, **cfg.dataset)
-    test_dataset = MLMLargeDataset(test_files, vocabulary=tokenizer.vocabulary, **cfg.dataset)
-    val_dataset = MLMLargeDataset(val_files, vocabulary=tokenizer.vocabulary, **cfg.dataset)
+    cfg.dataset.vocabulary = tokenizer.vocab
+    cfg.dataset.num_patients = num_patients
+    train_dataset = MLMLargeDataset(train_files, **cfg.dataset)
+    test_dataset = MLMLargeDataset(test_files, **cfg.dataset)
+    val_dataset = MLMLargeDataset(val_files, **cfg.dataset)
     torch.save(train_dataset, join(cfg.output_dir, 'train_dataset.pt'))
     torch.save(test_dataset, join(cfg.output_dir,'test_dataset.pt'))
     torch.save(val_dataset, join(cfg.output_dir,'val_dataset.pt'))

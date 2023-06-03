@@ -1,13 +1,18 @@
-import torch
-import hydra
-from torch.optim import AdamW
-from data.dataset import MLMDataset
+from os.path import join
 
-from trainer.trainer import EHRTrainer
-from model.model import BertEHRModel
+import torch
+from torch.optim import AdamW
 from transformers import BertConfig
 
-@hydra.main(config_path="configs/train", config_name="pretrain")
+from data import utils
+from data.dataset import MLMDataset
+from model.model import BertEHRModel
+from trainer.trainer import EHRTrainer
+
+
+config_path = join("configs", "pretrain.yaml")
+cfg = utils.load_config(config_path)
+
 def main_train(cfg):
     # MLM specific
     train_encoded = torch.load(cfg.paths.train_encoded)
@@ -42,4 +47,4 @@ def main_train(cfg):
 
 
 if __name__ == '__main__':
-    main_train()
+    main_train(cfg)

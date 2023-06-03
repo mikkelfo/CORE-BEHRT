@@ -1,6 +1,6 @@
 paths:
-  train_encoded: 'output/train_encoded.pt'
-  val_encoded: 'output/val_encoded.pt'
+  train_encoded: 'output/train_dataset.pt'
+  val_encoded: 'output/val_dataset.pt'
   vocabulary: 'output/vocabulary.pt'
   
 ignore_special_tokens: true

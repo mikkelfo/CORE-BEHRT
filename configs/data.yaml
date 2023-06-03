@@ -5,8 +5,8 @@ loader:
     diagnose,
     medication
   ]
-  batch_size: 100
-  chunksize: 250
+  batch_size: 256
+  chunksize: 300
 
 features:
   age: true
@@ -21,7 +21,7 @@ tokenizer:
   sep_tokens: true
   cls_token: true
   padding: false
-  truncation: 512
+  truncation: 128
   max_concept_length: false
 
 dataset:
@@ -32,8 +32,8 @@ dataset:
 output_dir: "output"
 min_count: 2
 split_ratios:
-  train: 0.8
-  val: 0.1
+  train: 0.5
+  val: 0.4
   test: 0.1
 hydra:  
   output_subdir: null

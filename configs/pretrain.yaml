@@ -5,8 +5,8 @@ paths:
   
 ignore_special_tokens: true
 trainer_args:
-  batch_size: 10
-  effective_batch_size: 512
+  batch_size: 128
+  effective_batch_size: 256
   epochs: 30
   info: false
   sampler: null
@@ -14,9 +14,9 @@ trainer_args:
 model:
   max_position_embeddings: 512
   linear: true
-  hidden_size: 192
-  num_hidden_layers: 6
-  num_attention_heads: 6
+  hidden_size: 96
+  num_hidden_layers: 3
+  num_attention_heads: 3
   intermediate_size: 64
   type_vocab_size: 1000
   pool_type: mean
@@ -29,22 +29,10 @@ optimizer:
 metrics:
   top1:
     _target_: evaluation.metrics.PrecisionAtK
-    _partial_: true
     topk: 1
   top10:
     _target_: evaluation.metrics.PrecisionAtK
-    _partial_: true
     topk: 10
-  top30:
-    _target_: evaluation.metrics.PrecisionAtK
-    _partial_: true
-    topk: 30
-  top50:
-    _target_: evaluation.metrics.PrecisionAtK
-    _partial_: true
-    topk: 50
   top100:
     _target_: evaluation.metrics.PrecisionAtK
-    _partial_: true
     topk: 100
-  

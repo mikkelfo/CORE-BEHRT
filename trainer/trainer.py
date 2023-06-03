@@ -5,7 +5,7 @@ import os
 import uuid
 import json
 from dataloader.collate_fn import dynamic_padding
-from data.utils import instantiate
+from data.utils import instantiate, get_function
 import yaml
 
 class EHRTrainer():
@@ -37,7 +37,9 @@ class EHRTrainer():
             'save_every_k_steps': float('inf'),
             'collate_fn': dynamic_padding
         }
-        
+        if isinstance(default_args['collate_fn'] ,str):
+            default_args['collate_fn'] = get_function(default_args['collate_fn'])
+
         self.args = {**default_args, **args}
 
     def update_attributes(self, **kwargs):
@@ -100,8 +102,8 @@ class EHRTrainer():
         self.model.train()
         self.setup_run_folder()
         self.save_setup()
-        
-        dataloader = DataLoader(self.train_dataset, batch_size=self.args['batch_size'], shuffle=self.sampler is None, collate_fn=self.args['collate_fn'], sampler=self.sampler)
+        print(self.train_dataset[0])
+        dataloader = DataLoader(self.train_dataset, batch_size=self.args['batch_size'], shuffle=False, collate_fn=self.args['collate_fn'])
         return dataloader
 
     def train_step(self, batch: dict):
@@ -166,9 +168,7 @@ class EHRTrainer():
 
     def save_setup(self):
         model_config_name = os.path.join(self.run_folder, 'config.json')
-        with open(model_config_name, 'w') as f:
-            json.dump({self.model.config.to_dict(),    # Maybe .to_diff_dict()?
-            }, f)
+        self.model.config.save_pretrained(model_config_name)  
         with open(os.path.join(self.run_folder, 'pretrain_config.yaml'), 'w') as file:
             yaml.dump(self.cfg.to_dict(), file)
 

@@ -134,5 +134,5 @@ class EHRTokenizer():
 
     def freeze_vocabulary(self):
         self.new_vocab = False
-        self.save_vocab('vocabulary.pt')
+        # self.save_vocab('vocabulary.pt')
 

@@ -65,7 +65,7 @@ def main_data(cfg):
     val_files = batch_tokenize(cfg, tokenizer, val_batches, mode='val')
     test_files = batch_tokenize(cfg, tokenizer, test_batches, mode='test')
     print('Saving datasets')
-    cfg.dataset.vocabulary = tokenizer.vocab
+    cfg.dataset.vocabulary = tokenizer.vocabulary
     cfg.dataset.num_patients = num_patients
     train_dataset = MLMLargeDataset(train_files, **cfg.dataset)
     test_dataset = MLMLargeDataset(test_files, **cfg.dataset)

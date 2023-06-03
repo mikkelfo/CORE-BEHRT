@@ -23,8 +23,12 @@ class BaseDataset(Dataset):
 class MLMDataset(BaseDataset):
     def __init__(self, features: dict, vocabulary='vocabulary.pt', masked_ratio=0.3, ignore_special_tokens=True):
         super().__init__(features)
-
-        self.vocabulary = self.load_vocabulary(vocabulary)
+        if isinstance(vocabulary, str):
+            self.vocabulary = self.load_vocabulary(vocabulary)
+        elif isinstance(vocabulary, dict):
+            self.vocabulary = vocabulary
+        else:
+            raise TypeError(f'Unsupported vocabulary input {type(vocabulary)}')
         self.masked_ratio = masked_ratio
         if ignore_special_tokens:
             self.n_special_tokens = len([token for token in vocabulary if token.startswith('[')])
@@ -86,13 +90,13 @@ class MLMDataset(BaseDataset):
     
 class MLMLargeDataset(IterableDataset):
     def __init__(self, data_files :list[str],  **kwargs):
-        self.num_patients = kwargs.get('num_patients', None)
         self.kwargs = kwargs
+        self.data_files = data_files
+
+        self.num_patients = kwargs.get('num_patients', None)
         self.vocabulary = MLMDataset.load_vocabulary(self.kwargs.get('vocabulary', 'vocabulary.pt'))
         self.masked_ratio = self.kwargs.get('masked_ratio', 0.3)
-        self.data_files = data_files
-        self.batch_size = kwargs.get('batch_size', 1)
-        self.mlm = MLMDataset({'concept':[[1]],'segment':[[1]]}, **kwargs)
+        self.batch_size = kwargs.get('batch_size', 32)
 
         if kwargs.get('ignore_special_tokens', True):
             self.n_special_tokens = len([token for token in self.vocabulary if token.startswith('[')])
@@ -109,7 +113,7 @@ class MLMLargeDataset(IterableDataset):
         num_patients = len(features['concept'])
         for patient_index in range(num_patients):
             patient = self.get_patient_dic(features, patient_index)
-            masked_concepts, target = self.mlm._mask(patient)
+            masked_concepts, target = self._mask(patient)
             patient['concept'] = masked_concepts
             patient['target'] = target
             yield patient
@@ -124,6 +128,36 @@ class MLMLargeDataset(IterableDataset):
         for file_name in self.data_files:
             yield from self.get_patient(file_name)
 
+    def _mask(self, patient: dict):
+        concepts = patient['concept']
+        N = len(concepts)
+
+        # Initialize
+        masked_concepts = torch.clone(concepts)
+        target = torch.ones(N, dtype=torch.long) * -100
+        # Apply special token mask and create MLM mask
+        eligible_mask = masked_concepts >= self.n_special_tokens
+        eligible_concepts = masked_concepts[eligible_mask]      # Ignore special tokens
+        rng = torch.rand(len(eligible_concepts))                # Random number for each token
+        masked = rng < self.masked_ratio                        # Mask tokens with probability masked_ratio
+
+        # Get masked MLM concepts
+        selected_concepts = eligible_concepts[masked]           # Select set % of the tokens
+        adj_rng = rng[masked].div(self.masked_ratio)            # Fix ratio to 0-100 interval
+
+        # Operation masks
+        rng_mask = adj_rng < 0.8                                # 80% - Mask token
+        rng_replace = (0.8 <= adj_rng) & (adj_rng < 0.9)        # 10% - replace with random word
+        # rng_keep = adj_rng >= 0.9                             # 10% - keep token (Redundant)
+        # Apply operations (Mask, replace, keep)
+        selected_concepts = torch.where(rng_mask, self.vocabulary['[MASK]'], selected_concepts) # Replace with [MASK]
+        selected_concepts = torch.where(rng_replace, torch.randint(self.n_special_tokens, len(self.vocabulary), (len(selected_concepts),)), selected_concepts) # Replace with random word
+        # selected_concepts = torch.where(rng_keep, selected_concepts, selected_concepts)       # Redundant
+        # Update outputs (nonzero for double masking)
+        target[eligible_mask.nonzero()[:,0][masked]] = eligible_concepts[masked]    # Set "true" token
+        masked_concepts[eligible_mask.nonzero()[:,0][masked]]= selected_concepts    # Sets new concepts
+
+        return masked_concepts, target
 
 class CensorDataset(BaseDataset):
     """

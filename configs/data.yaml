@@ -5,6 +5,8 @@ loader:
     diagnose,
     medication
   ]
+  batch_size: 100
+  chunksize: 250
 
 features:
   age: true
@@ -37,4 +39,3 @@ hydra:
   output_subdir: null
   run:  
     dir: .
-

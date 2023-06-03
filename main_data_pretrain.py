@@ -3,6 +3,7 @@ from os.path import join
 from shutil import copyfile
 
 import torch
+from tqdm import tqdm
 
 from data import utils
 from data.batch import batch_tokenize, split_batches
@@ -13,7 +14,6 @@ from data.tokenizer import EHRTokenizer
 from data_fixes.exclude import Excluder
 from data_fixes.handle import Handler
 from data_fixes.infer import Inferrer
-
 
 config_path = join("configs", "data.yaml")
 cfg = utils.load_config(config_path)
@@ -34,15 +34,14 @@ def main_data(cfg):
     """
 
 
-    conceptloader = ConceptLoader(batch_size=50, chunksize=250, **cfg.loader)
+    conceptloader = ConceptLoader(**cfg.loader)
     inferrer = Inferrer()
     # outcome_maker = OutcomeMaker(cfg)
     feature_maker = FeatureMaker(cfg)
     handler = Handler()
     excluder = Excluder(cfg)
     num_batches = 0
-    print("Loading concepts...")
-    for i, (concept_batch, patient_batch) in enumerate(conceptloader()):
+    for i, (concept_batch, patient_batch) in enumerate(tqdm(conceptloader(), desc='Process')):
         concept_batch = inferrer(concept_batch)
         # patient_batch = OutcomeMaker(cfg)(patient_batch)
         features_batch = feature_maker(concept_batch, patient_batch)
@@ -56,14 +55,14 @@ def main_data(cfg):
     
     # Tokenize
     # Loop through train batches before freezing tokenizer
-    
+    print('Tokenizing')
     tokenizer = EHRTokenizer(config=cfg.tokenizer)        
     train_files = batch_tokenize(cfg, tokenizer, train_batches, mode='train')
     tokenizer.freeze_vocabulary()
     tokenizer.save_vocab(join(cfg.output_dir, 'vocabulary.pt'))
     val_files = batch_tokenize(cfg, tokenizer, val_batches, mode='val')
     test_files = batch_tokenize(cfg, tokenizer, test_batches, mode='test')
-    print("Big data dataset")
+    print('Saving datasets')
     train_dataset = MLMLargeDataset(train_files, vocabulary=tokenizer.vocabulary, **cfg.dataset)
     test_dataset = MLMLargeDataset(test_files, vocabulary=tokenizer.vocabulary, **cfg.dataset)
     val_dataset = MLMLargeDataset(val_files, vocabulary=tokenizer.vocabulary, **cfg.dataset)

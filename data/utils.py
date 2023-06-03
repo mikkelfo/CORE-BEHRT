@@ -45,6 +45,9 @@ class Config(dict):
         if hasattr(self, name):
             super(Config, self).__delattr__(name)
     
+    def yaml_repr(self, dumper):
+        return dumper.represent_dict(self.to_dict())
+    
     def to_dict(self):
         """Converts the object to a dictionary, including any attributes."""
         result = dict(self)  # Start with the underlying dictionary

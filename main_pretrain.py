@@ -5,7 +5,6 @@ from torch.optim import AdamW
 from transformers import BertConfig
 
 from data import utils
-from data.dataset import MLMDataset
 from model.model import BertEHRModel
 from trainer.trainer import EHRTrainer
 
@@ -22,7 +21,8 @@ def main_train(cfg):
     model = BertEHRModel(
         BertConfig(
             **cfg.model,
-            vocab_size=len(vocabulary)
+            vocab_size=len(vocabulary),
+
         )
     )
 

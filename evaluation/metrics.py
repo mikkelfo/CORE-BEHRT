@@ -7,7 +7,7 @@ class PrecisionAtK:
         self.topk = topk
 
     def __call__(self, outputs, batch):
-        logits = outputs.prediction_logits
+        logits = outputs.logits
         target = batch['target']
         
         ind = torch.where((target != -100) & (target != 0))

@@ -55,11 +55,12 @@ class Config(dict):
         return result
 
 
-def instantiate(config, kwargs={}):
+def instantiate(config):
     """Instantiates a class from a config object."""
     module_path, class_name = config._target_.rsplit(".", 1)
     module = importlib.import_module(module_path)
     class_ = getattr(module, class_name)
+    kwargs = {k: v for k, v in config.items() if k != "_target_"}
     instance = class_(**kwargs)
     return instance
 

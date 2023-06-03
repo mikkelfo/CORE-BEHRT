@@ -98,9 +98,9 @@ class MLMLargeDataset(IterableDataset):
         else:
             self.n_special_tokens = 0
 
-    def __len__(self):
-        """Number of data files"""
-        return len(self.data_files)
+    # def __len__(self):
+        # """Number of data files"""
+        # return len(self.data_files)
 
     def get_patient(self, file_name: str):
         """Loads a single patient from a file"""
@@ -118,7 +118,8 @@ class MLMLargeDataset(IterableDataset):
         return {key: torch.tensor(values[patient_index]) for key, values in features.items()}
 
     def __iter__(self):
-        np.random.shuffle(self.data_files)  # Shuffle the file names
+        data_files = self.data_files.copy()  # Create a copy of data_files
+        np.random.shuffle(data_files)  # Shuffle the copy
         for file_name in self.data_files:
             yield from self.get_patient(file_name)
 

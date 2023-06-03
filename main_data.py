@@ -46,53 +46,58 @@ def main_data(cfg):
         test_batches = batches[val_end:]
         return train_batches, val_batches, test_batches
 
-    def batch_tokenize(tokenzier, batches, mode='train'):
+    def batch_tokenize(tokenizer, batches, mode='train'):
+        files = []
         for batch in batches:
-            features = torch.load(join(cfg.out_dir, f'features{batch}.pt'))
+            features = torch.load(join(cfg.output_dir, f'features{batch}.pt'))
             train_encoded = tokenizer(features)
-            torch.save(train_encoded, join(cfg.out_dir, f'encoded_{mode}{batch}.pt'))
+            torch.save(train_encoded, join(cfg.output_dir, f'encoded_{mode}{batch}.pt'))
+            files.append(join(cfg.output_dir, f'encoded_{mode}{batch}.pt'))
+        return files
 
-    conceptloader = ConceptLoader(batch_size=250, chunksize=250, **cfg.loader)
+    if not os.path.exists(cfg.output_dir):
+        os.makedirs(cfg.output_dir)
+
+    conceptloader = ConceptLoader(batch_size=50, chunksize=250, **cfg.loader)
     inferrer = Inferrer()
     # outcome_maker = OutcomeMaker(cfg)
     feature_maker = FeatureMaker(cfg)
     handler = Handler()
     excluder = Excluder(cfg)
-    num_batches = 0
+    num_batches = 11
     print("Loading concepts...")
-    for i, (concept_batch, patient_batch) in enumerate(conceptloader()):
-        print(f"Processing batch {i}")
-        concept_batch = inferrer(concept_batch)
-        # patient_batch = OutcomeMaker(cfg)(patient_batch)
-        print("Creating feature sequences")
-        features_batch = feature_maker(concept_batch, patient_batch)
-        # print(features_batch['concept'][0])
-        features_batch = handler(features_batch)
-        print("Exclude patients with <k concepts")
-        features_batch, _ = excluder(features_batch)
-        torch.save(features_batch, join(cfg.output_dir, f'features{i}.pt'))
-        num_batches += 1
+    if False:
+        for i, (concept_batch, patient_batch) in enumerate(conceptloader()):
+            print(f"Processing batch {i}")
+            concept_batch = inferrer(concept_batch)
+            # patient_batch = OutcomeMaker(cfg)(patient_batch)
+            print("Creating feature sequences")
+            features_batch = feature_maker(concept_batch, patient_batch)
+            # print(features_batch['concept'][0])
+            features_batch = handler(features_batch)
+            print("Exclude patients with <k concepts")
+            features_batch, _ = excluder(features_batch)
+            torch.save(features_batch, join(cfg.output_dir, f'features{i}.pt'))
+            num_batches += 1
     # split batches into train, test, val
     train_batches, val_batches, test_batches = split_batches(num_batches, cfg.split_ratios)
     
     # Tokenize
     # Loop through train batches before freezing tokenizer
-    if not os.path.exists(cfg.out_dir):
-        os.makedirs(cfg.out_dir)
+    
     tokenizer = EHRTokenizer(config=cfg.tokenizer)        
     train_files = batch_tokenize(tokenizer, train_batches, mode='train')
     tokenizer.freeze_vocabulary()
-    tokenizer.save_vocab(join(cfg.out_dir, 'vocabulary.pt'))
+    tokenizer.save_vocab(join(cfg.output_dir, 'vocabulary.pt'))
     val_files = batch_tokenize(tokenizer, val_batches, mode='val')
     test_files = batch_tokenize(tokenizer, test_batches, mode='test')
-    
-    print("Dataset with MLM and prolonged length of stay")
+    print("Big data dataset")
     train_dataset = MLMLargeDataset(train_files, vocabulary=tokenizer.vocabulary, **cfg.dataset)
     test_dataset = MLMLargeDataset(test_files, vocabulary=tokenizer.vocabulary, **cfg.dataset)
     val_dataset = MLMLargeDataset(val_files, vocabulary=tokenizer.vocabulary, **cfg.dataset)
-    torch.save(train_dataset, 'train_dataset.pt')
-    torch.save(test_dataset, 'test_dataset.pt')
-    torch.save(val_dataset, 'val_dataset.pt')
+    torch.save(train_dataset, join(cfg.output_dir, 'train_dataset.pt'))
+    torch.save(test_dataset, join(cfg.output_dir,'test_dataset.pt'))
+    torch.save(val_dataset, join(cfg.output_dir,'val_dataset.pt'))
 
 if __name__ == '__main__':
     main_data()

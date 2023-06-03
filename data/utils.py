@@ -9,14 +9,27 @@ class Config(dict):
             for key, value in dictionary.items():
                 if isinstance(value, dict):
                     value = Config(value)
+                elif isinstance(value, str):
+                    value = self.str_to_num(value)
                 self[key] = value
                 setattr(self, key, value)
 
     def __setattr__(self, key, value):
+        if isinstance(value, str):
+            value = self.str_to_num(value)
         super(Config, self).__setattr__(key, value)
         super(Config, self).__setitem__(key, value)
 
+    def str_to_num(self, s):
+        """Converts a string to a float or int if possible."""
+        try:
+            return float(s)
+        except ValueError:
+            return s
+
     def __setitem__(self, key, value):
+        if isinstance(value, str):
+            value = self.str_to_num(value)
         super(Config, self).__setitem__(key, value)
         super(Config, self).__setattr__(key, value)
 
@@ -37,6 +50,7 @@ class Config(dict):
         result = dict(self)  # Start with the underlying dictionary
         result.update(self.__dict__)  # Add the attributes
         return result
+
 
 def instantiate(config, kwargs={}):
     """Instantiates a class from a config object."""

@@ -1,27 +1,26 @@
+import os
+from os.path import join
+from shutil import copyfile
+
 import torch
-import hydra
-from omegaconf import OmegaConf
-import json
-from data.dataset import MLMLargeDataset
+
+from data import utils
 from data.batch import batch_tokenize, split_batches
 from data.concept_loader import ConceptLoader
-from data_fixes.infer import Inferrer
+from data.dataset import MLMLargeDataset
 from data.featuremaker import FeatureMaker
-from data_fixes.handle import Handler
-from data_fixes.exclude import Excluder
 from data.tokenizer import EHRTokenizer
-from downstream_tasks.outcomes import OutcomeMaker
-from os.path import join
-import os
+from data_fixes.exclude import Excluder
+from data_fixes.handle import Handler
+from data_fixes.infer import Inferrer
 
 
-@hydra.main(config_path="configs/data", config_name="data")
+config_path = join("configs", "data.yaml")
+cfg = utils.load_config(config_path)
 def main_data(cfg):
-    with open('data_config.json', 'w') as f:
-        json.dump(
-            OmegaConf.to_container(cfg, resolve=True)
-        , f)
-
+    if not os.path.exists(cfg.output_dir):
+        os.makedirs(cfg.output_dir)
+    copyfile(config_path, join(cfg.output_dir, 'data_config.yaml'))
     """
         Loads data
         Infers nans
@@ -34,8 +33,6 @@ def main_data(cfg):
         Saves
     """
 
-    if not os.path.exists(cfg.output_dir):
-        os.makedirs(cfg.output_dir)
 
     conceptloader = ConceptLoader(batch_size=50, chunksize=250, **cfg.loader)
     inferrer = Inferrer()
@@ -43,7 +40,7 @@ def main_data(cfg):
     feature_maker = FeatureMaker(cfg)
     handler = Handler()
     excluder = Excluder(cfg)
-    num_batches = 11
+    num_batches = 0
     print("Loading concepts...")
     for i, (concept_batch, patient_batch) in enumerate(conceptloader()):
         concept_batch = inferrer(concept_batch)
@@ -61,11 +58,11 @@ def main_data(cfg):
     # Loop through train batches before freezing tokenizer
     
     tokenizer = EHRTokenizer(config=cfg.tokenizer)        
-    train_files = batch_tokenize(tokenizer, train_batches, mode='train')
+    train_files = batch_tokenize(cfg, tokenizer, train_batches, mode='train')
     tokenizer.freeze_vocabulary()
     tokenizer.save_vocab(join(cfg.output_dir, 'vocabulary.pt'))
-    val_files = batch_tokenize(tokenizer, val_batches, mode='val')
-    test_files = batch_tokenize(tokenizer, test_batches, mode='test')
+    val_files = batch_tokenize(cfg, tokenizer, val_batches, mode='val')
+    test_files = batch_tokenize(cfg, tokenizer, test_batches, mode='test')
     print("Big data dataset")
     train_dataset = MLMLargeDataset(train_files, vocabulary=tokenizer.vocabulary, **cfg.dataset)
     test_dataset = MLMLargeDataset(test_files, vocabulary=tokenizer.vocabulary, **cfg.dataset)
@@ -75,5 +72,5 @@ def main_data(cfg):
     torch.save(val_dataset, join(cfg.output_dir,'val_dataset.pt'))
 
 if __name__ == '__main__':
-    main_data()
+    main_data(cfg)
 

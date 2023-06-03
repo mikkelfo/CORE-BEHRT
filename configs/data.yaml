@@ -1,0 +1,40 @@
+loader:
+  data_dir: C:\Users\fjn197\PhD\projects\PHAIR\pipelines\ehr_preprocess\formatted_data\synthea500
+  patients_info: patients_info.csv
+  concepts: [
+    diagnose,
+    medication
+  ]
+
+features:
+  age: true
+  abspos:
+    year: 2020
+    month: 1
+    day: 26
+  segment: true
+  background: ['GENDER', 'ETHNICITY', 'RACE']
+
+tokenizer:
+  sep_tokens: true
+  cls_token: true
+  padding: false
+  truncation: 512
+  max_concept_length: false
+
+dataset:
+  masked_ratio: 0.15
+  ignore_special_tokens: true
+
+
+output_dir: "output"
+min_count: 2
+split_ratios:
+  train: 0.8
+  val: 0.1
+  test: 0.1
+hydra:  
+  output_subdir: null
+  run:  
+    dir: .
+

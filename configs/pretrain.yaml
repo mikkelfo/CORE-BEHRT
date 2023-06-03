@@ -1,0 +1,50 @@
+paths:
+  train_encoded: 'output/train_encoded.pt'
+  val_encoded: 'output/val_encoded.pt'
+  vocabulary: 'output/vocabulary.pt'
+  
+ignore_special_tokens: true
+trainer_args:
+  batch_size: 32
+  effective_batch_size: 512
+  epochs: 30
+  info: false
+  sampler: null
+
+model:
+  max_position_embeddings: 512
+  linear: true
+  hidden_size: 192
+  num_hidden_layers: 6
+  num_attention_heads: 6
+  intermediate_size: 64
+  vocab_size: 7859
+  type_vocab_size: 306
+  pool_type: mean
+
+optimizer:
+  lr: 5e-4
+  weight_decay: 0
+  epsilon: 1e-6
+
+metrics:
+  top1:
+    _target_: evaluation.metrics.top_k
+    _partial_: true
+    topk: 1
+  top10:
+    _target_: evaluation.metrics.top_k
+    _partial_: true
+    topk: 10
+  top30:
+    _target_: evaluation.metrics.top_k
+    _partial_: true
+    topk: 30
+  top50:
+    _target_: evaluation.metrics.top_k
+    _partial_: true
+    topk: 50
+  top100:
+    _target_: evaluation.metrics.top_k
+    _partial_: true
+    topk: 100

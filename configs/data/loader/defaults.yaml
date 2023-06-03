@@ -1,6 +1,0 @@
-data_dir: C:\Users\fjn197\PhD\projects\PHAIR\pipelines\ehr_preprocess\formatted_data\synthea500
-patients_info: patients_info.csv
-concepts: [
-  diagnose,
-  medication
-]

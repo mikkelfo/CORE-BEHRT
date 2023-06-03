@@ -1,5 +1,0 @@
-batch_size: 32
-effective_batch_size: 512
-epochs: 30
-info: false
-sampler: null

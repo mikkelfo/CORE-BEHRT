@@ -1,5 +1,0 @@
-sep_tokens: true
-cls_token: true
-padding: false
-truncation: 512
-max_concept_length: false

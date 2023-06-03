@@ -3,17 +3,17 @@ import hydra
 from omegaconf import OmegaConf
 import json
 from data.dataset import MLMLargeDataset
+from data.batch import batch_tokenize, split_batches
 from data.concept_loader import ConceptLoader
 from data_fixes.infer import Inferrer
 from data.featuremaker import FeatureMaker
 from data_fixes.handle import Handler
 from data_fixes.exclude import Excluder
 from data.tokenizer import EHRTokenizer
-from data.split import Splitter
 from downstream_tasks.outcomes import OutcomeMaker
-import numpy as np
 from os.path import join
 import os
+
 
 @hydra.main(config_path="configs/data", config_name="data")
 def main_data(cfg):
@@ -34,27 +34,6 @@ def main_data(cfg):
         Saves
     """
 
-    def split_batches(num_batches, split_ratios):
-        batches = np.arange(num_batches)
-        np.random.shuffle(batches)
-        # calculate the number of batches for each set
-        train_end = int(split_ratios['train'] * len(batches))
-        val_end = train_end + int(split_ratios['val'] * len(batches))
-        # split the batches into train, validation and test
-        train_batches = batches[:train_end]
-        val_batches = batches[train_end:val_end]
-        test_batches = batches[val_end:]
-        return train_batches, val_batches, test_batches
-
-    def batch_tokenize(tokenizer, batches, mode='train'):
-        files = []
-        for batch in batches:
-            features = torch.load(join(cfg.output_dir, f'features{batch}.pt'))
-            train_encoded = tokenizer(features)
-            torch.save(train_encoded, join(cfg.output_dir, f'encoded_{mode}{batch}.pt'))
-            files.append(join(cfg.output_dir, f'encoded_{mode}{batch}.pt'))
-        return files
-
     if not os.path.exists(cfg.output_dir):
         os.makedirs(cfg.output_dir)
 
@@ -66,19 +45,15 @@ def main_data(cfg):
     excluder = Excluder(cfg)
     num_batches = 11
     print("Loading concepts...")
-    if False:
-        for i, (concept_batch, patient_batch) in enumerate(conceptloader()):
-            print(f"Processing batch {i}")
-            concept_batch = inferrer(concept_batch)
-            # patient_batch = OutcomeMaker(cfg)(patient_batch)
-            print("Creating feature sequences")
-            features_batch = feature_maker(concept_batch, patient_batch)
-            # print(features_batch['concept'][0])
-            features_batch = handler(features_batch)
-            print("Exclude patients with <k concepts")
-            features_batch, _ = excluder(features_batch)
-            torch.save(features_batch, join(cfg.output_dir, f'features{i}.pt'))
-            num_batches += 1
+    for i, (concept_batch, patient_batch) in enumerate(conceptloader()):
+        concept_batch = inferrer(concept_batch)
+        # patient_batch = OutcomeMaker(cfg)(patient_batch)
+        features_batch = feature_maker(concept_batch, patient_batch)
+        # print(features_batch['concept'][0])
+        features_batch = handler(features_batch)
+        features_batch, _ = excluder(features_batch)
+        torch.save(features_batch, join(cfg.output_dir, f'features{i}.pt'))
+        num_batches += 1
     # split batches into train, test, val
     train_batches, val_batches, test_batches = split_batches(num_batches, cfg.split_ratios)
     

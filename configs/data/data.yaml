@@ -1,13 +1,18 @@
 defaults:
   - loader: defaults
   - features: defaults
-  - outcomes: defaults
+  # - outcomes: defaults
   - tokenizer: defaults
-
+  - dataset: defaults
   - override hydra/hydra_logging: disabled  
   - override hydra/job_logging: disabled  
   - _self_
-  
+output_dir: "output"
+min_count: 2
+split_ratios:
+  train: 0.8
+  val: 0.1
+  test: 0.1
 hydra:  
   output_subdir: null
   run:  

@@ -4,4 +4,4 @@ abspos:
   month: 1
   day: 26
 segment: true
-background: ['GENDER', 'BMI']
+background: ['GENDER', 'ETHNICITY', 'RACE']

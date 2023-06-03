@@ -5,9 +5,8 @@ import os
 import uuid
 import json
 from dataloader.collate_fn import dynamic_padding
-from hydra.utils import instantiate
-from omegaconf import OmegaConf
-
+from data.utils import instantiate
+import yaml
 
 class EHRTrainer():
     def __init__(self, 
@@ -166,13 +165,12 @@ class EHRTrainer():
         self.info(f'Run folder: {self.run_folder}')
 
     def save_setup(self):
-        config_name = os.path.join(self.run_folder, 'config.json')
-        with open(config_name, 'w') as f:
-            json.dump({
-                'model_config': self.model.config.to_dict(),    # Maybe .to_diff_dict()?
-                'cfg': OmegaConf.to_container(self.cfg, resolve=True)
-                # 'args': self.args
+        model_config_name = os.path.join(self.run_folder, 'config.json')
+        with open(model_config_name, 'w') as f:
+            json.dump({self.model.config.to_dict(),    # Maybe .to_diff_dict()?
             }, f)
+        with open(os.path.join(self.run_folder, 'pretrain_config.yaml'), 'w') as file:
+            yaml.dump(self.cfg.to_dict(), file)
 
     def save_checkpoint(self, id, **kwargs):
         # Model/training specific

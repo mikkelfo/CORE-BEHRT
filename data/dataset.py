@@ -2,6 +2,7 @@ from torch.utils.data import Dataset, IterableDataset
 import torch
 import pandas as pd
 import numpy as np
+from os.path import join
 
 class BaseDataset(Dataset):
     def __init__(self, features: dict):
@@ -89,9 +90,9 @@ class MLMDataset(BaseDataset):
             raise TypeError(f'Unsupported vocabulary input {type(vocabulary)}')
     
 class MLMLargeDataset(IterableDataset):
-    def __init__(self, data_files :list[str],  **kwargs):
+    def __init__(self, file_ids :list[str],  **kwargs):
         self.kwargs = kwargs
-        self.data_files = data_files
+        self.data_files = [join(self.kwargs.get('data_dir'), 'tokenized', f'tokenized_{file_id}.pt') for file_id in file_ids]
         self.pids = kwargs.get('pids', None)
         self.num_patients = len(self.pids)
         self.vocabulary = MLMDataset.load_vocabulary(self.kwargs.get('vocabulary', 'vocabulary.pt'))

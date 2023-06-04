@@ -20,7 +20,6 @@ cfg = load_config(config_path)
 def main_data(cfg):
     """
         Loads data
-        Infers nans
         Finds outcomes
         Creates features
         Handles wrong data
@@ -32,7 +31,6 @@ def main_data(cfg):
     prepare_directory(config_path, cfg)
     
     conceptloader = ConceptLoader(**cfg.loader)
-    inferrer = Inferrer()
     # outcome_maker = OutcomeMaker(cfg)
     feature_maker = FeatureMaker(cfg)
     handler = Handler()
@@ -41,7 +39,6 @@ def main_data(cfg):
     pids = []
     for i, (concept_batch, patient_batch) in enumerate(tqdm(conceptloader(), desc='Process')):
         pids.append(patient_batch['PID'].tolist())
-        # concept_batch = inferrer(concept_batch)
         # patient_batch = OutcomeMaker(cfg)(patient_batch)
         features_batch = feature_maker(concept_batch, patient_batch)
         # print(features_batch['concept'][0])

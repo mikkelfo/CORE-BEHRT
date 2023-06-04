@@ -5,6 +5,7 @@ import os
 import uuid
 from dataloader.collate_fn import dynamic_padding
 from common.config import instantiate, get_function, Config
+from common.logger import TqdmToLogger
 import yaml
 yaml.add_representer(Config, lambda dumper, data: data.yaml_repr(dumper))
 
@@ -63,7 +64,7 @@ class EHRTrainer():
         dataloader = self.setup_training()
 
         for epoch in range(self.args['epochs']):
-            train_loop = tqdm(enumerate(dataloader), total=len(dataloader))
+            train_loop = tqdm(enumerate(dataloader), total=len(dataloader), file=TqdmToLogger(self.logger))
             train_loop.set_description(f'Train {epoch}')
             epoch_loss = []
             step_loss = 0
@@ -99,7 +100,7 @@ class EHRTrainer():
             self.logger.info(f'Epoch {epoch} val loss: {val_loss}')
             self.logger.info(f'Epoch {epoch} metrics: {metrics}\n')
 
-    def setup_training(self) -> tqdm:
+    def setup_training(self) -> DataLoader:
         self.model.train()
         self.setup_run_folder()
         self.save_setup()
@@ -135,7 +136,7 @@ class EHRTrainer():
 
         self.model.eval()
         dataloader = DataLoader(self.val_dataset, batch_size=self.args['batch_size'], shuffle=False, collate_fn=self.args['collate_fn'])
-        val_loop = tqdm(dataloader, total=len(dataloader))
+        val_loop = tqdm(dataloader, total=len(dataloader), file=TqdmToLogger(self.logger))
         val_loop.set_description('Validation')
         val_loss = 0
         metric_values = {name: [] for name in self.metrics}

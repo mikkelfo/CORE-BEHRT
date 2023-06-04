@@ -4,6 +4,7 @@ import torch
 from tqdm import tqdm
 
 from common.config import load_config, prepare_directory
+from common.logger import TqdmToLogger
 from data.batch import Batches, BatchTokenize
 from data.concept_loader import ConceptLoader
 from data.dataset import MLMLargeDataset
@@ -35,7 +36,7 @@ def main_data(cfg):
     excluder = Excluder(cfg)
     logger.info('Starting data processing')
     pids = []
-    for i, (concept_batch, patient_batch) in enumerate(tqdm(conceptloader(), desc='Process')):
+    for i, (concept_batch, patient_batch) in enumerate(tqdm(conceptloader(), desc='Batch Process Data', file=TqdmToLogger(logger))):
         pids.append(patient_batch['PID'].tolist())
         features_batch = feature_maker(concept_batch, patient_batch)
         features_batch = handler(features_batch)

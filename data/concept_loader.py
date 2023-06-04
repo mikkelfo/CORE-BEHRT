@@ -40,6 +40,8 @@ class ConceptLoader():
                 df = pq.read_table(file_path).to_pandas()
             else:
                 df_chunks = ParquetIterator(file_path, self.chunksize)
+        else:
+            raise ValueError(f'Unknown file type {file_type}')
         if patients is None:
             return self.handle_datetime_columns(df)
         else:

@@ -1,7 +1,5 @@
 paths:
-  train_dataset: 'output/train_dataset.pt'
-  val_dataset: 'output/val_dataset.pt'
-  vocabulary: 'output/vocabulary.pt'
+  data_path: 'output/data'
   run_name: test
   
 trainer_args:

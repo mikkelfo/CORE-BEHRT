@@ -90,12 +90,15 @@ class MLMDataset(BaseDataset):
             raise TypeError(f'Unsupported vocabulary input {type(vocabulary)}')
     
 class MLMLargeDataset(IterableDataset):
-    def __init__(self, file_ids :list[str],  **kwargs):
+    def __init__(self, data_dir:str, mode:str,  **kwargs):
+        """Initializes the dataset for masked language modeling
+        mode is one of 'train', 'val' or 'test'"""
         self.kwargs = kwargs
-        self.data_files = [join(self.kwargs.get('data_dir'), 'tokenized', f'tokenized_{file_id}.pt') for file_id in file_ids]
-        self.pids = kwargs.get('pids', None)
-        self.num_patients = len(self.pids)
-        self.vocabulary = MLMDataset.load_vocabulary(self.kwargs.get('vocabulary', 'vocabulary.pt'))
+        self.data_files = self.get_data_files(data_dir, mode)
+
+        self.num_patients = len(torch.load(join(data_dir, f'{mode}_pids.pt')))
+        self.vocabulary = torch.load(join(data_dir, 'vocabulary.pt'))
+        
         self.masked_ratio = self.kwargs.get('masked_ratio', 0.3)
         self.batch_size = kwargs.get('batch_size', 32)
 
@@ -103,6 +106,11 @@ class MLMLargeDataset(IterableDataset):
             self.n_special_tokens = len([token for token in self.vocabulary if token.startswith('[')])
         else:
             self.n_special_tokens = 0
+
+    def get_data_files(self, data_dir: str, mode: str):
+        """Returns the data files for the given mode"""
+        file_ids = torch.load(join(data_dir, f'{mode}_file_ids.pt'))
+        return [join(data_dir, 'tokenized', f'tokenized_{mode}_{file_id}.pt') for file_id in file_ids]
 
     def __len__(self):
         """Number of patients in the dataset"""

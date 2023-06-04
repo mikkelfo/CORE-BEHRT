@@ -50,18 +50,14 @@ def main_data(cfg):
 
     logger.info('Tokenizing')
     tokenizer = EHRTokenizer(config=cfg.tokenizer)
-    batch_tokenize = BatchTokenize(tokenizer, cfg)
-    train_files, val_files, test_files = batch_tokenize.tokenize(batches)
-
-    logger.info('Creating datasets')
-    cfg.dataset.vocabulary = tokenizer.vocabulary
-    train_dataset = MLMLargeDataset(train_files, **{**cfg.dataset, 'pids': batches.train.pids})
-    test_dataset = MLMLargeDataset(test_files, **{**cfg.dataset, 'pids': batches.test.pids})
-    val_dataset = MLMLargeDataset(val_files, **{**cfg.dataset, 'pids': batches.val.pids})
-    logger.info('Saving datasets')
-    torch.save(train_dataset, join(cfg.output_dir, 'train_dataset.pt'))
-    torch.save(test_dataset, join(cfg.output_dir,'test_dataset.pt'))
-    torch.save(val_dataset, join(cfg.output_dir,'val_dataset.pt'))
+    batch_tokenize = BatchTokenize(tokenizer, cfg, logger)
+    batch_tokenize.tokenize(batches)
+    
+    logger.info('Saving file ids')
+    torch.save(batches.train.file_ids, join(cfg.output_dir, 'train_file_ids.pt'))
+    torch.save(batches.val.file_ids, join(cfg.output_dir, 'val_file_ids.pt'))
+    torch.save(batches.test.file_ids, join(cfg.output_dir, 'test_file_ids.pt'))
+    logger.info('Finished')
 
 if __name__ == '__main__':
     main_data(cfg)

@@ -15,7 +15,7 @@ class FeatureMaker():
             'concept': 0,
             'background': -1
         }
-        self.creators = {creator.id: creator for creator in BaseCreator.__subclasses__() if creator.id in self.config.features.keys()}
+        self.creators = {creator.id: creator for creator in BaseCreator.__subclasses__() if creator.id in self.config.keys()}
         self.pipeline = self.create_pipeline()
         
 
@@ -30,8 +30,8 @@ class FeatureMaker():
     def create_pipeline(self):
         # Pipeline creation
         pipeline = []
-        for id in self.config.features:
-            creator = self.creators[id](self.config.features)
+        for id in self.config:
+            creator = self.creators[id](self.config)
             pipeline.append(creator)
             if getattr(creator, 'feature', None) is not None:
                 self.features[creator.feature] = []
@@ -54,7 +54,7 @@ class FeatureMaker():
         # Add outcomes if in config
         
         info_dict = patients_info.set_index('PID').to_dict('index')
-        origin_point = datetime(**self.config.features.abspos)
+        origin_point = datetime(**self.config.abspos)
         # Add outcomes
         if hasattr(self.config, 'outcomes'):
             outcomes = []

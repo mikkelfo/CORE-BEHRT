@@ -52,9 +52,9 @@ def main_data(cfg):
 
     print('Saving datasets')
     cfg.dataset.vocabulary = tokenizer.vocabulary
-    train_dataset = MLMLargeDataset(train_files, **{**cfg.dataset, 'num_patients': len(batches.train.pids)})
-    test_dataset = MLMLargeDataset(test_files, **{**cfg.dataset, 'num_patients': len(batches.test.pids)})
-    val_dataset = MLMLargeDataset(val_files, **{**cfg.dataset, 'num_patients': len(batches.val.pids)})
+    train_dataset = MLMLargeDataset(train_files, **{**cfg.dataset, 'pids': batches.train.pids})
+    test_dataset = MLMLargeDataset(test_files, **{**cfg.dataset, 'pids': batches.test.pids})
+    val_dataset = MLMLargeDataset(val_files, **{**cfg.dataset, 'pids': batches.val.pids})
     torch.save(train_dataset, join(cfg.output_dir, 'train_dataset.pt'))
     torch.save(test_dataset, join(cfg.output_dir,'test_dataset.pt'))
     torch.save(val_dataset, join(cfg.output_dir,'val_dataset.pt'))

@@ -3,6 +3,7 @@ import yaml
 import os
 from os.path import join
 from shutil import copyfile
+import logging
 
 class Config(dict):
     """Config class that allows for dot notation."""
@@ -86,3 +87,7 @@ def prepare_directory(config_path: str, cfg: Config):
     if not os.path.exists(cfg.output_dir):
         os.makedirs(cfg.output_dir)
     copyfile(config_path, join(cfg.output_dir, 'data_config.yaml'))
+    logging.basicConfig(filename=join(cfg.output_dir, 'info.log'), level=logging.INFO, 
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    logger = logging.getLogger(__name__)
+    return logger

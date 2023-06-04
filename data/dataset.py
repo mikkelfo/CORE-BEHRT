@@ -92,8 +92,8 @@ class MLMLargeDataset(IterableDataset):
     def __init__(self, data_files :list[str],  **kwargs):
         self.kwargs = kwargs
         self.data_files = data_files
-
-        self.num_patients = kwargs.get('num_patients', None)
+        self.pids = kwargs.get('pids', None)
+        self.num_patients = len(self.pids)
         self.vocabulary = MLMDataset.load_vocabulary(self.kwargs.get('vocabulary', 'vocabulary.pt'))
         self.masked_ratio = self.kwargs.get('masked_ratio', 0.3)
         self.batch_size = kwargs.get('batch_size', 32)
@@ -104,7 +104,7 @@ class MLMLargeDataset(IterableDataset):
             self.n_special_tokens = 0
 
     def __len__(self):
-        """Number of data files"""
+        """Number of patients in the dataset"""
         return self.num_patients
 
     def get_patient(self, file_name: str):
@@ -158,6 +158,11 @@ class MLMLargeDataset(IterableDataset):
         masked_concepts[eligible_mask.nonzero()[:,0][masked]]= selected_concepts    # Sets new concepts
 
         return masked_concepts, target
+
+    def save_vocabulary(self, file_name: str):
+        torch.save(self.vocabulary, file_name)
+    def save_pids(self, file_name: str):
+        torch.save(self.pids, file_name)
 
 class CensorDataset(BaseDataset):
     """

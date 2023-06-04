@@ -128,6 +128,7 @@ class EHRTrainer():
         loss.backward()
 
     def validate(self):
+        """Returns the validation loss and metrics"""
         if self.val_dataset is None:
             return None, None
 
@@ -137,20 +138,23 @@ class EHRTrainer():
         val_loop.set_description('Validation')
         val_loss = 0
         metric_values = {name: [] for name in self.metrics}
-        for batch in val_loop:
-            outputs = self.forward_pass(batch)
-            val_loss += outputs.loss.item()
+        with torch.no_grad():
+            for batch in val_loop:
+                outputs = self.forward_pass(batch)
+                val_loss += outputs.loss.item()
 
-            for name, func in self.metrics.items():
-                metric_values[name].append(func(outputs, batch))
+                for name, func in self.metrics.items():
+                    metric_values[name].append(func(outputs, batch))
 
         self.model.train()
         return val_loss / len(val_loop), {name: sum(values) / len(values) for name, values in metric_values.items()}
 
     def to_device(self, batch: dict) -> dict:
+        """Moves a batch to the device"""
         return {key: value.to(self.device) for key, value in batch.items()}
 
     def setup_run_folder(self):
+        """Creates a run folder"""
         # Generate unique run_name if not provided
         if self.args.get('run_name') is None:
             random_runname = uuid.uuid4().hex
@@ -166,11 +170,24 @@ class EHRTrainer():
         self.info(f'Run folder: {self.run_folder}')
 
     def save_setup(self):
+        """Saves the config and model config"""
         self.model.config.save_pretrained(self.run_folder)  
         with open(os.path.join(self.run_folder, 'pretrain_config.yaml'), 'w') as file:
             yaml.dump(self.cfg.to_dict(), file)
+        self.info(f'Saved config to {self.run_folder}')
+        self.train_dataset.save_vocabulary(os.path.join(self.run_folder, 'vocabulary.pt'))
+        self.info(f'Saved vocabulary to {self.run_folder}')
+        try:
+            self.train_dataset.save_pids(os.path.join(self.run_folder, 'train_pids.pt'))
+            self.val_dataset.save_pids(os.path.join(self.run_folder, 'val_pids.pt'))
+            if self.test_dataset is not None:
+                self.test_dataset.save_pids(os.path.join(self.run_folder, 'test_pids.pt'))
+            self.info(f'Saved pids to {self.run_folder}')
+        except AttributeError:
+            pass
 
     def save_checkpoint(self, id, **kwargs):
+        """Saves a checkpoint"""
         # Model/training specific
         checkpoint_name = os.path.join(self.run_folder, f'checkpoint_{id}.pt')
 
@@ -182,5 +199,6 @@ class EHRTrainer():
         }, checkpoint_name)
 
     def info(self, message):
+        """Prints an info message"""
         if self.args['info']:
             print(f'[INFO] {message}')

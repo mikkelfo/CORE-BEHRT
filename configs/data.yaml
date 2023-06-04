@@ -30,7 +30,7 @@ dataset:
   ignore_special_tokens: true
 
 excluder:
-  min_count: 2
+  min_len: 2
 
 split_ratios:
   train: 0.5

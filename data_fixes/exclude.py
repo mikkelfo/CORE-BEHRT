@@ -1,8 +1,8 @@
 import pandas as pd
 
 class Excluder():
-    def __init__(self, cfg: dict):
-        self.min_count = cfg.min_count
+    def __init__(self, min_len: int,min_count: int=0):
+        self.min_len = min_len
 
     def __call__(self, features: dict, outcomes: dict=None,) -> pd.DataFrame:
         # Exclude patients with few concepts
@@ -28,7 +28,7 @@ class Excluder():
         kept_indices = []
         for i, concepts in enumerate(features['concept']):
             unique_codes = set([code for code in concepts if not code.startswith('[')])
-            if len(unique_codes) >= self.min_count:
+            if len(unique_codes) >= self.min_len:
                 kept_indices.append(i)
 
         for key, values in features.items():

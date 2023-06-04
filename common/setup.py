@@ -12,6 +12,10 @@ def prepare_directory(config_path: str, cfg: Config):
     if not os.path.exists(cfg.output_dir):
         os.makedirs(cfg.output_dir)
     copyfile(config_path, join(cfg.output_dir, 'data_config.yaml'))
+    if not os.path.exists(join(cfg.output_dir, 'features')):
+        os.makedirs(join(cfg.output_dir, 'features'))
+    if not os.path.exists(join(cfg.output_dir, 'tokenized')):
+        os.makedirs(join(cfg.output_dir, 'tokenized'))
     logging.basicConfig(filename=join(cfg.output_dir, 'info.log'), level=logging.INFO, 
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     logger = logging.getLogger(__name__)

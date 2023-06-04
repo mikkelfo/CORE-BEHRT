@@ -42,7 +42,7 @@ def main_data(cfg):
         features_batch = feature_maker(concept_batch, patient_batch)
         features_batch = handler(features_batch)
         features_batch, _ = excluder(features_batch)
-        torch.save(features_batch, join(cfg.output_dir, f'features_{i}.pt'))
+        torch.save(features_batch, join(cfg.output_dir, 'features', f'features_{i}.pt'))
     logger.info('Finished data processing')
     logger.info('Splitting batches')
     batches = Batches(cfg, pids)

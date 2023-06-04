@@ -1,12 +1,11 @@
 from os.path import join
 
-import torch
 from torch.optim import AdamW
 from transformers import BertConfig
 
 from common.config import load_config
-from common.setup import setup_run_folder
 from common.loader import create_datasets
+from common.setup import setup_run_folder
 from model.model import BertEHRModel
 from trainer.trainer import EHRTrainer
 

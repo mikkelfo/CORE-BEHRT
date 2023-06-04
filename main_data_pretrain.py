@@ -31,19 +31,16 @@ def main_data(cfg):
     prepare_directory(config_path, cfg)
     
     conceptloader = ConceptLoader(**cfg.loader)
-    # outcome_maker = OutcomeMaker(cfg)
     feature_maker = FeatureMaker(cfg)
-    handler = Handler()
+    handler = Handler(**cfg.handler)
     excluder = Excluder(cfg)
 
     pids = []
     for i, (concept_batch, patient_batch) in enumerate(tqdm(conceptloader(), desc='Process')):
         pids.append(patient_batch['PID'].tolist())
-        # patient_batch = OutcomeMaker(cfg)(patient_batch)
         features_batch = feature_maker(concept_batch, patient_batch)
-        # print(features_batch['concept'][0])
-        # features_batch = handler(features_batch)
-        # features_batch, _ = excluder(features_batch)
+        features_batch = handler(features_batch)
+        features_batch, _ = excluder(features_batch)
         torch.save(features_batch, join(cfg.output_dir, f'features_{i}.pt'))
     batches = Batches(cfg, pids)
     batches.split_and_save()

@@ -158,11 +158,13 @@ class EHRTrainer():
     def setup_run_folder(self):
         """Creates a run folder"""
         # Generate unique run_name if not provided
-        if self.args.get('run_name') is None:
+        if self.cfg.paths.get('run_name') is None:
             random_runname = uuid.uuid4().hex
             self.logger.info(f'Run name not provided. Using random run name: {random_runname}')
-            self.args['run_name'] = random_runname
-        self.run_folder = os.path.join('runs', self.args['run_name'])
+            run_name = random_runname
+        else:
+            run_name = self.cfg.paths.run_name
+        self.run_folder = os.path.join('output', 'runs', run_name)
 
         if os.path.exists(self.run_folder):
             self.logger.info(f'Run folder {self.run_folder} already exists. Writing files to existing folder')

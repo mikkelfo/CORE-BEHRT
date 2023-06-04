@@ -2,17 +2,21 @@ import pandas as pd
 
 
 class Handler():
-    def __call__(self, features: dict, concept_fill = '[UNK]', num_fill = -100, drop=True):
-        return self.handle(features, concept_fill, num_fill, drop)
+    def __init__(self):
+        self.concept_fill = '[UNK]'
+        self.num_fill = -100
+        self.drop = True
+    def __call__(self, features: dict):
+        return self.handle(features)
 
-    def handle(self, features: dict, concept_fill = '[UNK]', num_fill = -100, drop=True):
+    def handle(self, features: dict):
         handled_patients = {k: [] for k in features}
         for i in range(len(features['concept'])):
             patient = {k: v[i] for k, v in features.items()}
 
-            patient = self.handle_incorrect_ages(patient, num_fill=num_fill, drop=drop)
+            patient = self.handle_incorrect_ages(patient)
 
-            patient = self.handle_nans(patient, concept_fill=concept_fill, num_fill=num_fill, drop=drop)
+            patient = self.handle_nans(patient)
 
             patient['segment'] = self.normalize_segments(patient['segment'])
 
@@ -21,21 +25,19 @@ class Handler():
 
         return handled_patients
 
-    @staticmethod
-    def handle_incorrect_ages(patient: dict, num_fill=-100, drop=True):
+    def handle_incorrect_ages(self, patient: dict):
         correct_indices = [i for i, age in enumerate(patient['age']) if -1 <= age <= 120]
-        if drop:
+        if self.drop:
             for key, values in patient.items():
                 patient[key] = [values[i] for i in correct_indices]
         else:
             for key, values in patient.items():
-                patient[key] = [values[i] if i in correct_indices else num_fill for i in range(len(values))]
+                patient[key] = [values[i] if i in correct_indices else self.num_fill for i in range(len(values))]
 
         return patient
 
-    @staticmethod
-    def handle_nans(patient: dict, concept_fill = '[UNK]', num_fill = -100, drop=True):
-        if drop:
+    def handle_nans(self, patient: dict):
+        if self.drop:
             nan_indices = []
             for values in patient.values():
                 nan_indices.extend([i for i, v in enumerate(values) if pd.isna(v)])
@@ -45,7 +47,7 @@ class Handler():
         
         else:
             for key, values in patient.items():
-                filler = concept_fill if key == 'concept' else num_fill
+                filler = self.concept_fill if key == 'concept' else self.num_fill
                 patient[key] = [filler if pd.isna(v) else v for v in values]
 
         return patient

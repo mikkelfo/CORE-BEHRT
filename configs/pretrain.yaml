@@ -3,13 +3,13 @@ paths:
   val_dataset: 'output/val_dataset.pt'
   vocabulary: 'output/vocabulary.pt'
   
-ignore_special_tokens: true
 trainer_args:
   batch_size: 256
   effective_batch_size: 256
   epochs: 3
-  info: false
+  info: true
   sampler: null
+  run_name: test
 
 model:
   max_position_embeddings: 512

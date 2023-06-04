@@ -1,3 +1,4 @@
+output_dir: "output/data"
 loader:
   data_dir: C:\Users\fjn197\PhD\projects\PHAIR\pipelines\ehr_preprocess\formatted_data\synthea500
   patients_info: patients_info.csv
@@ -28,9 +29,9 @@ dataset:
   masked_ratio: 0.15
   ignore_special_tokens: true
 
+excluder:
+  min_count: 2
 
-output_dir: "output"
-min_count: 2
 split_ratios:
   train: 0.5
   val: 0.4

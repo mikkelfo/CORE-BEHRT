@@ -4,9 +4,8 @@ from tqdm import tqdm
 import os
 import uuid
 from dataloader.collate_fn import dynamic_padding
-from data.utils import instantiate, get_function
+from data.config import instantiate, get_function, Config
 import yaml
-from data.utils import Config
 yaml.add_representer(Config, lambda dumper, data: data.yaml_repr(dumper))
 
 class EHRTrainer():

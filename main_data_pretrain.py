@@ -31,9 +31,9 @@ def main_data(cfg):
     logger = prepare_directory(config_path, cfg)
     
     conceptloader = ConceptLoader(**cfg.loader)
-    feature_maker = FeatureMaker(cfg)
+    feature_maker = FeatureMaker(cfg.features)
     handler = Handler(**cfg.handler)
-    excluder = Excluder(cfg)
+    excluder = Excluder(**cfg.excluder)
     logger.info('Starting data processing')
     pids = []
     for i, (concept_batch, patient_batch) in enumerate(tqdm(conceptloader(), desc='Batch Process Data', file=TqdmToLogger(logger))):

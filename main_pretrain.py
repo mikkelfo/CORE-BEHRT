@@ -5,32 +5,12 @@ from torch.optim import AdamW
 from transformers import BertConfig
 
 from common.config import load_config
+from common.setup import setup_run_folder
 from model.model import BertEHRModel
 from trainer.trainer import EHRTrainer
-import uuid
-import logging
-import os
 
 config_path = join("configs", "pretrain.yaml")
 cfg = load_config(config_path)
-def setup_run_folder(cfg):
-    """Creates a run folder"""
-    # Generate unique run_name if not provided
-    if hasattr(cfg.paths, 'run_name'):
-        run_name = cfg.paths.run_name
-    else:
-        run_name = uuid.uuid4().hex
-       
-    run_folder = os.path.join('output', 'runs', run_name)
-
-    if not os.path.exists(run_folder):
-        os.makedirs(run_folder)
-        
-    logging.basicConfig(filename=join(run_folder, 'info.log'), level=logging.INFO, 
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    logger = logging.getLogger(__name__)
-    logger.info(f'Run folder: {run_folder}')
-    return logger
 
 def main_train(cfg):
 

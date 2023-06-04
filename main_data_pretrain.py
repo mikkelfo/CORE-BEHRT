@@ -3,8 +3,9 @@ from os.path import join
 import torch
 from tqdm import tqdm
 
-from common.config import load_config, prepare_directory
+from common.config import load_config
 from common.logger import TqdmToLogger
+from common.setup import prepare_directory
 from data.batch import Batches, BatchTokenize
 from data.concept_loader import ConceptLoader
 from data.dataset import MLMLargeDataset

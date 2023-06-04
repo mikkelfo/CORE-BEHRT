@@ -3,6 +3,7 @@ from os.path import join
 import numpy as np
 import torch
 from tqdm import tqdm
+from common.logger import TqdmToLogger
 
 
 class DataSet:
@@ -64,12 +65,12 @@ class Batches:
         return [item for sublist in ls_of_ls for item in sublist] 
 
 class BatchTokenize:
-    def __init__(self, tokenizer, cfg):
+    def __init__(self, tokenizer, cfg, logger):
         self.tokenizer = tokenizer
         self.cfg = cfg
+        self.logger = logger
 
     def tokenize(self, batches: Batches)-> tuple[list[str]]:
-        print('Tokenizing')
         train_files = self.batch_tokenize(batches.train.file_ids, mode='train')
         self.tokenizer.freeze_vocabulary()
         self.tokenizer.save_vocab(join(self.cfg.output_dir, 'vocabulary.pt'))
@@ -80,7 +81,7 @@ class BatchTokenize:
     def batch_tokenize(self, batches, mode='train'):
         """Tokenizes batches and saves them"""
         files = []
-        for batch in tqdm(batches, desc=f'Tokenizing {mode} batches'):
+        for batch in tqdm(batches, desc=f'Tokenizing {mode} batches', file=TqdmToLogger(self.logger)):
             features = torch.load(join(self.cfg.output_dir, 'features', f'features_{batch}.pt'))
             train_encoded = self.tokenizer(features)
             torch.save(train_encoded, join(self.cfg.output_dir, 'tokenized', f'tokenized_{mode}_{batch}.pt'))

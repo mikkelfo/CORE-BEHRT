@@ -39,7 +39,7 @@ class AbsposCreator(BaseCreator):
 class SegmentCreator(BaseCreator):
     feature = id = 'segment'
     def create(self, concepts: pd.DataFrame, patients_info: pd.DataFrame):
-        segments = concepts.groupby('PID')['ADMISSION_ID'].transform(lambda x: pd.factorize(x)[0]+1)
+        segments = concepts.groupby('PID')['SEGMENT'].transform(lambda x: pd.factorize(x)[0]+1)
 
         concepts['SEGMENT'] = segments
         return concepts

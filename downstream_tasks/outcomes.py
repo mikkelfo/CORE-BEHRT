@@ -68,7 +68,7 @@ class OutcomeMaker():
 
     @staticmethod
     def hospital_admission(patient: pd.DataFrame):
-        admission = patient['ADMISSION_ID'].values
+        admission = patient['SEGMENT'].values
         for idx, adm in enumerate(admission):
             if not adm.startswith('unq_'):
                 return patient['TIMESTAMP'].iloc[idx]

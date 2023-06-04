@@ -170,6 +170,8 @@ class EHRTrainer():
             self.logger.info(f'Run folder {self.run_folder} already exists. Writing files to existing folder')
         if not os.path.exists(self.run_folder):
             os.makedirs(self.run_folder)
+        if os.path.exists(os.path.join(self.run_folder, 'checkpoints')):
+            os.makedirs(os.path.join(self.run_folder, 'checkpoints'))
 
         self.logger.info(f'Run folder: {self.run_folder}')
 
@@ -193,7 +195,7 @@ class EHRTrainer():
     def save_checkpoint(self, id, **kwargs):
         """Saves a checkpoint"""
         # Model/training specific
-        checkpoint_name = os.path.join(self.run_folder, f'checkpoint_{id}.pt')
+        checkpoint_name = os.path.join(self.run_folder, 'checkpoints', f'checkpoint_{id}.pt')
 
         torch.save({
             'model_state_dict': self.model.state_dict(),

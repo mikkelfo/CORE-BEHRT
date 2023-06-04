@@ -6,19 +6,21 @@ from transformers import BertConfig
 
 from common.config import load_config
 from common.setup import setup_run_folder
+from common.loader import create_datasets
 from model.model import BertEHRModel
 from trainer.trainer import EHRTrainer
 
 config_path = join("configs", "pretrain.yaml")
 cfg = load_config(config_path)
 
+
+
 def main_train(cfg):
 
     logger = setup_run_folder(cfg)
     logger.info('Loading data')
-    train_dataset = torch.load(cfg.paths.train_dataset)
-    val_dataset = torch.load(cfg.paths.val_dataset)
-    vocabulary = torch.load(cfg.paths.vocabulary)
+    train_dataset, val_dataset, vocabulary = create_datasets(cfg)
+    
     logger.info('Initializing model')
     model = BertEHRModel(
         BertConfig(

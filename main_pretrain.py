@@ -4,7 +4,7 @@ import torch
 from torch.optim import AdamW
 from transformers import BertConfig
 
-from data.config import load_config
+from common.config import load_config
 from model.model import BertEHRModel
 from trainer.trainer import EHRTrainer
 

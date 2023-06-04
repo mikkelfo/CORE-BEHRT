@@ -4,7 +4,7 @@ from tqdm import tqdm
 import os
 import uuid
 from dataloader.collate_fn import dynamic_padding
-from data.config import instantiate, get_function, Config
+from common.config import instantiate, get_function, Config
 import yaml
 yaml.add_representer(Config, lambda dumper, data: data.yaml_repr(dumper))
 

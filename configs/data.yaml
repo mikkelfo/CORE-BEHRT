@@ -5,7 +5,7 @@ loader:
     diagnose,
     medication
   ]
-  batch_size: 256
+  batch_size: 50
   chunksize: 300
 
 features:
@@ -35,7 +35,8 @@ split_ratios:
   train: 0.5
   val: 0.4
   test: 0.1
-hydra:  
-  output_subdir: null
-  run:  
-    dir: .
+
+handler:
+  concept_fill: "[UNK]"    
+  num_fill: -100
+  drop: true

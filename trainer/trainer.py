@@ -20,6 +20,7 @@ class EHRTrainer():
         args: dict = {},
         sampler = None,
         cfg = None,
+        logger = None
     ):
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
@@ -32,7 +33,7 @@ class EHRTrainer():
         self.metrics = {k: instantiate(v) for k, v in metrics.items()}
         self.sampler = sampler
         self.cfg = cfg
-
+        self.logger = logger
         default_args = {
             'save_every_k_steps': float('inf'),
             'collate_fn': dynamic_padding
@@ -79,7 +80,7 @@ class EHRTrainer():
 
                     train_loop.set_postfix(loss=step_loss / accumulation_steps)
                     if self.args['info']:
-                        tqdm.write(f'Train loss {(i+1) // accumulation_steps}: {step_loss / accumulation_steps}')
+                        self.logger.info(f'Train loss {(i+1) // accumulation_steps}: {step_loss / accumulation_steps}')
                     epoch_loss.append(step_loss / accumulation_steps)
                     step_loss = 0
 
@@ -94,9 +95,9 @@ class EHRTrainer():
             self.save_checkpoint(id=f'epoch{epoch}_end', train_loss=epoch_loss, val_loss=val_loss, metrics=metrics, final_step_loss=epoch_loss[-1])
 
             # Print epoch info
-            tqdm.write(f'Epoch {epoch} train loss: {sum(epoch_loss) / (len(train_loop) / accumulation_steps)}')
-            tqdm.write(f'Epoch {epoch} val loss: {val_loss}')
-            tqdm.write(f'Epoch {epoch} metrics: {metrics}\n')
+            self.logger.info(f'Epoch {epoch} train loss: {sum(epoch_loss) / (len(train_loop) / accumulation_steps)}')
+            self.logger.info(f'Epoch {epoch} val loss: {val_loss}')
+            self.logger.info(f'Epoch {epoch} metrics: {metrics}\n')
 
     def setup_training(self) -> tqdm:
         self.model.train()
@@ -158,31 +159,31 @@ class EHRTrainer():
         # Generate unique run_name if not provided
         if self.args.get('run_name') is None:
             random_runname = uuid.uuid4().hex
-            self.info(f'Run name not provided. Using random run name: {random_runname}')
+            self.logger.info(f'Run name not provided. Using random run name: {random_runname}')
             self.args['run_name'] = random_runname
         self.run_folder = os.path.join('runs', self.args['run_name'])
 
         if os.path.exists(self.run_folder):
-            self.info(f'Run folder {self.run_folder} already exists. Writing files to existing folder')
+            self.logger.info(f'Run folder {self.run_folder} already exists. Writing files to existing folder')
         if not os.path.exists(self.run_folder):
             os.makedirs(self.run_folder)
 
-        self.info(f'Run folder: {self.run_folder}')
+        self.logger.info(f'Run folder: {self.run_folder}')
 
     def save_setup(self):
         """Saves the config and model config"""
         self.model.config.save_pretrained(self.run_folder)  
         with open(os.path.join(self.run_folder, 'pretrain_config.yaml'), 'w') as file:
             yaml.dump(self.cfg.to_dict(), file)
-        self.info(f'Saved config to {self.run_folder}')
+        self.logger.info(f'Saved config to {self.run_folder}')
         self.train_dataset.save_vocabulary(os.path.join(self.run_folder, 'vocabulary.pt'))
-        self.info(f'Saved vocabulary to {self.run_folder}')
+        self.logger.info(f'Saved vocabulary to {self.run_folder}')
         try:
             self.train_dataset.save_pids(os.path.join(self.run_folder, 'train_pids.pt'))
             self.val_dataset.save_pids(os.path.join(self.run_folder, 'val_pids.pt'))
             if self.test_dataset is not None:
                 self.test_dataset.save_pids(os.path.join(self.run_folder, 'test_pids.pt'))
-            self.info(f'Saved pids to {self.run_folder}')
+            self.logger.info(f'Saved pids to {self.run_folder}')
         except AttributeError:
             pass
 

@@ -8,16 +8,23 @@ from data.config import load_config
 from model.model import BertEHRModel
 from trainer.trainer import EHRTrainer
 
+import logging
+
 
 config_path = join("configs", "pretrain.yaml")
 cfg = load_config(config_path)
 
 def main_train(cfg):
-    # MLM specific
+
+    logging.basicConfig(filename=join(cfg.output_dir, 'info.log'), level=logging.INFO, 
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    logger = logging.getLogger(__name__)
+    
+    logger.info('Loading data')
     train_dataset = torch.load(cfg.paths.train_dataset)
     val_dataset = torch.load(cfg.paths.val_dataset)
     vocabulary = torch.load(cfg.paths.vocabulary)
-
+    logger.info('Initializing model')
     model = BertEHRModel(
         BertConfig(
             **cfg.model,
@@ -25,14 +32,14 @@ def main_train(cfg):
 
         )
     )
-
+    logger.info('Initializing optimizer')
     optimizer = AdamW(
         model.parameters(),
         lr=cfg.optimizer.lr,
         weight_decay=cfg.optimizer.weight_decay,
         eps=cfg.optimizer.epsilon,
     )
-
+    logger.info('Initialize trainer')
     trainer = EHRTrainer( 
         model=model, 
         optimizer=optimizer,
@@ -40,8 +47,10 @@ def main_train(cfg):
         val_dataset=val_dataset, 
         args=cfg.trainer_args,
         metrics=cfg.metrics,
-        cfg=cfg
+        cfg=cfg,
+        logger=logger
     )
+    logger.info('Start training')
     trainer.train()
 
 

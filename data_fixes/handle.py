@@ -2,10 +2,10 @@ import pandas as pd
 
 
 class Handler():
-    def __init__(self):
-        self.concept_fill = '[UNK]'
-        self.num_fill = -100
-        self.drop = True
+    def __init__(self, concept_fill='[UNK]', num_fill=-100, drop=True):
+        self.concept_fill = concept_fill
+        self.num_fill = num_fill
+        self.drop = drop
     def __call__(self, features: dict):
         return self.handle(features)
 

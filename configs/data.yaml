@@ -25,10 +25,6 @@ tokenizer:
   truncation: 128
   max_concept_length: false
 
-dataset:
-  masked_ratio: 0.15
-  ignore_special_tokens: true
-
 excluder:
   min_len: 2
 

@@ -1,7 +1,7 @@
 import pandas as pd
 
 class Excluder():
-    def __init__(self, min_len: int,min_count: int=0):
+    def __init__(self, min_len: int, min_count: int=0):
         self.min_len = min_len
 
     def __call__(self, features: dict, outcomes: dict=None,) -> pd.DataFrame:

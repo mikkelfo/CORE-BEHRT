@@ -5,6 +5,7 @@ import torch
 from tqdm import tqdm
 from common.logger import TqdmToLogger
 
+from typing import List, Tuple
 
 class DataSet:
     def __init__(self):
@@ -12,7 +13,7 @@ class DataSet:
         self.file_ids = None
 
 class Batches:
-    def __init__(self, cfg, pids: list[list[str]]):
+    def __init__(self, cfg, pids: List[List[str]]):
         self.pids = pids
         self.cfg = cfg
         self.split_ratios = cfg.split_ratios
@@ -48,7 +49,7 @@ class Batches:
         """Splits the pids into train, validation and test sets"""
         self.train.pids, self.val.pids, self.test.pids = self.get_pids('train'), self.get_pids('val'), self.get_pids('test')
     
-    def get_pids(self, set_: str)-> list[str]:
+    def get_pids(self, set_: str)-> List[str]:
         """Returns the pids for the given indices"""
         if set_ == 'train':
             file_ids = self.train.file_ids
@@ -61,7 +62,7 @@ class Batches:
         return self.flatten([self.pids[i] for i in file_ids])
         
     @staticmethod
-    def flatten(ls_of_ls: list[list])-> list:
+    def flatten(ls_of_ls: List[List])-> List:
         return [item for sublist in ls_of_ls for item in sublist] 
 
 class BatchTokenize:
@@ -70,7 +71,7 @@ class BatchTokenize:
         self.cfg = cfg
         self.logger = logger
 
-    def tokenize(self, batches: Batches)-> tuple[list[str]]:
+    def tokenize(self, batches: Batches)-> Tuple[List[str]]:
         train_files = self.batch_tokenize(batches.train.file_ids, mode='train')
         self.tokenizer.freeze_vocabulary()
         self.tokenizer.save_vocab(join(self.cfg.output_dir, 'vocabulary.pt'))

@@ -23,7 +23,7 @@ class ConceptLoader():
         for patients in self.get_patient_batch():
             # Load concepts
             concepts = pd.concat([self._read_file(p, patients) for p in self.concept_paths], ignore_index=True).drop_duplicates()
-            concepts = concepts.sort_values('TIMESTAMP')
+            concepts = concepts.sort_values(by=['PID','TIMESTAMP'])
             # Load patient data
             patients_info = self.patients_df[self.patients_df['PID'].isin(patients)]
             yield concepts, patients_info
@@ -57,7 +57,7 @@ class ConceptLoader():
 
     def handle_datetime_columns(self, df):
         for col in self.detect_date_columns(df):
-            df[col] = df[col].apply(lambda x: x[:10] if isinstance(x, str) else x)
+            # df[col] = df[col].apply(lambda x: x[:10] if isinstance(x, str) else x)
             df[col] = pd.to_datetime(df[col], errors='coerce')
             df[col] = df[col].dt.tz_localize(None)
         return df

@@ -129,7 +129,7 @@ class MLMLargeDataset(IterableDataset):
             patient['target'] = target
             yield patient
 
-    def get_patient_dic(self, features: Dict[List[List]], patient_index: int):
+    def get_patient_dic(self, features: Dict, patient_index: int):
         """Get a patient dictionary from a patient index"""
         return {key: torch.tensor(values[patient_index]) for key, values in features.items()}
 

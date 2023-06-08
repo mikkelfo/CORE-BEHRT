@@ -1,6 +1,7 @@
 from data.creators import BaseCreator
 from datetime import datetime
 import pandas as pd
+import torch
 
 
 class FeatureMaker():
@@ -45,18 +46,17 @@ class FeatureMaker():
         return pipeline
 
     def create_features(self, concepts: pd.DataFrame, patients_info: pd.DataFrame) -> tuple:
-        # Add standard info
-        for pid, patient in concepts.groupby('PID'):
-            for feature, value in self.features.items():
-                value.append(patient[feature.upper()].tolist())
-
         # Add outcomes if in config
         outcomes = {outcome: [] for outcome in self.config.outcomes}
         info_dict = patients_info.set_index('PID').to_dict('index')
         origin_point = datetime(**self.config.features.abspos)
-        
-        # Add outcomes
+
+        PIDs = []
+        # Add standard info and outcomes
         for pid, patient in concepts.groupby('PID'):
+            PIDs.append(pid)
+            for feature, value in self.features.items():
+                value.append(patient[feature.upper()].tolist())
             for outcome in self.config.outcomes:
                 patient_outcome = info_dict[pid][f'OUTCOME_{outcome}']
                 if pd.isna(patient_outcome):
@@ -64,5 +64,6 @@ class FeatureMaker():
                 else:
                     outcomes[outcome].append((patient_outcome - origin_point).total_seconds() / 60 / 60)
 
+        torch.save(PIDs, 'PIDs.pt')     # Save PIDs for identification
         return self.features, outcomes
 

@@ -31,6 +31,7 @@ class Splitter():
         if len(indices) > 0:
             splits[-1] = torch.cat((splits[-1], indices))
 
+        torch.save(splits, 'splits.pt')
         print(f'Resulting split ratios: {[round(len(s) / N, 2) for s in splits]}')
         return splits
 

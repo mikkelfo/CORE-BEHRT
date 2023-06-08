@@ -22,3 +22,4 @@ outcome:
 trainer_args:
   sampler: null
   pos_weight: null
+  epochs: 10

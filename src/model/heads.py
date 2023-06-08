@@ -7,10 +7,14 @@ class MLMHead(torch.nn.Module):
         # BertPredictionHeadTransform
         self.dense = torch.nn.Linear(config.hidden_size, config.hidden_size)
         self.activation = torch.nn.GELU()
-        self.LayerNorm = torch.nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.LayerNorm = torch.nn.LayerNorm(
+            config.hidden_size, eps=config.layer_norm_eps
+        )
 
         # BertLMPredictionHead
-        self.decoder = torch.nn.Linear(config.hidden_size, config.vocab_size, bias=False)
+        self.decoder = torch.nn.Linear(
+            config.hidden_size, config.vocab_size, bias=False
+        )
         self.bias = torch.nn.Parameter(torch.zeros(config.vocab_size))
         self.decoder.bias = self.bias
 
@@ -31,11 +35,11 @@ class FineTuneHead(torch.nn.Module):
         self.classifier = torch.nn.Linear(config.hidden_size, 1)
 
         pool_type = config.pool_type
-        if pool_type == 'cls':
+        if pool_type == "cls":
             self.pool = self.pool_cls
-        elif pool_type == 'mean':
+        elif pool_type == "mean":
             self.pool = self.pool_mean
-        elif pool_type == 'sum':
+        elif pool_type == "sum":
             self.pool = self.pool_sum
         else:
             self.pool = self.pool_cls

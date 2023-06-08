@@ -1,13 +1,13 @@
 import torch
 
 
-class Splitter():
+class Splitter:
     def __call__(self, data: dict, ratios: list = [0.7, 0.2, 0.1]):
         return self.split(data, ratios)
 
     def split(self, data: dict, ratios: list = [0.7, 0.2, 0.1]):
         if round(sum(ratios), 5) != 1:
-            raise ValueError(f'Sum of ratios ({ratios}) != 1 ({round(sum(ratios), 5)})')
+            raise ValueError(f"Sum of ratios ({ratios}) != 1 ({round(sum(ratios), 5)})")
 
         N = len(next(iter(data.values())))  # Get length of first value in dict
 
@@ -31,7 +31,6 @@ class Splitter():
         if len(indices) > 0:
             splits[-1] = torch.cat((splits[-1], indices))
 
-        torch.save(splits, 'splits.pt')
-        print(f'Resulting split ratios: {[round(len(s) / N, 2) for s in splits]}')
+        torch.save(splits, "splits.pt")
+        print(f"Resulting split ratios: {[round(len(s) / N, 2) for s in splits]}")
         return splits
-

@@ -5,22 +5,36 @@ import dateutil
 import os
 
 
-class ConceptLoader():
-    def __call__(self, concepts=['diagnose', 'medication'], data_dir: str = 'formatted_data', patients_info: str = 'patients_info.csv'):
-        return self.load(concepts=concepts, data_dir=data_dir, patients_info=patients_info)
-    
-    def load(self, concepts=['diagnose', 'medication'], data_dir: str = 'formatted_data', patients_info: str = 'patients_info.csv'):
+class ConceptLoader:
+    def __call__(
+        self,
+        concepts=["diagnose", "medication"],
+        data_dir: str = "formatted_data",
+        patients_info: str = "patients_info.csv",
+    ):
+        return self.load(
+            concepts=concepts, data_dir=data_dir, patients_info=patients_info
+        )
+
+    def load(
+        self,
+        concepts=["diagnose", "medication"],
+        data_dir: str = "formatted_data",
+        patients_info: str = "patients_info.csv",
+    ):
         # Get all concept files
-        concept_paths = os.path.join(data_dir, 'concept.*')
+        concept_paths = os.path.join(data_dir, "concept.*")
         path = glob.glob(concept_paths)
 
         # Filter out concepts files
-        path = [p for p in path if p.split('.')[1] in concepts]
-        
+        path = [p for p in path if p.split(".")[1] in concepts]
+
         # Load concepts
-        concepts = pd.concat([self._read_file(p) for p in path], ignore_index=True).drop_duplicates()
-        
-        concepts = concepts.sort_values('TIMESTAMP')
+        concepts = pd.concat(
+            [self._read_file(p) for p in path], ignore_index=True
+        ).drop_duplicates()
+
+        concepts = concepts.sort_values("TIMESTAMP")
 
         # Load patient data
         patient_path = os.path.join(data_dir, patients_info)
@@ -30,9 +44,9 @@ class ConceptLoader():
 
     def _read_file(self, file_path: str) -> pd.DataFrame:
         file_type = file_path.split(".")[-1]
-        if file_type == 'csv':
+        if file_type == "csv":
             df = pd.read_csv(file_path)
-        elif file_type == 'parquet':
+        elif file_type == "parquet":
             df = pd.read_parquet(file_path)
 
         for col in self.detect_date_columns(df):
@@ -47,7 +61,7 @@ class ConceptLoader():
         for col in df.columns:
             if isinstance(df[col], datetime):
                 continue
-            if 'TIME' in col.upper() or 'DATE' in col.upper():
+            if "TIME" in col.upper() or "DATE" in col.upper():
                 try:
                     first_non_na = df.loc[df[col].notna(), col].iloc[0]
                     dateutil.parser.parse(first_non_na)
@@ -58,23 +72,27 @@ class ConceptLoader():
 
     # Can add more fixes depending on datasets
     def fix_formatting_and_convert_to_dt(self, df, col):
-        try:                                                        # Check if formatting is needed
-            return pd.to_datetime(df[col], errors='raise')
+        try:  # Check if formatting is needed
+            return pd.to_datetime(df[col], errors="raise")
         except:
-            for func in [self.double_punctuation, self.cutoff]:     # Do multiple attempts to fix formatting
+            for func in [
+                self.double_punctuation,
+                self.cutoff,
+            ]:  # Do multiple attempts to fix formatting
                 try:
-                    df[col] = func(df[col])                         # Accumulate fixes - TODO: Do we need this?
-                    return pd.to_datetime(df[col], errors='raise')
+                    df[col] = func(df[col])  # Accumulate fixes - TODO: Do we need this?
+                    return pd.to_datetime(df[col], errors="raise")
                 except:
                     continue
 
-        return pd.to_datetime(df[col], errors='coerce')              # Else: Invalid parsing will be set to NaT
+        return pd.to_datetime(
+            df[col], errors="coerce"
+        )  # Else: Invalid parsing will be set to NaT
 
     @staticmethod
     def double_punctuation(col):
-        return col.str.replace('.:', '.', regex=False)
+        return col.str.replace(".:", ".", regex=False)
 
     @staticmethod
     def cutoff(col):
         return col.map(lambda x: x[:19] if isinstance(x, str) else x)
-

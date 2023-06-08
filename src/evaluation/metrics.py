@@ -1,10 +1,12 @@
 import torch
 
 """Computes the precision@k for the specified value of k"""
+
+
 def top_k(outputs, batch, topk=10, average=True) -> dict:
     logits = outputs.logits
-    target = batch['target']
-    
+    target = batch["target"]
+
     ind = torch.where((target != -100) & (target != 0))
 
     logits = logits[ind]
@@ -20,16 +22,16 @@ def top_k(outputs, batch, topk=10, average=True) -> dict:
     else:
         return correct.any(0).float().mean().item()
 
+
 def binary_hit(outputs, batch, threshold=0.5, average=True):
     logits = outputs.logits
-    target = batch['target']
+    target = batch["target"]
 
     probs = torch.sigmoid(logits)
-    predictions = (probs > threshold).long().view(-1)         # TODO: Add uncertainty measure
+    predictions = (probs > threshold).long().view(-1)  # TODO: Add uncertainty measure
 
     if not average:
         return (predictions == target).float()
 
     else:
         return (predictions == target).float().mean().item()
-

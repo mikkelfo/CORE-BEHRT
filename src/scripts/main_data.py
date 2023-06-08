@@ -11,12 +11,11 @@ from src.data.tokenizer import EHRTokenizer
 from src.data.split import Splitter
 from src.downstream_tasks.outcomes import OutcomeMaker
 
+
 @hydra.main(config_path="configs/data", config_name="data")
 def main_data(cfg):
-    with open('data_config.json', 'w') as f:
-        json.dump(
-            OmegaConf.to_container(cfg, resolve=True)
-        , f)
+    with open("data_config.json", "w") as f:
+        json.dump(OmegaConf.to_container(cfg, resolve=True), f)
 
     """
         Loads data
@@ -40,7 +39,7 @@ def main_data(cfg):
 
     # Create feature sequences and outcomes
     features, outcomes = FeatureMaker(cfg)(concepts, patients_info)
-    
+
     # Overwrite nans and other incorrect values
     features = Handler()(features)
 
@@ -48,8 +47,8 @@ def main_data(cfg):
     features, outcomes = Excluder()(features, outcomes)
 
     # Save final features and outcomes
-    torch.save(features, 'features.pt')
-    torch.save(outcomes, 'outcomes.pt')
+    torch.save(features, "features.pt")
+    torch.save(outcomes, "outcomes.pt")
 
     # Split
     train_features, test_features, val_features = Splitter()(features)
@@ -63,14 +62,13 @@ def main_data(cfg):
     val_encoded = tokenizer(val_features)
 
     # Save features and outcomes
-    torch.save(train_encoded, 'train_encoded.pt')
-    torch.save(train_outcomes, 'train_outcomes.pt')
-    torch.save(test_encoded, 'test_encoded.pt')
-    torch.save(test_outcomes, 'test_outcomes.pt')
-    torch.save(val_encoded, 'val_encoded.pt')
-    torch.save(val_outcomes, 'val_outcomes.pt')
-    
+    torch.save(train_encoded, "train_encoded.pt")
+    torch.save(train_outcomes, "train_outcomes.pt")
+    torch.save(test_encoded, "test_encoded.pt")
+    torch.save(test_outcomes, "test_outcomes.pt")
+    torch.save(val_encoded, "val_encoded.pt")
+    torch.save(val_outcomes, "val_outcomes.pt")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main_data()
-

@@ -2,7 +2,6 @@ import torch
 
 
 class Time2Vec(torch.nn.Module):
-
     def __init__(self, input_dim=1, output_dim=768, function=torch.cos):
         super().__init__()
         self.f = function

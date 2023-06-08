@@ -11,7 +11,7 @@ class BertEHRModel(BertModel):
 
         self.embeddings = EhrEmbeddings(config)
         self.loss_fct = nn.CrossEntropyLoss()
-        
+
         self.cls = MLMHead(config)
 
     def forward(
@@ -31,7 +31,7 @@ class BertEHRModel(BertModel):
             inputs_embeds=inputs_embeds,
         )
 
-        sequence_output = outputs[0]    # Last hidden state
+        sequence_output = outputs[0]  # Last hidden state
         logits = self.cls(sequence_output)
         outputs.logits = logits
 
@@ -55,6 +55,5 @@ class BertForFineTuning(BertEHRModel):
         self.loss_fct = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
         self.cls = FineTuneHead(config)
 
-    def get_loss(self, hidden_states, labels):    
+    def get_loss(self, hidden_states, labels):
         return self.loss_fct(hidden_states.view(-1), labels.view(-1))
-

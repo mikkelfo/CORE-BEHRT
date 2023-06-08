@@ -36,8 +36,7 @@ class ConceptLoader():
             df = pd.read_parquet(file_path)
 
         for col in self.detect_date_columns(df):
-            df[col] = df[col].apply(lambda x: x[:10] if isinstance(x, str) else x)
-            df[col] = pd.to_datetime(df[col], errors='coerce')
+            df[col] = self.fix_formatting_and_convert_to_dt(df, col)
             df[col] = df[col].dt.tz_localize(None)
 
         return df
@@ -56,4 +55,26 @@ class ConceptLoader():
                 except:
                     continue
         return date_columns
+
+    # Can add more fixes depending on datasets
+    def fix_formatting_and_convert_to_dt(self, df, col):
+        try:                                                        # Check if formatting is needed
+            return pd.to_datetime(df[col], errors='raise')
+        except:
+            for func in [self.double_punctuation, self.cutoff]:     # Do multiple attempts to fix formatting
+                try:
+                    df[col] = func(df[col])                         # Accumulate fixes - TODO: Do we need this?
+                    return pd.to_datetime(df[col], errors='raise')
+                except:
+                    continue
+
+        return pd.to_datetime(df[col], errors='coerce')              # Else: Invalid parsing will be set to NaT
+
+    @staticmethod
+    def double_punctuation(col):
+        return col.str.replace('.:', '.', regex=False)
+
+    @staticmethod
+    def cutoff(col):
+        return col.map(lambda x: x[:19] if isinstance(x, str) else x)
 

@@ -1,10 +1,10 @@
-from torch.utils.data import Dataset, DataLoader
 import torch
+from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 import os
 import uuid
 import json
-from dataloader.collate_fn import dynamic_padding
+from src.dataloader.collate_fn import dynamic_padding
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 

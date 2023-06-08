@@ -1,12 +1,12 @@
 import torch
+import pandas as pd
 import hydra
 from torch.optim import AdamW
-from data.dataset import CensorDataset
-from trainer.trainer import EHRTrainer
-from model.model import BertForFineTuning
 from transformers import BertConfig
-import pandas as pd
 from torch.utils.data import WeightedRandomSampler
+from src.data.dataset import CensorDataset
+from src.trainer.trainer import EHRTrainer
+from src.model.model import BertForFineTuning
 
 
 @hydra.main(config_path="configs/train", config_name="finetune")

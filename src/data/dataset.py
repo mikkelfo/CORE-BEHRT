@@ -1,6 +1,6 @@
-from torch.utils.data import Dataset
 import torch
 import pandas as pd
+from torch.utils.data import Dataset
 
 
 class BaseDataset(Dataset):

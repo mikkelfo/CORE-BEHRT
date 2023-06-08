@@ -1,8 +1,8 @@
-from transformers import BertModel
-from embeddings.ehr import EhrEmbeddings
-import torch.nn as nn
-from model.heads import MLMHead, FineTuneHead
 import torch
+import torch.nn as nn
+from transformers import BertModel
+from src.embeddings.ehr import EhrEmbeddings
+from src.model.heads import MLMHead, FineTuneHead
 
 
 class BertEHRModel(BertModel):

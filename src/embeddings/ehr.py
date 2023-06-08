@@ -1,6 +1,6 @@
-import torch.nn as nn
-from embeddings.time2vec import Time2Vec
 import torch
+import torch.nn as nn
+from src.embeddings.time2vec import Time2Vec
 
 
 class EhrEmbeddings(nn.Module):

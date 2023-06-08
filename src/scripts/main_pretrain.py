@@ -1,11 +1,10 @@
 import torch
 import hydra
-from torch.optim import AdamW
-from data.dataset import MLMDataset
-
-from trainer.trainer import EHRTrainer
-from model.model import BertEHRModel
 from transformers import BertConfig
+from torch.optim import AdamW
+from src.data.dataset import MLMDataset
+from src.trainer.trainer import EHRTrainer
+from src.model.model import BertEHRModel
 
 @hydra.main(config_path="configs/train", config_name="pretrain")
 def main_train(cfg):

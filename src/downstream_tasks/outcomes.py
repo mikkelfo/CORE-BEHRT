@@ -1,7 +1,6 @@
 import pandas as pd
-
-from data.concept_loader import ConceptLoader
-from data_fixes.infer import Inferrer
+from src.data.concept_loader import ConceptLoader
+from src.data_fixes.infer import Inferrer
 
 
 class OutcomeMaker():

@@ -157,26 +157,29 @@ class HierarchicalDataset(MLMDataset):
         return self.expand_to_class_probabilities(target_levels)    # Converts target for each level to probabilities
 
     def expand_to_class_probabilities(self, target_levels):
-        seq_len, levels = target_levels.shape
-        target_levels = target_levels.reshape(-1, levels)
+        levels = self.tree_matrix.shape[0]
+        seq_len = len(target_levels)
+        target_levels = target_levels.view(-1, levels)
 
         probabilities = torch.zeros(seq_len, levels, len(self.leaf_counts))
         mask = target_levels != -100
 
-        # Set "class indices" to 1
-        probabilities[mask, target_levels[mask]] = 1
+        if mask.any():
+            # Set "class indices" to 1
+            probabilities[mask, target_levels[mask]] = 1
 
-        last_parents_idx = mask.sum(1)-1
-        seq_class_idx = zip(last_parents_idx, target_levels[range(seq_len), last_parents_idx])  # tuple indices of (class_level, class_idx)
+            if (~mask).any():
+                last_parents_idx = mask.sum(1)-1
+                seq_class_idx = zip(last_parents_idx, target_levels[range(seq_len), last_parents_idx])  # tuple indices of (class_level, class_idx)
 
-        relevant_leaf_counts = torch.stack([self.tree_matrix[class_lvl, class_idx] * self.leaf_counts for class_lvl, class_idx in seq_class_idx])
-        relevant_leaf_probs = (relevant_leaf_counts / relevant_leaf_counts.sum(1).unsqueeze(-1))
+                relevant_leaf_counts = torch.stack([self.tree_matrix[class_lvl, class_idx] * self.leaf_counts for class_lvl, class_idx in seq_class_idx])
+                relevant_leaf_probs = (relevant_leaf_counts / relevant_leaf_counts.sum(1).unsqueeze(-1))
 
-        unknown_targets_idx = zip(*torch.where(~mask))        # tuple indices of (seq_idx, level_idx)
+                unknown_targets_idx = zip(*torch.where(~mask))        # tuple indices of (seq_idx, level_idx)
 
-        unknown_probabilities = torch.stack([torch.matmul(self.tree_matrix_sparse[lvl_idx], relevant_leaf_probs[seq_idx]) for seq_idx, lvl_idx in unknown_targets_idx])
+                unknown_probabilities = torch.stack([torch.matmul(self.tree_matrix_sparse[lvl_idx], relevant_leaf_probs[seq_idx]) for seq_idx, lvl_idx in unknown_targets_idx])
 
-        probabilities[~mask] = unknown_probabilities
+                probabilities[~mask] = unknown_probabilities
 
         return probabilities
 

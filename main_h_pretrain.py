@@ -7,7 +7,7 @@ from trainer.trainer import EHRTrainer
 from model.model import HierarchicalBertForPretraining
 from transformers import BertConfig
 
-@hydra.main(config_path="configs/train", config_name="pretrain")
+@hydra.main(config_path="configs/train", config_name="pretrain_h")
 def main_train(cfg):
     # MLM specific
     train_encoded = torch.load(cfg.paths.train_encoded)

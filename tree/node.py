@@ -1,6 +1,13 @@
 import torch
-import tree.helpers as helpers
 
+def flatten(data):
+    def _flatten(data):
+        for element in data:
+            if isinstance(element, list):
+                yield from _flatten(element)
+            else:
+                yield element
+    return list(_flatten(data))
 
 class Node:
     def __init__(self, name, parent=None):
@@ -47,7 +54,7 @@ class Node:
             return new_childs
         else:
             self.children = [child.cutoff_at_level(cutoff_level-1) for child in self.children]
-            self.children = helpers.flatten(self.children)
+            self.children = flatten(self.children)
             for child in self.children:
                 child.parent = self
             return self
@@ -86,7 +93,7 @@ class Node:
         if level == 0:
             return [self]
         else:
-            return helpers.flatten([child.get_level(level-1) for child in self.children])
+            return flatten([child.get_level(level-1) for child in self.children])
     def get_max_level(self):
         if not self.children:
             return 0
@@ -102,8 +109,8 @@ class Node:
 
     def get_all_nodes(self):
         if not self.parent: # This removes root node and category nodes
-            return helpers.flatten([child.get_all_nodes() for child in self.children])
-        return [self] + helpers.flatten([child.get_all_nodes() for child in self.children])
+            return flatten([child.get_all_nodes() for child in self.children])
+        return [self] + flatten([child.get_all_nodes() for child in self.children])
 
     def create_vocabulary(self, base_vocab=None):
         if base_vocab is None:
@@ -115,7 +122,8 @@ class Node:
                 '[MASK]': 4,
             }
         target_mapping = self.create_target_mapping()
-        return base_vocab | {k: i+len(base_vocab) for i, k in enumerate(target_mapping)}
+        base_vocab.update({k: i+len(base_vocab) for i, k in enumerate(target_mapping)})
+        return base_vocab
 
     # TODO: Make this generic and not hardcoded
     def add_background(self):

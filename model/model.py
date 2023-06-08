@@ -1,8 +1,9 @@
 from transformers import BertModel
 from embeddings.ehr import EhrEmbeddings
 import torch.nn as nn
-from model.heads import MLMHead, FineTuneHead
+from model.heads import MLMHead, FineTuneHead, HMLMHead
 import torch
+from tree.helpers import build_tree
 
 
 class BertEHRModel(BertModel):
@@ -65,14 +66,33 @@ class HierarchicalBertForPretraining(BertEHRModel):
         super().__init__(config)
 
         self.loss_fct = nn.CrossEntropyLoss(reduction='none')
+        self.cls = HMLMHead(config)
 
         # TODO: Make this configurable
         self.linear_combination = torch.arange(config.levels, 0, -1) / config.levels
 
-    def get_loss(self, logits, labels, labels_mask):
-        logits = logits.view(-1, self.config.levels, self.config.vocab_size)    # Reshape to (batch_size*seq_len, levels, vocab_size) for masking
-        logits = logits[labels_mask.bool().view(-1)]                            # Remove where original target was -100
-        loss = self.loss_fct(logits.view(-1, self.config.vocab_size), labels.view(-1, self.config.vocab_size))  # Reshape both to (batch_size*seq_len*levels, vocab_size)
-        loss = loss.view(-1, self.config.levels) * self.linear_combination  # Reshape to (batch_size*seq_len, levels) and apply linear combination
+        tree = build_tree()
+        self.tree_matrix = tree.get_tree_matrix()
+        self.tree_matrix_sparse = self.tree_matrix.to_sparse()
+        self.tree_mask = self.tree_matrix.any(2)
 
-        return loss.mean()
+    def get_loss(self, logits, labels, labels_mask):
+        levels = 5
+        batch_size, seq_len, leaves = logits.shape
+        logits = logits.permute(2, 0, 1).view(leaves, -1)  # (leaves, batch_size*seq_len)
+
+        # Calculate level predictions (one level each)
+        acc_loss = 0
+        for i in range(levels):
+            if levels-1 == i:
+                level_predictions = logits
+            else:
+                level_predictions = torch.matmul(self.tree_matrix[i, self.tree_mask[i]], logits)    # (leaves, leaves) @ (leaves, batch_size*seq_len) -> (leaves, batch_size*seq_len)
+            level_predictions = level_predictions.transpose(1, 0)
+            level_predictions = level_predictions[labels_mask.view(-1)]
+            level_labels = labels[:, i, self.tree_mask[i]]
+            loss = self.loss_fct(level_predictions, level_labels)
+            acc_loss += (loss * self.linear_combination[i]).mean()
+        
+        return acc_loss / levels
+

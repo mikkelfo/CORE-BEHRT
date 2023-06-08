@@ -1,20 +1,15 @@
 import pandas as pd
-from tree.tree import Node
 import torch
+from tree.node import Node
+from data.concept_loader import ConceptLoader
 
-
-def setup_hierarchical():
-    counts = get_counts()
-    tree = build_tree(counts=counts)
-    vocabulary = tree.create_vocabulary()
-
-    torch.save(vocabulary, 'vocabulary.pt')
-    torch.save(counts, 'base_counts.pt')
-    return tree, vocabulary
-
-# TODO: Implement
+# TODO: Needs config file?
 def get_counts():
-    return {}
+    concepts, patients_info = ConceptLoader()()
+    codes = concepts.CONCEPT
+    info = [patients_info[col] for col in ['GENDER', 'BMI']]    # TODO: Hardcoded for now
+    alls = pd.concat([codes, *info])
+    return alls.value_counts().to_dict()    # TODO: .to_dict() is not needed, but is "safer" to work with
 
 
 def build_tree(file='data_dumps/sks_dump_columns.xlsx', counts=None, cutoff_level=5):
@@ -75,17 +70,3 @@ def create_tree(codes):
                 parent = parent.parent
     return root  
 
-
-def flatten(data):
-    def _flatten(data):
-        for element in data:
-            if isinstance(element, list):
-                yield from _flatten(element)
-            else:
-                yield element
-    return list(_flatten(data))
-
-
-if __name__ == '__main__':
-    print("Preparing hierarchical data...")
-    setup_hierarchical()

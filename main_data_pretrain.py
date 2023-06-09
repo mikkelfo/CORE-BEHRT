@@ -1,5 +1,5 @@
 from os.path import join
-
+# from azureml.core import Dataset
 import torch
 from tqdm import tqdm
 
@@ -12,12 +12,18 @@ from data.featuremaker import FeatureMaker
 from data.tokenizer import EHRTokenizer
 from data_fixes.exclude import Excluder
 from data_fixes.handle import Handler
+# from azure_run.run import Run
+# from azure_run import datastore
 
-config_path = join("configs", "data.yaml")
-cfg = load_config(config_path)
 
+# run = Run
+# run.name(f"Pretrain base on med/diag")
 
-def main_data(cfg):
+# dataset = Dataset.File.from_files(path=(datastore(), 'PHAIR/formatted_data/diagnosis_medication'))
+
+config_path = join('configs', 'data.yaml')
+
+def main_data(config_path):
     """
         Loads data
         Finds outcomes
@@ -28,8 +34,16 @@ def main_data(cfg):
         Tokenizes
         Saves
     """
-    logger = prepare_directory(config_path, cfg)
+    cfg = load_config(config_path)
+    logger = prepare_directory(config_path, cfg)  
+    logger.info('Mount Dataset')
     
+    # mount_context = dataset.mount()
+    # mount_context.start()  # this will mount the file streams
+    
+    # cfg.loader.data_dir = mount_context.mount_point
+    
+    logger.info('Initialize Processors')
     conceptloader = ConceptLoader(**cfg.loader)
     feature_maker = FeatureMaker(cfg.features)
     handler = Handler(**cfg.handler)
@@ -57,7 +71,9 @@ def main_data(cfg):
     torch.save(batches.val.file_ids, join(cfg.output_dir, 'val_file_ids.pt'))
     torch.save(batches.test.file_ids, join(cfg.output_dir, 'test_file_ids.pt'))
     logger.info('Finished')
+    
+    # mount_context.stop()
 
 if __name__ == '__main__':
-    main_data(cfg)
+    main_data(config_path)
 

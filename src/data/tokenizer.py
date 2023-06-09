@@ -3,9 +3,9 @@ from transformers import BatchEncoding
 
 
 class EHRTokenizer:
-    def __init__(self, config, vocabulary=None):
+    def __init__(self, config):
         self.config = config
-        if vocabulary is None:
+        if config.vocabulary is None:
             self.new_vocab = True
             self.vocabulary = {
                 "[PAD]": 0,
@@ -16,7 +16,7 @@ class EHRTokenizer:
             }
         else:
             self.new_vocab = False
-            self.vocabulary = vocabulary
+            self.vocabulary = self.load_vocabulary(config.vocabulary)
 
     def __call__(self, features: dict, padding=None, truncation=None):
         if padding is None:
@@ -153,9 +153,16 @@ class EHRTokenizer:
         for i in range(len(features["concept"])):
             yield {key: values[i] for key, values in features.items()}
 
-    def save_vocab(self, dest: str):
-        torch.save(self.vocabulary, dest)
+    def freeze_vocabulary(self, vocab_name: str = None):
+        if self.new_vocab:
+            self.new_vocab = False
+            torch.save(self.vocabulary, vocab_name)
 
-    def freeze_vocabulary(self):
-        self.new_vocab = False
-        self.save_vocab("vocabulary.pt")
+    @staticmethod
+    def load_vocabulary(vocabulary):
+        if isinstance(vocabulary, str):
+            return torch.load(vocabulary)
+        elif isinstance(vocabulary, dict):
+            return vocabulary
+        else:
+            raise TypeError(f"Unsupported vocabulary input {type(vocabulary)}")

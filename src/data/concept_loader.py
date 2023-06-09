@@ -9,8 +9,8 @@ class ConceptLoader:
     def __call__(
         self,
         concepts=["diagnose", "medication"],
-        data_dir: str = "formatted_data",
         patients_info: str = "patients_info.csv",
+        data_dir: str = "data/formatted",
     ):
         return self.load(
             concepts=concepts, data_dir=data_dir, patients_info=patients_info
@@ -19,8 +19,8 @@ class ConceptLoader:
     def load(
         self,
         concepts=["diagnose", "medication"],
-        data_dir: str = "formatted_data",
         patients_info: str = "patients_info.csv",
+        data_dir: str = "data/formatted",
     ):
         # Get all concept files
         concept_paths = os.path.join(data_dir, "concept.*")

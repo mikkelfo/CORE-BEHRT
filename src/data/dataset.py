@@ -26,7 +26,7 @@ class MLMDataset(BaseDataset):
     def __init__(
         self,
         features: dict,
-        vocabulary="vocabulary.pt",
+        vocabulary="data/processed/vocabulary.pt",
         masked_ratio=0.3,
         ignore_special_tokens=True,
     ):

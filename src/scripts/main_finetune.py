@@ -1,3 +1,4 @@
+import os
 import torch
 import pandas as pd
 import hydra
@@ -12,10 +13,18 @@ from src.model.model import BertForFineTuning
 @hydra.main(config_path="configs/train", config_name="finetune")
 def main_finetune(cfg):
     # Finetune specific
-    train_encoded = torch.load(cfg.paths.train_encoded)
-    train_outcomes = torch.load(cfg.paths.train_outcomes)
-    val_encoded = torch.load(cfg.paths.val_encoded)
-    val_outcomes = torch.load(cfg.paths.val_outcomes)
+    train_encoded = torch.load(
+        os.path.join(cfg.paths.data_dir, f"train_{cfg.paths.encoded_suffix}.pt")
+    )
+    val_encoded = torch.load(
+        os.path.join(cfg.paths.data_dir, f"test_{cfg.paths.encoded_suffix}.pt")
+    )
+    train_outcomes = torch.load(
+        os.path.join(cfg.paths.data_dir, f"train_{cfg.paths.outcomes_suffix}.pt")
+    )
+    val_outcomes = torch.load(
+        os.path.join(cfg.paths.data_dir, f"val_{cfg.paths.outcomes_suffix}.pt")
+    )
     n_hours, outcome_type, censor_type = (
         cfg.outcome.n_hours,
         cfg.outcome.type,

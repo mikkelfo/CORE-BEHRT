@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 import pandas as pd
 import torch
@@ -69,5 +70,7 @@ class FeatureMaker:
                         (patient_outcome - origin_point).total_seconds() / 60 / 60
                     )
 
-        torch.save(PIDs, "PIDs.pt")  # Save PIDs for identification
+        torch.save(
+            PIDs, os.path.join(self.config.paths.extra_dir, "PIDs.pt")
+        )  # Save PIDs for identification
         return self.features, outcomes

@@ -1,3 +1,4 @@
+import os
 import torch
 import hydra
 from transformers import BertConfig
@@ -10,9 +11,13 @@ from src.model.model import BertEHRModel
 @hydra.main(config_path="configs/train", config_name="pretrain")
 def main_train(cfg):
     # MLM specific
-    train_encoded = torch.load(cfg.paths.train_encoded)
-    val_encoded = torch.load(cfg.paths.val_encoded)
-    vocabulary = torch.load(cfg.paths.vocabulary)
+    train_encoded = torch.load(
+        os.path.join(cfg.paths.data_dir, f"train_{cfg.paths.encoded_suffix}.pt")
+    )
+    val_encoded = torch.load(
+        os.path.join(cfg.paths.data_dir, f"test_{cfg.paths.encoded_suffix}.pt")
+    )
+    vocabulary = torch.load(os.path.join(cfg.paths.data_dir, cfg.paths.vocabulary))
     train_dataset = MLMDataset(
         train_encoded,
         vocabulary=vocabulary,

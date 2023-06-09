@@ -29,11 +29,14 @@ def setup_run_folder(cfg):
     else:
         run_name = uuid.uuid4().hex
        
-    run_folder = os.path.join('output', 'runs', run_name)
+    run_folder = join(cfg.paths.output_path, run_name)
 
     if not os.path.exists(run_folder):
-        os.makedirs(run_folder)
-        
+        os.makedirs(run_folder) 
+    if not os.path.exists(join(run_folder,'checkpoints')):
+        os.makedirs(join(run_folder,'checkpoints')) 
+    copyfile(join(cfg.paths.data_path, 'data_config.yaml'), join(run_folder, 'data_config.yaml'))
+  
     logging.basicConfig(filename=join(run_folder, 'info.log'), level=logging.INFO, 
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     logger = logging.getLogger(__name__)

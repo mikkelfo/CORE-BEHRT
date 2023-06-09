@@ -98,7 +98,8 @@ class MLMLargeDataset(IterableDataset):
         self.kwargs = kwargs
         self.data_files = self.get_data_files(data_dir, mode)
 
-        self.num_patients = len(torch.load(join(data_dir, f'{mode}_pids.pt')))
+        self.pids = torch.load(join(data_dir, f'{mode}_pids.pt'))
+        self.num_patients = len(self.pids)
         self.vocabulary = torch.load(join(data_dir, 'vocabulary.pt'))
         
         self.masked_ratio = self.kwargs.get('masked_ratio', 0.3)
@@ -137,7 +138,7 @@ class MLMLargeDataset(IterableDataset):
         data_files = self.data_files.copy()  # Create a copy of data_files
         np.random.shuffle(data_files)  # Shuffle the copy
         for file_name in self.data_files:
-            yield from self.get_patient(file_name)
+            yield from self.get_patient(file_name) # test!
 
     def _mask(self, patient: dict):
         concepts = patient['concept']
@@ -172,6 +173,7 @@ class MLMLargeDataset(IterableDataset):
 
     def save_vocabulary(self, file_name: str):
         torch.save(self.vocabulary, file_name)
+
     def save_pids(self, file_name: str):
         torch.save(self.pids, file_name)
 

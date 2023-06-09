@@ -1,9 +1,6 @@
 import importlib
 import yaml
-import os
-from os.path import join
-from shutil import copyfile
-import logging
+
 
 class Config(dict):
     """Config class that allows for dot notation."""

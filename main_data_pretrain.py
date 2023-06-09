@@ -45,14 +45,20 @@ def main_data(config_path):
     
     logger.info('Initialize Processors')
     conceptloader = ConceptLoader(**cfg.loader)
-    feature_maker = FeatureMaker(cfg.features)
+    
     handler = Handler(**cfg.handler)
     excluder = Excluder(**cfg.excluder)
     logger.info('Starting data processing')
     pids = []
     for i, (concept_batch, patient_batch) in enumerate(tqdm(conceptloader(), desc='Batch Process Data', file=TqdmToLogger(logger))):
+
+        # print('patients in concepts', len(concept_batch['concept']))
+        print(concept_batch['PID'].nunique())
+        print('patients in patient info', len(patient_batch['PID']))
         pids.append(patient_batch['PID'].tolist())
+        feature_maker = FeatureMaker(cfg.features) # Otherwise appended to old features
         features_batch = feature_maker(concept_batch, patient_batch)
+        print('patients in features', len(features_batch['concept']))
         features_batch = handler(features_batch)
         features_batch, _ = excluder(features_batch)
         torch.save(features_batch, join(cfg.output_dir, 'features', f'features_{i}.pt'))

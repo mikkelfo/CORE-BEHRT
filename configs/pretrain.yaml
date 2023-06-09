@@ -1,15 +1,17 @@
 paths:
-  data_path: 'output/data'
-  run_name: test
+  # data_path: 'pretrain_datasets/diagnosis_medication/070623/outputs/data' # inside mounted datastore
+  data_path: 'outputs/data' # inside mounted datastore
+  output_path: 'pretraining'
+  run_name: behrt_base_med_diag_scheduler
   
 dataset:
   masked_ratio: 0.15
   ignore_special_tokens: true
 
 trainer_args:
-  batch_size: 256
-  effective_batch_size: 256
-  epochs: 3
+  batch_size: 32
+  effective_batch_size: 128
+  epochs: 10
   info: true
   sampler: null
 
@@ -27,6 +29,10 @@ optimizer:
   lr: 5e-4
   weight_decay: 0
   epsilon: 1e-6
+
+scheduler:
+  num_warmup_steps: 10
+  num_training_steps: 100
 
 metrics:
   top1:

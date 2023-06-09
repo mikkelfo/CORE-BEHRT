@@ -7,9 +7,8 @@ import dateutil
 import pandas as pd
 import pyarrow.parquet as pq
 
-
 class ConceptLoader():
-    def __init__(self, concepts: list = ['diagnose', 'medication'], data_dir: str = 'formatted_data', patients_info: str = 'patients_info.csv', batch_size:int = 100000, chunksize: int = 100000):
+    def __init__(self, concepts: list = ['diagnosis', 'medication'], data_dir: str = 'formatted_data', patients_info: str = 'patients_info.csv', batch_size:int = 100000, chunksize: int = 100000, test: bool=False, ):
 
         concept_paths = glob.glob(os.path.join(data_dir, 'concept.*'))
         # Filter out concepts files
@@ -18,8 +17,10 @@ class ConceptLoader():
         self.patient_ids = self.patients_df['PID'].unique().tolist()
         self.chunksize = chunksize
         self.batch_size = batch_size
+        self.test = test
 
     def __call__(self):
+        i = 0
         for patients in self.get_patient_batch():
             # Load concepts
             concepts = pd.concat([self._read_file(p, patients) for p in self.concept_paths], ignore_index=True).drop_duplicates()
@@ -42,6 +43,7 @@ class ConceptLoader():
                 df_chunks = ParquetIterator(file_path, self.chunksize)
         else:
             raise ValueError(f'Unknown file type {file_type}')
+            
         if patients is None:
             return self.handle_datetime_columns(df)
         else:
@@ -57,7 +59,6 @@ class ConceptLoader():
 
     def handle_datetime_columns(self, df):
         for col in self.detect_date_columns(df):
-            # df[col] = df[col].apply(lambda x: x[:10] if isinstance(x, str) else x)
             df[col] = pd.to_datetime(df[col], errors='coerce')
             df[col] = df[col].dt.tz_localize(None)
         return df
@@ -80,6 +81,9 @@ class ConceptLoader():
     def get_patient_batch(self):
         """Yield successive batches of patient IDs from patient_ids."""
         for i in range(0, len(self.patient_ids), self.batch_size):
+            if self.test:
+                if i>5:
+                    break
             yield self.patient_ids[i:i + self.batch_size]
 
 class ParquetIterator:

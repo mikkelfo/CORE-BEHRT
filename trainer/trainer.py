@@ -2,7 +2,6 @@ from torch.utils.data import Dataset, DataLoader
 import torch
 from tqdm import tqdm
 import os
-import uuid
 from dataloader.collate_fn import dynamic_padding
 from common.config import instantiate, get_function, Config
 from common.logger import TqdmToLogger
@@ -21,10 +20,12 @@ class EHRTrainer():
         args: dict = {},
         sampler = None,
         cfg = None,
-        logger = None
+        logger = None,
+        run = None
     ):
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-
+        logger.info(f"Run on {self.device}")
+        self.run_folder = os.path.join(cfg.paths.output_path, cfg.paths.run_name)
         self.model = model.to(self.device)
         self.train_dataset = train_dataset
         self.test_dataset = test_dataset
@@ -35,6 +36,7 @@ class EHRTrainer():
         self.sampler = sampler
         self.cfg = cfg
         self.logger = logger
+        self.run = run
         default_args = {
             'save_every_k_steps': float('inf'),
             'collate_fn': dynamic_padding
@@ -83,6 +85,8 @@ class EHRTrainer():
                     if self.args['info']:
                         self.logger.info(f'Train loss {(i+1) // accumulation_steps}: {step_loss / accumulation_steps}')
                     epoch_loss.append(step_loss / accumulation_steps)
+                    if self.run is not None:
+                        self.run.log_metric(name='Train loss', value=(step_loss/accumulation_steps))
                     step_loss = 0
 
                 # Save iteration checkpoint
@@ -91,7 +95,10 @@ class EHRTrainer():
 
             # Validate (returns None if no validation set is provided)
             val_loss, metrics = self.validate()
-            
+            if self.run is not None:
+                self.run.log_metric(name='Val loss', value=val_loss)
+                for k, v in metrics.items():
+                    self.run_log_metric(name = k, value = v)
             # Save epoch checkpoint
             self.save_checkpoint(id=f'epoch{epoch}_end', train_loss=epoch_loss, val_loss=val_loss, metrics=metrics, final_step_loss=epoch_loss[-1])
 
@@ -102,7 +109,6 @@ class EHRTrainer():
 
     def setup_training(self) -> DataLoader:
         self.model.train()
-        self.setup_run_folder()
         self.save_setup()
         dataloader = DataLoader(self.train_dataset, batch_size=self.args['batch_size'], shuffle=False, collate_fn=self.args['collate_fn'])
         return dataloader
@@ -155,26 +161,6 @@ class EHRTrainer():
         """Moves a batch to the device"""
         return {key: value.to(self.device) for key, value in batch.items()}
 
-    def setup_run_folder(self):
-        """Creates a run folder"""
-        # Generate unique run_name if not provided
-        if self.cfg.paths.get('run_name') is None:
-            random_runname = uuid.uuid4().hex
-            self.logger.info(f'Run name not provided. Using random run name: {random_runname}')
-            run_name = random_runname
-        else:
-            run_name = self.cfg.paths.run_name
-        self.run_folder = os.path.join('output', 'runs', run_name)
-
-        if os.path.exists(self.run_folder):
-            self.logger.info(f'Run folder {self.run_folder} already exists. Writing files to existing folder')
-        if not os.path.exists(self.run_folder):
-            os.makedirs(self.run_folder)
-        if os.path.exists(os.path.join(self.run_folder, 'checkpoints')):
-            os.makedirs(os.path.join(self.run_folder, 'checkpoints'))
-
-        self.logger.info(f'Run folder: {self.run_folder}')
-
     def save_setup(self):
         """Saves the config and model config"""
         self.model.config.save_pretrained(self.run_folder)  
@@ -188,9 +174,10 @@ class EHRTrainer():
             self.val_dataset.save_pids(os.path.join(self.run_folder, 'val_pids.pt'))
             if self.test_dataset is not None:
                 self.test_dataset.save_pids(os.path.join(self.run_folder, 'test_pids.pt'))
-            self.logger.info(f'Saved pids to {self.run_folder}')
+            self.logger.info(f'Copied pids to {self.run_folder}')
         except AttributeError:
-            pass
+            self.logger.info("Failed to save pids")
+            
 
     def save_checkpoint(self, id, **kwargs):
         """Saves a checkpoint"""

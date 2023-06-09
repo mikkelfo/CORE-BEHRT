@@ -39,8 +39,15 @@ class AbsposCreator(BaseCreator):
 class SegmentCreator(BaseCreator):
     feature = id = 'segment'
     def create(self, concepts: pd.DataFrame, patients_info: pd.DataFrame):
-        segments = concepts.groupby('PID')['SEGMENT'].transform(lambda x: pd.factorize(x)[0]+1)
-
+        if 'ADMISSION_ID' in concepts.columns:
+            seg_col = 'ADMISSION_ID'
+        elif 'SEGMENT' in concepts.columns:
+            seg_col = 'SEGMENT'
+        else:
+            raise KeyError('No segment column found in concepts')
+    
+        segments = concepts.groupby('PID')[seg_col].transform(lambda x: pd.factorize(x)[0]+1) # change back
+        
         concepts['SEGMENT'] = segments
         return concepts
 

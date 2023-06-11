@@ -98,7 +98,7 @@ class EHRTrainer():
             if self.run is not None:
                 self.run.log_metric(name='Val loss', value=val_loss)
                 for k, v in metrics.items():
-                    self.run_log_metric(name = k, value = v)
+                    self.run.log_metric(name = k, value = v)
             # Save epoch checkpoint
             self.save_checkpoint(id=f'epoch{epoch}_end', train_loss=epoch_loss, val_loss=val_loss, metrics=metrics, final_step_loss=epoch_loss[-1])
 

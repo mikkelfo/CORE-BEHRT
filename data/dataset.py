@@ -1,10 +1,12 @@
-from torch.utils.data import Dataset, IterableDataset
-import torch
-import pandas as pd
-import numpy as np
 from os.path import join
-
 from typing import Dict
+
+import numpy as np
+import pandas as pd
+import torch
+from torch.utils.data import Dataset, IterableDataset
+from tree.helpers import build_tree
+
 
 class BaseDataset(Dataset):
     def __init__(self, features: dict):
@@ -110,14 +112,11 @@ class MLMLargeDataset(IterableDataset):
         else:
             self.n_special_tokens = 0
 
-    def get_data_files(self, data_dir: str, mode: str):
-        """Returns the data files for the given mode"""
-        file_ids = torch.load(join(data_dir, f'{mode}_file_ids.pt'))
-        return [join(data_dir, 'tokenized', f'tokenized_{mode}_{file_id}.pt') for file_id in file_ids]
-
-    def __len__(self):
-        """Number of patients in the dataset"""
-        return self.num_patients
+    def __iter__(self):
+        data_files = self.data_files.copy()  # Create a copy of data_files
+        np.random.shuffle(data_files)  # Shuffle the copy
+        for file_name in self.data_files:
+            yield from self.get_patient(file_name) # test!
 
     def get_patient(self, file_name: str):
         """Loads a single patient from a file"""
@@ -134,11 +133,14 @@ class MLMLargeDataset(IterableDataset):
         """Get a patient dictionary from a patient index"""
         return {key: torch.tensor(values[patient_index]) for key, values in features.items()}
 
-    def __iter__(self):
-        data_files = self.data_files.copy()  # Create a copy of data_files
-        np.random.shuffle(data_files)  # Shuffle the copy
-        for file_name in self.data_files:
-            yield from self.get_patient(file_name) # test!
+    def __len__(self):
+        """Number of patients in the dataset"""
+        return self.num_patients
+    
+    def get_data_files(self, data_dir: str, mode: str):
+        """Returns the data files for the given mode"""
+        file_ids = torch.load(join(data_dir, f'{mode}_file_ids.pt'))
+        return [join(data_dir, 'tokenized', f'tokenized_{mode}_{file_id}.pt') for file_id in file_ids]
 
     def _mask(self, patient: dict):
         concepts = patient['concept']
@@ -176,6 +178,63 @@ class MLMLargeDataset(IterableDataset):
 
     def save_pids(self, file_name: str):
         torch.save(self.pids, file_name)
+
+class HierarchicalLargeDataset(MLMLargeDataset):
+    def __init__(self, data_dir:str, mode:str, tree=None, **kwargs):
+        super().__init__(data_dir, mode, **kwargs)
+
+        if tree is None:
+            tree = build_tree()
+
+        self.tree_matrix = tree.get_tree_matrix()
+        self.tree_matrix_sparse = self.tree_matrix.to_sparse()
+        self.leaf_counts = tree.get_leaf_counts()
+
+        self.target_mapping = {self.vocabulary[k]: v for k,v in tree.create_target_mapping().items()}    # adjusts target mapping to vocabulary
+
+
+    def get_patient(self, file_name: str):
+        features = torch.load(file_name)
+        num_patients = len(features['concept'])
+        for patient_index in range(num_patients):
+            patient = self.get_patient_dic(features, patient_index)
+            target_mask = patient['target'] != -100
+            patient['target_mask'] = target_mask
+
+            patient['target'] = self._hierarchical_target(patient['target'][target_mask])
+
+            yield patient
+
+    def _hierarchical_target(self, target):
+        target_levels = torch.tensor([self.target_mapping[t] for t in target]) # Converts target to target for each level
+        return self.expand_to_class_probabilities(target_levels)    # Converts target for each level to probabilities
+
+    def expand_to_class_probabilities(self, target_levels):
+        levels = self.tree_matrix.shape[0]
+        seq_len = len(target_levels)
+        target_levels = target_levels.view(-1, levels)
+
+        probabilities = torch.zeros(seq_len, levels, len(self.leaf_counts))
+        mask = target_levels != -100
+
+        if mask.any():
+            # Set "class indices" to 1
+            probabilities[mask, target_levels[mask]] = 1
+
+            if (~mask).any():
+                last_parents_idx = mask.sum(1)-1
+                seq_class_idx = zip(last_parents_idx, target_levels[range(seq_len), last_parents_idx])  # tuple indices of (class_level, class_idx)
+
+                relevant_leaf_counts = torch.stack([self.tree_matrix[class_lvl, class_idx] * self.leaf_counts for class_lvl, class_idx in seq_class_idx])
+                relevant_leaf_probs = (relevant_leaf_counts / relevant_leaf_counts.sum(1).unsqueeze(-1))
+
+                unknown_targets_idx = zip(*torch.where(~mask))        # tuple indices of (seq_idx, level_idx)
+
+                unknown_probabilities = torch.stack([torch.matmul(self.tree_matrix_sparse[lvl_idx], relevant_leaf_probs[seq_idx]) for seq_idx, lvl_idx in unknown_targets_idx])
+
+                probabilities[~mask] = unknown_probabilities
+
+        return probabilities
 
 class CensorDataset(BaseDataset):
     """

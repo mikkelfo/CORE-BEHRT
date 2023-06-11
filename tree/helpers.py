@@ -4,7 +4,7 @@ from tree.node import Node
 from data.concept_loader import ConceptLoader
 
 # TODO: Needs config file?
-def get_counts():
+def get_counts(cfg):
     concepts, patients_info = ConceptLoader()()
     codes = concepts.CONCEPT
     info = [patients_info[col] for col in ['GENDER', 'BMI']]    # TODO: Hardcoded for now

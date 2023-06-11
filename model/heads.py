@@ -53,3 +53,13 @@ class FineTuneHead(torch.nn.Module):
 
     def pool_sum(self, x):
         return x.syn(dim=1)
+
+
+class HMLMHead(MLMHead):
+    def __init__(self, config):
+        super().__init__(config)
+
+        # BertLMPredictionHead
+        self.decoder = torch.nn.Linear(config.hidden_size, config.leaf_size, bias=False)
+        self.bias = torch.nn.Parameter(torch.zeros(config.leaf_size))
+        self.decoder.bias = self.bias

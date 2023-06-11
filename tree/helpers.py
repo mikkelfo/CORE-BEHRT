@@ -3,14 +3,12 @@ import torch
 from tree.node import Node
 from data.concept_loader import ConceptLoader
 
-# TODO: Needs config file?
 def get_counts(cfg):
-    concepts, patients_info = ConceptLoader()()
+    concepts, patients_info = ConceptLoader(**cfg.loader)() # TODO: iterate
     codes = concepts.CONCEPT
-    info = [patients_info[col] for col in ['GENDER', 'BMI']]    # TODO: Hardcoded for now
+    info = [patients_info[col] for col in cfg.features.background]   
     alls = pd.concat([codes, *info])
     return alls.value_counts().to_dict()    # TODO: .to_dict() is not needed, but is "safer" to work with
-
 
 def build_tree(file='data_dumps/sks_dump_columns.xlsx', counts=None, cutoff_level=5):
     codes = create_levels(file)

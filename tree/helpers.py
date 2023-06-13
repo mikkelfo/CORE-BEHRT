@@ -1,15 +1,24 @@
 import pandas as pd
 import torch
 from tree.node import Node
-from data.concept_loader import ConceptLoader
 
 # TODO: Needs config file?
 def get_counts():
-    concepts, patients_info = ConceptLoader()()
-    codes = concepts.CONCEPT
-    info = [patients_info[col] for col in ['GENDER', 'BMI']]    # TODO: Hardcoded for now
-    alls = pd.concat([codes, *info])
-    return alls.value_counts().to_dict()    # TODO: .to_dict() is not needed, but is "safer" to work with
+    train = torch.load('train_encoded.pt')
+    val = torch.load('val_encoded.pt')
+    vocabulary = torch.load('vocabulary.pt')
+    inv_vocab = {v: k for k, v in vocabulary.items()}
+
+    counts = dict()
+
+    for codes in train['concept']:
+        for code in codes:
+            counts[inv_vocab[code]] = counts.get(inv_vocab[code], 0) + 1
+    for codes in val['concept']:
+        for code in codes:
+            counts[inv_vocab[code]] = counts.get(inv_vocab[code], 0) + 1
+
+    return counts
 
 
 def build_tree(files=['data_dumps/sks_dump_diagnose.xlsx', 'data_dumps/sks_dump_medication.xlsx'], counts=None, cutoff_level=5):

@@ -1,14 +1,15 @@
 import pandas as pd
-
+import torch
+import os
 
 class Excluder:
-    def __call__(self, features: dict, outcomes: dict, k: int = 2) -> pd.DataFrame:
+    def __call__(self, features: dict, outcomes: dict, k: int = 2, dir: str = '') -> pd.DataFrame:
         # Exclude patients with few concepts
-        features, outcomes = self.exclude_short_sequences(features, outcomes, k=k)
+        features, outcomes = self.exclude_short_sequences(features, outcomes, k=k, dir=dir)
         return features, outcomes
 
     @staticmethod  # Currently unused
-    def exclude_rare_concepts(features: dict, k: int = 2) -> pd.DataFrame:
+    def exclude_rare_concepts(features: dict, k: int = 2, dir: str = '') -> pd.DataFrame:
         unique_codes = {}
         for patient in features["concept"]:
             for code in patient:
@@ -21,6 +22,8 @@ class Excluder:
             ]
             for key, values in features.items():
                 features[key][i] = [values[i][j] for j in kept_indices]
+
+        torch.save(kept_indices, os.path.join(dir, "excluder_kept_indices.pt"))
 
         return features
 

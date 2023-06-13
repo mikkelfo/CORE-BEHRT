@@ -35,7 +35,7 @@ def main_data(cfg):
     features = Handler()(features)
 
     # Exclude patients with <k concepts
-    features, outcomes = Excluder()(features, outcomes)
+    features, outcomes = Excluder()(features, outcomes, dir=cfg.paths.extra_dir)
 
     # Save final features and outcomes
     torch.save(features, os.path.join(cfg.paths.data_dir, "features.pt"))

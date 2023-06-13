@@ -125,27 +125,3 @@ class Node:
         base_vocab.update({k: i+len(base_vocab) for i, k in enumerate(target_mapping)})
         return base_vocab
 
-    # TODO: Make this generic and not hardcoded
-    def add_background(self):
-        # Add gender
-        self.add_child('BG')
-
-        BG = self.children[-1]
-
-        BG.add_child('[GENDER]')
-        gender = BG.children[-1]
-        gender.add_child('BG_Mand')
-        gender.add_child('BG_Kvinde')
-
-
-        BG.add_child('[BMI]')
-        bmi = BG.children[-1]
-        bmi.add_child('BG_underweight')
-        bmi.add_child('BG_normal')
-        bmi.add_child('BG_overweight')
-        bmi.add_child('BG_obese')
-        bmi.add_child('BG_extremely-obese')
-        bmi.add_child('BG_morbidly-obese')
-        bmi.add_child('BG_nan')
-
-

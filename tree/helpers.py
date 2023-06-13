@@ -12,10 +12,9 @@ def get_counts():
     return alls.value_counts().to_dict()    # TODO: .to_dict() is not needed, but is "safer" to work with
 
 
-def build_tree(file='data_dumps/sks_dump_columns.xlsx', counts=None, cutoff_level=5):
-    codes = create_levels(file)
+def build_tree(files=['data_dumps/sks_dump_diagnose.xlsx', 'data_dumps/sks_dump_medication.xlsx'], counts=None, cutoff_level=5):
+    codes = create_levels(files)
     tree = create_tree(codes)
-    tree.add_background()
     tree.cutoff_at_level(cutoff_level)
     tree.extend_leaves(cutoff_level)
 
@@ -26,29 +25,46 @@ def build_tree(file='data_dumps/sks_dump_columns.xlsx', counts=None, cutoff_leve
     tree.redist_counts()
     return tree
 
-def create_levels(file='data_dumps/sks_dump_columns.xlsx'):
-    df = pd.read_excel(file)
-
+def create_levels(files=['data_dumps/sks_dump_diagnose.xlsx', 'data_dumps/sks_dump_medication.xlsx']):
     codes = []
-    level = -1
-    prev_code = ''
-    for i, (code, text) in df.iterrows():
-        if pd.isna(code):
-            # Manually set nan codes for Chapter and Topic (as they have ranges)
-            if text[:3].lower() == 'kap':
-                code = 'XX'             # Sets Chapter as level 2 (XX)
+    for file in files:
+        df = pd.read_excel(file)
+
+        level = -1
+        prev_code = ''
+        for i, (code, text) in df.iterrows():
+            if pd.isna(code):   # Only for diagnosis
+                # Manually set nan codes for Chapter and Topic (as they have ranges)
+                if text[:3].lower() == 'kap':
+                    code = 'XX'             # Sets Chapter as level 2 (XX)
+                else:
+                    if pd.isna(df.iloc[i+1].Kode):  # Skip "subsub"-topics (double nans not started by chapter)
+                        continue
+                    code = 'XXX'            # Sets Topic as level 3 (XXX)
+
+            level += len(code) - len(prev_code)  # Add distance between current and previous code to level
+            prev_code = code                # Set current code as previous code
+
+            if code.startswith('XX'):       # Gets proper code (chapter/topic range)
+                code = text.split()[-1]
+
+            # Needed to fix the levels for medication
+            if 'medication' in file and level in [3,4,5]:
+                codes.append((level-1, code))
+            elif 'medication' in file and level == 7:
+                codes.append((level-2, code))
             else:
-                if pd.isna(df.iloc[i+1].Kode):  # Skip "subsub"-topics (double nans not started by chapter)
-                    continue
-                code = 'XXX'            # Sets Topic as level 3 (XXX)
+                codes.append((level, code))
 
-        level += len(code) - len(prev_code)  # Add distance between current and previous code to level
-        prev_code = code                # Set current code as previous code
-
-        if code.startswith('XX'):       # Gets proper code (chapter/topic range)
-            code = text.split()[-1]
-
-        codes.append((level, code))
+    # Add background
+    background = [
+        (0, 'BG'), 
+            (1, '[GENDER]'), 
+                (2, 'BG_Mand'), (2, 'BG_Kvinde'), 
+            (1, '[BMI]'), 
+                (2, 'BG_underweight'), (2, 'BG_normal'), (2, 'BG_overweight'), (2, 'BG_obese'), (2, 'BG_extremely-obese'), (2, 'BG_morbidly-obese'), (2, 'BG_nan')
+        ]
+    codes.extend(background)
 
     return codes
 

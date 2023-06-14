@@ -43,10 +43,10 @@ def main_data(cfg):
 
     # Split
     train_features, test_features, val_features = Splitter()(
-        features, output_dir=cfg.paths.extra_dir
+        features, dir=cfg.paths.extra_dir
     )
     train_outcomes, test_outcomes, val_outcomes = Splitter()(
-        outcomes, output_dir=cfg.paths.extra_dir
+        outcomes, dir=cfg.paths.extra_dir
     )
 
     # Tokenize

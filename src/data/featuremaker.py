@@ -59,10 +59,13 @@ class FeatureMaker:
         # Add standard info and outcomes
         for pid, patient in concepts.groupby("PID"):
             PIDs.append(pid)
+
             for feature, value in self.features.items():
                 value.append(patient[feature.upper()].tolist())
+
             for outcome in self.config.outcomes:
                 patient_outcome = info_dict[pid][f"OUTCOME_{outcome}"]
+
                 if pd.isna(patient_outcome):
                     outcomes[outcome].append(patient_outcome)
                 else:

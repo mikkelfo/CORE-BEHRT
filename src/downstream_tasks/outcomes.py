@@ -14,7 +14,9 @@ class OutcomeMaker:
         self.concepts_plus = Inferrer()(self.concepts_plus)
         self.outcomes = config.outcomes
 
-    def __call__(self, patients_info: pd.DataFrame):
+    def __call__(self, concepts: pd.DataFrame, patients_info: pd.DataFrame):
+        patient_set = set(concepts.PID.unique())
+
         # Initalize patient_outcomes dict
         patient_outcomes = {
             pid: {k: None for k in self.outcomes}
@@ -28,6 +30,8 @@ class OutcomeMaker:
             ).to_dict()
 
         for pid, patient in self.concepts_plus.groupby("PID"):  # For each patient
+            if pid not in patient_set:
+                continue
             for key in self.outcomes:  # For each outcome
                 # Hospital admission
                 if key == "HOSPITAL_ADMISSION":

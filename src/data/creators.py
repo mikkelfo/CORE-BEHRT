@@ -1,6 +1,5 @@
 import pandas as pd
 from datetime import datetime
-import itertools
 
 
 class BaseCreator:
@@ -58,31 +57,32 @@ class BackgroundCreator(BaseCreator):
     prepend_token = "BG_"
 
     def create(self, concepts: pd.DataFrame, patients_info: pd.DataFrame):
-        # Create background concepts
-        background = {
-            "PID": patients_info["PID"].tolist() * len(self.config.features.background),
-            "CONCEPT": itertools.chain.from_iterable(
-                [
-                    (self.prepend_token + patients_info[col].astype(str)).tolist()
-                    for col in self.config.features.background
-                ]
-            ),
-        }
+        info = patients_info.set_index("PID").to_dict("index")
+        origin_point = datetime(**self.config.features.abspos)
+
+        background = {"PID": [], "CONCEPT": []}
+        background.update(
+            {k.upper(): [] for k in self.config.features if k != "background"}
+        )
+
+        for pid in concepts.PID.unique():
+            if pid in info:
+                p_info = info[pid]
+                for col in self.config.features.background:
+                    if col in p_info and pd.notna(p_info[col]):
+                        background["PID"].append(pid)
+                        background["CONCEPT"].append(self.prepend_token + p_info[col])
+                        background["ABSPOS"].append(
+                            (p_info["BIRTHDATE"] - origin_point).total_seconds()
+                            / 60
+                            / 60
+                        )
 
         if "segment" in self.config.features:
             background["SEGMENT"] = 0
 
         if "age" in self.config.features:
             background["AGE"] = -1
-
-        if "abspos" in self.config.features:
-            origin_point = datetime(**self.config.features.abspos)
-            start = (
-                (patients_info["BIRTHDATE"] - origin_point).dt.total_seconds() / 60 / 60
-            )
-            background["ABSPOS"] = start.tolist() * len(self.config.features.background)
-
-        # background['AGE'] = -1
 
         # Prepend background to concepts
         background = pd.DataFrame(background)

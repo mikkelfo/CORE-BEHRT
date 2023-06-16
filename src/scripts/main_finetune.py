@@ -10,7 +10,7 @@ from src.trainer.trainer import EHRTrainer
 from src.model.model import BertForFineTuning
 
 
-@hydra.main(config_path="configs/train", config_name="finetune")
+@hydra.main(config_path="../../configs/train", config_name="finetune")
 def main_finetune(cfg):
     # Finetune specific
     train_encoded = torch.load(

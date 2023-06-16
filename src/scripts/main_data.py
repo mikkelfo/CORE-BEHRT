@@ -6,14 +6,14 @@ from omegaconf import OmegaConf
 from src.data.concept_loader import ConceptLoader
 from src.data.featuremaker import FeatureMaker
 from src.data.tokenizer import EHRTokenizer
-from src.data.split import Splitter
+from src.data.split import Splitter, get_covid_split
 from src.data_fixes.infer import Inferrer
 from src.data_fixes.handle import Handler
 from src.data_fixes.exclude import Excluder
 from src.downstream_tasks.outcomes import OutcomeMaker
 
 
-@hydra.main(config_path="configs/data", config_name="data")
+@hydra.main(config_path="../../configs/data", config_name="data")
 def main_data(cfg):
     # Save config
     with open(os.path.join(cfg.paths.data_dir, "data_config.json"), "w") as f:
@@ -26,7 +26,7 @@ def main_data(cfg):
     concepts = Inferrer()(concepts)
 
     # Make outcomes
-    patients_info = OutcomeMaker(cfg)(patients_info)
+    patients_info = OutcomeMaker(cfg)(concepts, patients_info)
 
     # Create feature sequences and outcomes
     features, outcomes = FeatureMaker(cfg)(concepts, patients_info)
@@ -42,11 +42,14 @@ def main_data(cfg):
     torch.save(outcomes, os.path.join(cfg.paths.data_dir, "outcomes.pt"))
 
     # Split
+    get_covid_split(
+        cfg, outcomes
+    )  # This will save the splits in the extra_dir, which is loaded below
     train_features, test_features, val_features = Splitter()(
         features, dir=cfg.paths.extra_dir
     )
     train_outcomes, test_outcomes, val_outcomes = Splitter()(
-        outcomes, dir=cfg.paths.extra_dir
+        outcomes, dir=cfg.paths.extra_dir, load_splits="splits.pt"
     )
 
     # Tokenize

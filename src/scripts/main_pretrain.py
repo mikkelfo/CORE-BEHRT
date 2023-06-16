@@ -8,7 +8,7 @@ from src.trainer.trainer import EHRTrainer
 from src.model.model import BertEHRModel
 
 
-@hydra.main(config_path="configs/train", config_name="pretrain")
+@hydra.main(config_path="../../configs/train", config_name="pretrain")
 def main_train(cfg):
     # MLM specific
     train_encoded = torch.load(

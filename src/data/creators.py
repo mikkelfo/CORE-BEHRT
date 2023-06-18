@@ -44,7 +44,7 @@ class SegmentCreator(BaseCreator):
     feature = id = "segment"
 
     def create(self, concepts: pd.DataFrame, patients_info: pd.DataFrame):
-        segments = concepts.groupby("PID")["ADMISSION_ID"].transform(
+        segments = concepts.groupby("PID", sort=False)["ADMISSION_ID"].transform(
             lambda x: pd.factorize(x)[0] + 1
         )
 
@@ -105,7 +105,7 @@ class QuartileValueCreator(BaseCreator):
     id = "quartile_value"
 
     def create(self, concepts: pd.DataFrame, patients_info: pd.DataFrame):
-        quartiles = concepts.groupby("CONCEPT")["value"].transform(
+        quartiles = concepts.groupby("CONCEPT", sort=False)["value"].transform(
             lambda x: pd.qcut(x, 4, labels=False)
         )
         concepts["CONCEPT"] = concepts["CONCEPT"] + "_" + quartiles.astype(str)

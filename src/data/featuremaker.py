@@ -57,7 +57,7 @@ class FeatureMaker:
 
         PIDs = []
         # Add standard info and outcomes
-        for pid, patient in concepts.groupby("PID"):
+        for pid, patient in concepts.groupby("PID", sort=False):
             PIDs.append(pid)
 
             for feature, value in self.features.items():

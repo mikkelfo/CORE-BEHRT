@@ -153,7 +153,7 @@ class HierarchicalDataset(MLMDataset):
         return patient
 
     def _hierarchical_target(self, target):
-        target_levels = torch.tensor([self.target_mapping[t] for t in target]) # Converts target to target for each level
+        target_levels = torch.tensor([self.target_mapping[t.item()] for t in target]) # Converts target to target for each level
         return self.expand_to_class_probabilities(target_levels)    # Converts target for each level to probabilities
 
     def expand_to_class_probabilities(self, target_levels):

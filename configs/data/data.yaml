@@ -3,6 +3,7 @@ defaults:
   - features: defaults
   - outcomes: defaults
   - tokenizer: defaults
+  - paths: defaults
 
   - override hydra/hydra_logging: disabled  
   - override hydra/job_logging: disabled  

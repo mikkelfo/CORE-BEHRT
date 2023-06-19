@@ -1,5 +1,5 @@
-data_dir: 'data/processed'
 encoded_suffix: 'encoded'
 outcomes_suffix: 'outcomes'
 vocabulary: 'vocabulary.pt'
-pretrained_model: 'pretrained_model.pt'
+data_dir: 'data/processed'
+extra_dir: 'data/extra'

@@ -29,7 +29,9 @@ class OutcomeMaker:
                 patients_info["DATE_OF_DEATH"].values, index=patients_info["PID"]
             ).to_dict()
 
-        for pid, patient in self.concepts_plus.groupby("PID", sort=False):  # For each patient
+        for pid, patient in self.concepts_plus.groupby(
+            "PID", sort=False
+        ):  # For each patient
             if pid not in patient_set:
                 continue
             for key in self.outcomes:  # For each outcome

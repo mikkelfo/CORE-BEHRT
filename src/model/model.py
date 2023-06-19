@@ -57,7 +57,7 @@ class BertForFineTuning(BertEHRModel):
         self.loss_fct = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
         self.cls = FineTuneHead(config)
 
-    def get_loss(self, hidden_states, labels, labels_mask=None):    
+    def get_loss(self, hidden_states, labels, labels_mask=None):
         return self.loss_fct(hidden_states.view(-1), labels.view(-1))
 
 
@@ -65,7 +65,7 @@ class HierarchicalBertForPretraining(BertEHRModel):
     def __init__(self, config):
         super().__init__(config)
 
-        self.loss_fct = nn.CrossEntropyLoss(reduction='none')
+        self.loss_fct = nn.CrossEntropyLoss(reduction="none")
         self.cls = HMLMHead(config)
 
         # TODO: Make this configurable
@@ -79,20 +79,23 @@ class HierarchicalBertForPretraining(BertEHRModel):
     def get_loss(self, logits, labels, labels_mask):
         levels = 5
         batch_size, seq_len, leaves = logits.shape
-        logits = logits.permute(2, 0, 1).view(leaves, -1)  # (leaves, batch_size*seq_len)
+        logits = logits.permute(2, 0, 1).view(
+            leaves, -1
+        )  # (leaves, batch_size*seq_len)
 
         # Calculate level predictions (one level each)
         acc_loss = 0
         for i in range(levels):
-            if levels-1 == i:
+            if levels - 1 == i:
                 level_predictions = logits
             else:
-                level_predictions = torch.matmul(self.tree_matrix[i, self.tree_mask[i]], logits)    # (leaves, leaves) @ (leaves, batch_size*seq_len) -> (leaves, batch_size*seq_len)
+                level_predictions = torch.matmul(
+                    self.tree_matrix[i, self.tree_mask[i]], logits
+                )  # (leaves, leaves) @ (leaves, batch_size*seq_len) -> (leaves, batch_size*seq_len)
             level_predictions = level_predictions.transpose(1, 0)
             level_predictions = level_predictions[labels_mask.view(-1)]
             level_labels = labels[:, i, self.tree_mask[i]]
             loss = self.loss_fct(level_predictions, level_labels)
             acc_loss += (loss * self.linear_combination[i]).mean()
-        
-        return acc_loss / levels
 
+        return acc_loss / levels

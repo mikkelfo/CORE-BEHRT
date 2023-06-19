@@ -39,7 +39,9 @@ class Inferrer:
     @staticmethod
     def infer_timestamps_from_admission_id(df: pd.DataFrame, strategy="last"):
         if strategy == "last":
-            return df.groupby("ADMISSION_ID", sort=False)["TIMESTAMP"].fillna(method="ffill")
+            return df.groupby("ADMISSION_ID", sort=False)["TIMESTAMP"].fillna(
+                method="ffill"
+            )
 
         elif strategy == "first":
             return df.groupby("ADMISSION_ID", sort=False)["TIMESTAMP"].transform(

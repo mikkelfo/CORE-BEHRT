@@ -6,8 +6,8 @@ class Excluder():
 
     def __call__(self, features: dict, outcomes: dict=None,) -> pd.DataFrame:
         # Exclude patients with few concepts
-        features, outcomes = self.exclude_short_sequences(features, outcomes)
-        return features, outcomes
+        features, outcomes, kept_indices = self.exclude_short_sequences(features, outcomes)
+        return features, outcomes, kept_indices
 
     # Currently unused
     def exclude_rare_concepts(self, features: dict) -> pd.DataFrame:

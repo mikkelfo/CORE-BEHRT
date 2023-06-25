@@ -1,16 +1,21 @@
 import pandas as pd
 import torch
-from tree.node import Node
+from common.logger import TqdmToLogger
 from data.concept_loader import ConceptLoader
+from tqdm import tqdm
+from tree.node import Node
+
 
 def get_counts(cfg):
-    concepts, patients_info = ConceptLoader(**cfg.loader)() # TODO: iterate
-    codes = concepts.CONCEPT
-    info = [patients_info[col] for col in cfg.features.background]   
-    alls = pd.concat([codes, *info])
+    conceptloader = ConceptLoader(**cfg.loader)
+    for i, (concept_batch, patient_batch) in enumerate(tqdm(conceptloader(), desc='Batch Process Data', file=TqdmToLogger(logger))):
+        concept_batch, patients_batch = ConceptLoader(**cfg.loader)() # TODO: iterate
+        codes = concept_batch.CONCEPT
+        info = [patients_batch[col] for col in cfg.features.background]   
+        alls = pd.concat([codes, *info])
     return alls.value_counts().to_dict()    # TODO: .to_dict() is not needed, but is "safer" to work with
 
-def build_tree(file='data_dumps/sks_dump_columns.xlsx', counts=None, cutoff_level=5):
+def build_tree(file='data_dumps/sks_dump_columns.csv', counts=None, cutoff_level=5):
     codes = create_levels(file)
     tree = create_tree(codes)
     tree.add_background()
@@ -25,8 +30,8 @@ def build_tree(file='data_dumps/sks_dump_columns.xlsx', counts=None, cutoff_leve
     return tree
 
 def create_levels(file='data_dumps/sks_dump_columns.xlsx'):
-    df = pd.read_excel(file)
-
+    # df = pd.read_excel(file)
+    df = pd.read_csv(file)
     codes = []
     level = -1
     prev_code = ''

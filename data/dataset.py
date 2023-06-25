@@ -179,6 +179,8 @@ class MLMLargeDataset(IterableDataset):
     def save_pids(self, file_name: str):
         torch.save(self.pids, file_name)
 
+
+
 class HierarchicalLargeDataset(MLMLargeDataset):
     def __init__(self, data_dir:str, mode:str, tree=None, **kwargs):
         super().__init__(data_dir, mode, **kwargs)
@@ -189,8 +191,8 @@ class HierarchicalLargeDataset(MLMLargeDataset):
         self.tree_matrix = tree.get_tree_matrix()
         self.tree_matrix_sparse = self.tree_matrix.to_sparse()
         self.leaf_counts = tree.get_leaf_counts()
-
-        self.target_mapping = {self.vocabulary[k]: v for k,v in tree.create_target_mapping().items()}    # adjusts target mapping to vocabulary
+        target_mapping = tree.create_target_mapping()
+        self.target_mapping = {self.vocabulary[k]: v for k,v in target_mapping.items()}    # adjusts target mapping to vocabulary
 
 
     def get_patient(self, file_name: str):
@@ -235,6 +237,8 @@ class HierarchicalLargeDataset(MLMLargeDataset):
                 probabilities[~mask] = unknown_probabilities
 
         return probabilities
+
+
 
 class CensorDataset(BaseDataset):
     """

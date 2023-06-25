@@ -4,16 +4,25 @@ from common.logger import TqdmToLogger
 from data.concept_loader import ConceptLoader
 from tqdm import tqdm
 from tree.node import Node
+from collections import Counter
 
 
-def get_counts(cfg):
+def get_counts(cfg, logger):
+    """
+    Get the counts of unique values from data loaded with the ConceptLoader.
+    Returns:
+    A dictionary with counts of unique values.
+    """
     conceptloader = ConceptLoader(**cfg.loader)
+    all_data_counter = Counter()
+
     for i, (concept_batch, patient_batch) in enumerate(tqdm(conceptloader(), desc='Batch Process Data', file=TqdmToLogger(logger))):
-        concept_batch, patients_batch = ConceptLoader(**cfg.loader)() # TODO: iterate
         codes = concept_batch.CONCEPT
-        info = [patients_batch[col] for col in cfg.features.background]   
-        alls = pd.concat([codes, *info])
-    return alls.value_counts().to_dict()    # TODO: .to_dict() is not needed, but is "safer" to work with
+        info = [patient_batch[col] for col in cfg.features.background]
+        all_data_batch = pd.concat([codes, *info])
+        all_data_counter.update(all_data_batch.value_counts().to_dict())
+
+    return all_data_counter
 
 def build_tree(file='data_dumps/sks_dump_columns.csv', counts=None, cutoff_level=5):
     codes = create_levels(file)

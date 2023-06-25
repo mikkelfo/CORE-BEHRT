@@ -35,7 +35,7 @@ class Excluder():
             features[key] = [values[i] for i in kept_indices]
         if outcomes:
             outcomes = [outcomes[i] for i in kept_indices]
-        return features, outcomes
+        return features, outcomes, kept_indices
 
     @staticmethod
     def exclude_covid_negative(features: dict, outcomes: dict):

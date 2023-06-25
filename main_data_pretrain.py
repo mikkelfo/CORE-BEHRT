@@ -55,8 +55,11 @@ def main_data(config_path):
         feature_maker = FeatureMaker(cfg.features) # Otherwise appended to old features
         features_batch = feature_maker(concept_batch, patient_batch)
         features_batch = handler(features_batch)
-        features_batch, _ = excluder(features_batch)
+        features_batch, _, pids_batch  = excluder(features_batch)
         torch.save(features_batch, join(cfg.output_dir, 'features', f'features_{i}.pt'))
+        torch.save(pids_batch, join(cfg.output_dir, 'features', f'pids_features_{i}.pt'))
+        
+
     logger.info('Finished data processing')
     logger.info('Splitting batches')
     batches = Batches(cfg, pids)

@@ -3,7 +3,7 @@ from os.path import join
 import torch
 from common.config import load_config
 from common.setup import prepare_directory
-from tree.helpers import build_tree, get_counts
+from tree.helpers import TreeBuilder, get_counts
 
 # from azureml.core import Dataset
 # from azure_run.run import Run
@@ -28,12 +28,13 @@ def setup_hierarchical(config_path=config_path):
     logger.info('Get Counts')
     counts = get_counts(cfg)
     logger.info('Build Tree')
-    tree = build_tree(counts=counts)
+    tree_builder = TreeBuilder(counts=counts)
+    tree = tree_builder.build()
     logger.info('Create Vocabulary')
     vocabulary = tree.create_vocabulary()
 
-    torch.save(vocabulary, 'vocabulary.pt')
-    torch.save(counts, 'base_counts.pt')
+    torch.save(vocabulary, join(cfg.output_dir, 'vocabulary.pt'))
+    torch.save(counts, join(cfg.output_dir, 'base_counts.pt'))
     return tree, vocabulary
 
 if __name__ == '__main__':

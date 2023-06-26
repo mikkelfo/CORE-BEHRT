@@ -1,10 +1,11 @@
+from collections import Counter
+
 import pandas as pd
 import torch
 from common.logger import TqdmToLogger
 from data.concept_loader import ConceptLoader
 from tqdm import tqdm
 from tree.node import Node
-from collections import Counter
 
 
 def get_counts(cfg, logger):

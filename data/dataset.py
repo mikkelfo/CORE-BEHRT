@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import Dataset, IterableDataset
-from tree.helpers import TreeBuilder
 
 
 class BaseDataset(Dataset):
@@ -185,21 +184,23 @@ class HierarchicalLargeDataset(MLMLargeDataset):
     def __init__(self, data_dir:str, mode:str, tree=None, **kwargs):
         super().__init__(data_dir, mode, **kwargs)
 
-        if tree is None:
-            tree = TreeBuilder(data_dir).build()
-
         self.tree_matrix = tree.get_tree_matrix()
         self.tree_matrix_sparse = self.tree_matrix.to_sparse()
         self.leaf_counts = tree.get_leaf_counts()
         target_mapping = tree.create_target_mapping()
+        self.vocabulary = torch.load(join(data_dir, 'hierarchical','vocabulary.pt'))
         self.target_mapping = {self.vocabulary[k]: v for k,v in target_mapping.items()}    # adjusts target mapping to vocabulary
-
 
     def get_patient(self, file_name: str):
         features = torch.load(file_name)
         num_patients = len(features['concept'])
         for patient_index in range(num_patients):
             patient = self.get_patient_dic(features, patient_index)
+
+            masked_concepts, target = self._mask(patient)
+            patient['concept'] = masked_concepts
+            patient['target'] = target
+
             target_mask = patient['target'] != -100
             patient['target_mask'] = target_mask
 
@@ -208,7 +209,7 @@ class HierarchicalLargeDataset(MLMLargeDataset):
             yield patient
 
     def _hierarchical_target(self, target):
-        target_levels = torch.tensor([self.target_mapping[t] for t in target]) # Converts target to target for each level
+        target_levels = torch.tensor([self.target_mapping[t.item()] for t in target]) # Converts target to target for each level
         return self.expand_to_class_probabilities(target_levels)    # Converts target for each level to probabilities
 
     def expand_to_class_probabilities(self, target_levels):

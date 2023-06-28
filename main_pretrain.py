@@ -10,25 +10,27 @@ from common.setup import setup_run_folder
 from model.model import BertEHRModel
 from trainer.trainer import EHRTrainer
 
+# uncomment when on azure
 # from azure_run.run import Run
 # from azure_run import datastore
 
 # from azureml.core import Dataset
 
-config_path = join("configs", "pretrain.yaml")
-
 # run = Run
-run = None
 # run.name(f"Pretrain base diagnosis medication")
 
 # ds = datastore("workspaceblobstore")
 # dataset = Dataset.File.from_files(path=(ds, 'PHAIR'))
 
+run = None
+
+config_path = join("configs", "pretrain.yaml")
+
 
 def main_train(config_path):
     cfg = load_config(config_path)
 
-    # mount dataset
+    # uncomment when on azure
     # mount_context = dataset.mount()
     # mount_context.start()  # this will mount the file streams
     

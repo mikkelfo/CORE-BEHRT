@@ -20,7 +20,6 @@ class ConceptLoader():
         self.test = test
 
     def __call__(self):
-        i = 0
         for patients in self.get_patient_batch():
             # Load concepts
             concepts = pd.concat([self._read_file(p, patients) for p in self.concept_paths], ignore_index=True).drop_duplicates()

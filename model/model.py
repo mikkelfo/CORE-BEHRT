@@ -3,7 +3,7 @@ import torch.nn as nn
 from embeddings.ehr import EhrEmbeddings
 from model.heads import FineTuneHead, HMLMHead, MLMHead
 from transformers import BertModel
-from tree.helpers import build_tree
+from tree.helpers import TreeBuilder
 
 
 class BertEHRModel(BertModel):
@@ -68,8 +68,7 @@ class HierarchicalBertForPretraining(BertEHRModel):
 
         # TODO: Make this configurable
         self.linear_combination = torch.arange(config.levels, 0, -1) / config.levels
-
-        tree = build_tree()
+        tree = TreeBuilder().build()
         self.tree_matrix = tree.get_tree_matrix()
         self.tree_matrix_sparse = self.tree_matrix.to_sparse()
         self.tree_mask = self.tree_matrix.any(2)

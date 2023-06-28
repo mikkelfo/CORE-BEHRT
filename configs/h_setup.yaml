@@ -1,0 +1,3 @@
+paths:
+  features: "outputs/data_icd10"
+cutoff_level: 5

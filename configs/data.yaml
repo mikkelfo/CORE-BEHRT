@@ -1,10 +1,9 @@
-output_dir: "outputs/data"
+output_dir: "outputs/data_icd10"
 loader:
-  data_dir: C:\Users\fjn197\PhD\projects\PHAIR\pipelines\ehr_preprocess\formatted_data\synthea500
+  data_dir: C:\Users\fjn197\PhD\projects\PHAIR\pipelines\ehr_preprocess\ehr_preprocess\formatted_data\synthea500_icd10_test
   patients_info: patients_info.csv
   concepts: [
-    diagnose,
-    medication
+    diagnose
   ]
   batch_size: 50
   chunksize: 300
@@ -16,7 +15,7 @@ features:
     month: 1
     day: 26
   segment: true
-  background: ['GENDER', 'ETHNICITY', 'RACE']
+  background: ['GENDER']
 
 tokenizer:
   sep_tokens: true

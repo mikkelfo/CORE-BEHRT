@@ -7,146 +7,81 @@ import torch
 from common.logger import TqdmToLogger
 from tqdm import tqdm
 from tree.node import Node
-from typing import List, Tuple, Union
 
-class TreeBuilder:
-    """
-    TreeBuilder class to build tree structure from given files.
 
-    Attributes:
-        files: A list of paths to the input files.
-        counts: Either a collections.Counter object or a path to the counts file.
-        cutoff_level: An integer value for the cutoff level of the tree.
-        codes: A list of tuples, each containing a level (integer) and a code (string).
-    """
+def build_tree(files=['data_dumps/sks_dump_diagnose.csv', 'data_dumps/sks_dump_medication.csv'], counts=None, cutoff_level=5):
+    codes = create_levels(files)
+    tree = create_tree(codes)
+    tree.cutoff_at_level(cutoff_level)
+    tree.extend_leaves(cutoff_level)
 
-    def __init__(self, files: Union[None, List[str]]=None, counts: Union[None, Counter, str]=None, cutoff_level: int=5):
-        """
-        Initializes the TreeBuilder with the provided input files, counts, and cutoff level.
-        """
-        self.files = files or ['data_dumps/sks_dump_diagnose.csv', 'data_dumps/sks_dump_medication.csv']
-        self.counts = counts 
-        self.cutoff_level = cutoff_level
-        self.codes = self.create_levels()
+    if counts is None:
+        counts = torch.load('base_counts.pt')
+    tree.base_counts(counts)
+    tree.sum_counts()
+    tree.redist_counts()
+    return tree
 
-    def build_tree(self) -> Node:
-        """
-        Builds the tree structure from the input files.
-        Returns: The root node of the built tree structure.
-        """
-        tree = self.create_tree()
-        tree.cutoff_at_level(self.cutoff_level)
-        tree.extend_leaves(self.cutoff_level)
+def create_levels(files=['data_dumps/sks_dump_diagnose.csv', 'data_dumps/sks_dump_medication.csv']):
+    codes = []
+    for file in files:
+        df = pd.read_csv(file)
 
-        counts = self.load_counts()
-        tree.base_counts(counts)
-        tree.sum_counts()
-        tree.redist_counts()
-
-        return tree
-
-    def load_counts(self) -> Union[Counter, torch.Tensor]:
-        """
-        Loads the counts from the counts object or file.
-        Returns: Either a collections.Counter object or a PyTorch tensor of the counts.
-        """
-        if isinstance(self.counts, Counter):
-            return self.counts
-        elif isinstance(self.counts, str):
-            return torch.load(self.counts)
-        else:
-            raise TypeError("counts must be a Counter object or a path to the counts file.")
-
-    def create_levels(self) -> List[Tuple[int, str]]:
-        """
-        Creates the levels of the tree structure from the input files.
-        Returns: A list of tuples each containing a level (integer) and a code (string).
-        """
-        codes = []
-        for file in self.files:
-            df = pd.read_excel(file)
-            level = -1
-            prev_code = ''
-            for i, (code, text) in df.iterrows():
-                if pd.isna(code):
-                    level, code = self.handle_nan_code(level, prev_code, text, df, i)
+        level = -1
+        prev_code = ''
+        for i, (code, text) in df.iterrows():
+            if pd.isna(code):   # Only for diagnosis
+                # Manually set nan codes for Chapter and Topic (as they have ranges)
+                if text[:3].lower() == 'kap':
+                    code = 'XX'             # Sets Chapter as level 2 (XX)
                 else:
-                    level += len(code) - len(prev_code)
-                    prev_code = code 
+                    if pd.isna(df.iloc[i+1].Kode):  # Skip "subsub"-topics (double nans not started by chapter)
+                        continue
+                    code = 'XXX'            # Sets Topic as level 3 (XXX)
 
-                if code.startswith('XX'):  # Gets proper code (chapter/topic range)
-                    code = text.split()[-1]
+            level += len(code) - len(prev_code)  # Add distance between current and previous code to level
+            prev_code = code                # Set current code as previous code
 
-                if 'medication' in file:
-                    level, code = self.adjust_level_for_medication(level, code)
+            if code.startswith('XX'):       # Gets proper code (chapter/topic range)
+                code = text.split()[-1]
 
+            # Needed to fix the levels for medication
+            if 'medication' in file and level in [3,4,5]:
+                codes.append((level-1, code))
+            elif 'medication' in file and level == 7:
+                codes.append((level-2, code))
+            else:
                 codes.append((level, code))
 
-        codes.extend(self.add_background())
-        return codes
-
-    def handle_nan_code(self, level: int, prev_code: str, text: str, df: pd.DataFrame, i: int) -> Tuple[int, str]:
-        """
-        Handles cases where the code is NaN.
-        Returns: A tuple containing the updated level and code.
-        """
-        if text[:3].lower() == 'kap':
-            code = 'XX'
-        else:
-            if pd.isna(df.iloc[i+1].Kode):
-                return level, prev_code  # Skip "subsub"-topics (double nans not started by chapter)
-            code = 'XXX'
-
-        level += len(code) - len(prev_code)  # Add distance between current and previous code to level
-        prev_code = code
-        return level, code
-    
-    def adjust_level_for_medication(self, level: int, code: str) -> Tuple[int, str]:
-        """
-        Adjusts the level for medication.
-        Returns: level, code: The updated level and code.
-        """
-        if level in [3,4,5]:
-            level -= 1
-        elif level == 7:
-            level -= 2
-        return level, code
-
-    def add_background(self)-> List[Tuple[int, str]]:
-        """
-        Adds background codes to the tree structure.
-        Returns: background: A list of background codes.
-        """
-        return [
-            (0, 'BG'), 
+    # Add background
+    background = [
+        (0, 'BG'), 
             (1, '[GENDER]'), 
-            (2, 'BG_Mand'), (2, 'BG_Kvinde'), 
+                (2, 'BG_Mand'), (2, 'BG_Kvinde'), 
             (1, '[BMI]'), 
-            (2, 'BG_underweight'), (2, 'BG_normal'), (2, 'BG_overweight'), 
-            (2, 'BG_obese'), (2, 'BG_extremely-obese'), (2, 'BG_morbidly-obese'), (2, 'BG_nan')
+                (2, 'BG_underweight'), (2, 'BG_normal'), (2, 'BG_overweight'), (2, 'BG_obese'), (2, 'BG_extremely-obese'), (2, 'BG_morbidly-obese'), (2, 'BG_nan')
         ]
+    codes.extend(background)
 
-    def create_tree(self)-> Node:
-        """
-        Creates the tree structure from the levels and codes.
-        Returns: root: The root node of the tree.
-        """
-        root = Node('root')
-        parent = root
-        for i in range(len(self.codes)):
-            level, code = self.codes[i]
-            next_level = self.codes[i+1][0] if i < len(self.codes)-1 else level
-            dist = next_level - level 
+    return codes
 
-            if dist >= 1:
-                for _ in range(dist):
-                    parent.add_child(code)
-                    parent = parent.children[-1]
-            elif dist <= 0:
+def create_tree(codes):
+    root = Node('root')
+    parent = root
+    for i in range(len(codes)):
+        level, code = codes[i]
+        next_level = codes[i+1][0] if i < len(codes)-1 else level
+        dist = next_level - level 
+
+        if dist >= 1:
+            for _ in range(dist):
                 parent.add_child(code)
-                for _ in range(0, dist, -1):
-                    parent = parent.parent
-        return root
+                parent = parent.children[-1]
+        elif dist <= 0:
+            parent.add_child(code)
+            for _ in range(0, dist, -1):
+                parent = parent.parent
+    return root  
 
 
 def get_counts(cfg, logger)-> dict:

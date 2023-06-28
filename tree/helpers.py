@@ -1,4 +1,6 @@
 from collections import Counter
+from os.path import join
+import os
 
 import pandas as pd
 import torch
@@ -99,21 +101,20 @@ class TreeBuilder:
         return parent, dist
 
 
-
 def get_counts(cfg, logger):
-    """
-    Get the counts of unique values from data loaded with the ConceptLoader.
-    Returns:
-    A dictionary with counts of unique values.
-    """
-    conceptloader = ConceptLoader(**cfg.loader)
-    all_data_counter = Counter()
+    data_path = cfg.paths.features
+    vocabulary = torch.load(join(data_path, 'vocabulary.pt'))
+    inv_vocab = {v: k for k, v in vocabulary.items()}
 
-    for i, (concept_batch, patient_batch) in enumerate(tqdm(conceptloader(), desc='Batch Process Data', file=TqdmToLogger(logger))):
-        codes = concept_batch.CONCEPT
-        info = [patient_batch[col] for col in cfg.features.background]
-        all_data_batch = pd.concat([codes, *info])
-        all_data_counter.update(all_data_batch.value_counts().to_dict())
+    train_val_files = [
+        join(data_path, 'tokenized', f) 
+        for f in os.listdir(join(data_path, 'tokenized')) 
+        if f.startswith(('tokenized_train', 'tokenized_val'))
+    ]
+    counts = Counter()
+    for f in tqdm(train_val_files, desc="Count" ,file=TqdmToLogger(logger)):
+        tokenized_features = torch.load(f)
+        counts.update(inv_vocab[code] for codes in tokenized_features['concept'] for code in codes)
 
-    return all_data_counter
+    return dict(counts)
 

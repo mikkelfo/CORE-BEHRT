@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import Dataset, IterableDataset
-from tree.helpers import build_tree
+from tree.helpers import TreeBuilder
 
 
 class BaseDataset(Dataset):
@@ -186,7 +186,7 @@ class HierarchicalLargeDataset(MLMLargeDataset):
         super().__init__(data_dir, mode, **kwargs)
 
         if tree is None:
-            tree = build_tree()
+            tree = TreeBuilder(data_dir).build()
 
         self.tree_matrix = tree.get_tree_matrix()
         self.tree_matrix_sparse = self.tree_matrix.to_sparse()

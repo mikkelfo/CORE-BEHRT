@@ -35,10 +35,11 @@ def main_train(config_path):
     logger.info('Loading data')
 
     # MLM specific
-    train_dataset, val_dataset, vocabulary = create_hierarchical_dataset(cfg)
+    train_dataset, val_dataset = create_hierarchical_dataset(cfg)
 
     model = HierarchicalBertForPretraining(
         BertConfig(
+            vocab_size=train_dataset.leaf_counts,
             **cfg.model
         )
     )

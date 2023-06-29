@@ -181,12 +181,15 @@ class MLMLargeDataset(IterableDataset):
 
 
 class HierarchicalLargeDataset(MLMLargeDataset):
-    def __init__(self, data_dir:str, mode:str, tree=None, **kwargs):
+    def __init__(self, data_dir:str, mode:str, tree=None, ignore_index=-100,**kwargs):
         super().__init__(data_dir, mode, **kwargs)
 
+        self.ignore_index = ignore_index
         self.tree_matrix = tree.get_tree_matrix()
+        self.levels = tree.get_max_level()
         self.tree_matrix_sparse = self.tree_matrix.to_sparse()
         self.leaf_counts = tree.get_leaf_counts()
+        self.n_leafs = len(self.leaf_counts)
         target_mapping = tree.create_target_mapping()
         self.vocabulary = torch.load(join(data_dir, 'hierarchical','vocabulary.pt'))
         self.target_mapping = {self.vocabulary[k]: v for k,v in target_mapping.items()}    # adjusts target mapping to vocabulary
@@ -199,13 +202,14 @@ class HierarchicalLargeDataset(MLMLargeDataset):
 
             masked_concepts, target = self._mask(patient)
             patient['concept'] = masked_concepts
-            patient['target'] = target
-
-            target_mask = patient['target'] != -100
+            patient['target_temp'] = target
+            target_mask = patient['target_temp'] != self.ignore_index
             patient['target_mask'] = target_mask
 
-            patient['target'] = self._hierarchical_target(patient['target'][target_mask])
-
+            patient['target'] = torch.ones(size=(len(patient['target_temp']), self.levels, self.n_leafs),
+                 dtype=torch.long) * self.ignore_index
+            patient['target'][target_mask] = self._hierarchical_target(patient['target_temp'][target_mask]).long()
+            del patient['target_temp']
             yield patient
 
     def _hierarchical_target(self, target):

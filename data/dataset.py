@@ -230,23 +230,32 @@ class HierarchicalLargeDataset(MLMLargeDataset):
 
         if mask.any():
             # Set "class indices" to 1
-            probabilities[mask, target_levels[mask]] = 1
+            probabilities = self.handle_masked_values(probabilities, mask, target_levels)
 
             if (~mask).any():
-                last_parents_idx = mask.sum(1)-1
-                seq_class_idx = zip(last_parents_idx, target_levels[range(seq_len), last_parents_idx])  # tuple indices of (class_level, class_idx)
-
-                relevant_leaf_counts = torch.stack([self.tree_matrix[class_lvl, class_idx] * self.leaf_counts for class_lvl, class_idx in seq_class_idx])
-                relevant_leaf_probs = (relevant_leaf_counts / relevant_leaf_counts.sum(1).unsqueeze(-1))
-
-                unknown_targets_idx = zip(*torch.where(~mask))        # tuple indices of (seq_idx, level_idx)
-
-                unknown_probabilities = torch.stack([torch.matmul(self.tree_matrix_sparse[lvl_idx], relevant_leaf_probs[seq_idx]) for seq_idx, lvl_idx in unknown_targets_idx])
-
-                probabilities[~mask] = unknown_probabilities
-
+                probabilities = self.handle_unmasked_values(probabilities, mask, target_levels, seq_len)
+                
+        return probabilities
+    
+    def handle_masked_values(self, probabilities, mask, target_levels):
+        """Handles the operations for the masked values"""
+        probabilities[mask, target_levels[mask]] = 1
         return probabilities
 
+    def handle_unmasked_values(self, probabilities, mask, target_levels, seq_len):
+        """Handles the operations for the unmasked values"""
+        last_parents_idx = mask.sum(1)-1
+        seq_class_idx = zip(last_parents_idx, target_levels[range(seq_len), last_parents_idx])  # tuple indices of (class_level, class_idx)
+
+        relevant_leaf_counts = torch.stack([self.tree_matrix[class_lvl, class_idx] * self.leaf_counts for class_lvl, class_idx in seq_class_idx])
+        relevant_leaf_probs = (relevant_leaf_counts / relevant_leaf_counts.sum(1).unsqueeze(-1))
+
+        unknown_targets_idx = zip(*torch.where(~mask))        # tuple indices of (seq_idx, level_idx)
+
+        unknown_probabilities = torch.stack([torch.matmul(self.tree_matrix_sparse[lvl_idx], relevant_leaf_probs[seq_idx]) for seq_idx, lvl_idx in unknown_targets_idx])
+
+        probabilities[~mask] = unknown_probabilities
+        return probabilities
 
 
 class CensorDataset(BaseDataset):

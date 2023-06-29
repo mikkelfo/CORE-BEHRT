@@ -23,6 +23,7 @@ model:
   num_attention_heads: 3
   intermediate_size: 64
   type_vocab_size: 1000
+  levels: 5
   pool_type: mean
 
 optimizer:

@@ -3,7 +3,7 @@ import torch.nn as nn
 from embeddings.ehr import EhrEmbeddings
 from model.heads import FineTuneHead, HMLMHead, MLMHead
 from transformers import BertModel
-from tree.helpers import TreeBuilder
+from tree.helpers import build_tree
 
 
 class BertEHRModel(BertModel):
@@ -59,16 +59,18 @@ class BertForFineTuning(BertEHRModel):
     def get_loss(self, hidden_states, labels):    
         return self.loss_fct(hidden_states.view(-1), labels.view(-1))
 
-class HierarchicalBertForPretraining(BertEHRModel):
-    def __init__(self, config):
-        super().__init__(config)
 
+class HierarchicalBertForPretraining(BertEHRModel):
+    def __init__(self, config, tree=None):
+        super().__init__(config)
+        
         self.loss_fct = nn.CrossEntropyLoss(reduction='none')
         self.cls = HMLMHead(config)
 
         # TODO: Make this configurable
         self.linear_combination = torch.arange(config.levels, 0, -1) / config.levels
-        tree = TreeBuilder().build()
+        if not tree:
+            tree = build_tree()
         self.tree_matrix = tree.get_tree_matrix()
         self.tree_matrix_sparse = self.tree_matrix.to_sparse()
         self.tree_mask = self.tree_matrix.any(2)

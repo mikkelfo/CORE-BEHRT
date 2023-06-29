@@ -64,52 +64,50 @@ class EHRTrainer():
         self.update_attributes(**kwargs)
         self.validate_training()
 
-        accumulation_steps: int = self.args['effective_batch_size'] // self.args['batch_size']
+        self.accumulation_steps: int = self.args['effective_batch_size'] // self.args['batch_size']
         dataloader = self.setup_training()
 
         for epoch in range(self.args['epochs']):
-            train_loop = tqdm(enumerate(dataloader), total=len(dataloader), file=TqdmToLogger(self.logger) if self.logger else None)
-            train_loop.set_description(f'Train {epoch}')
-            epoch_loss = []
-            step_loss = 0
-            for i, batch in train_loop:
-                # Train step
-                step_loss += self.train_step(batch).item()
+            self.train_epoch(epoch, dataloader)
 
-                # Accumulate gradients
-                if (i+1) % accumulation_steps == 0:
-                    self.optimizer.step()
-                    self.optimizer.zero_grad()
-                    if self.scheduler is not None:
-                        self.scheduler.step()
+    def train_epoch(self, epoch: int, dataloader: DataLoader):
+        train_loop = tqdm(enumerate(dataloader), total=len(dataloader), file=TqdmToLogger(self.logger) if self.logger else None)
+        train_loop.set_description(f'Train {epoch}')
+        epoch_loss = []
+        step_loss = 0
+        for i, batch in train_loop:
+            step_loss += self.train_step(batch).item()
+            if (i+1) % self.accumulation_steps == 0:
+                self.update_and_log(i, step_loss, train_loop, epoch_loss)
+                step_loss = 0
+            if ((i+1) / self.accumulation_steps) % self.args['save_every_k_steps'] == 0:
+                self.save_checkpoint(id=f'epoch{epoch}_step{(i+1) // self.accumulation_steps}', train_loss=step_loss / self.accumulation_steps)
+        self.validate_and_log(epoch, epoch_loss, train_loop)
 
-                    train_loop.set_postfix(loss=step_loss / accumulation_steps)
-                    if self.args['info']:
-                        self.log(f'Train loss {(i+1) // accumulation_steps}: {step_loss / accumulation_steps}')
-    
-                    epoch_loss.append(step_loss / accumulation_steps)
-                    if self.run is not None:
-                        self.run.log_metric(name='Train loss', value=(step_loss/accumulation_steps))
-                    step_loss = 0
+    def update_and_log(self, i, step_loss, train_loop, epoch_loss):
+        """Updates the model and logs the loss"""
+        self.optimizer.step()
+        self.optimizer.zero_grad()
+        if self.scheduler is not None:
+            self.scheduler.step()
+        train_loop.set_postfix(loss=step_loss / self.accumulation_steps)
+        epoch_loss.append(step_loss / self.accumulation_steps)
 
-                # Save iteration checkpoint
-                if ((i+1) / accumulation_steps) % self.args['save_every_k_steps'] == 0:
-                    self.save_checkpoint(id=f'epoch{epoch}_step{(i+1) // accumulation_steps}', train_loss=step_loss / accumulation_steps)
+        if self.args['info']:
+            self.log(f'Train loss {(i+1) // self.accumulation_steps}: {step_loss / self.accumulation_steps}')
+        if self.run is not None:
+            self.run.log_metric(name='Train loss', value=(step_loss/self.accumulation_steps))
 
-            # Validate (returns None if no validation set is provided)
-            val_loss, metrics = self.validate()
-            if self.run is not None:
-                self.run.log_metric(name='Val loss', value=val_loss)
-                for k, v in metrics.items():
-                    self.run.log_metric(name = k, value = v)
-            # Save epoch checkpoint
-            self.save_checkpoint(id=f'epoch{epoch}_end', train_loss=epoch_loss, val_loss=val_loss, metrics=metrics, final_step_loss=epoch_loss[-1])
-
-            # Print epoch info
-            
-            self.log(f'Epoch {epoch} train loss: {sum(epoch_loss) / (len(train_loop) / accumulation_steps)}')
-            self.log(f'Epoch {epoch} val loss: {val_loss}')
-            self.log(f'Epoch {epoch} metrics: {metrics}\n')
+    def validate_and_log(self, epoch, epoch_loss, train_loop):
+        val_loss, metrics = self.validate()
+        if self.run is not None:
+            self.run.log_metric(name='Val loss', value=val_loss)
+            for k, v in metrics.items():
+                self.run.log_metric(name = k, value = v)
+        self.save_checkpoint(id=f'epoch{epoch}_end', train_loss=epoch_loss, val_loss=val_loss, metrics=metrics, final_step_loss=epoch_loss[-1])
+        self.log(f'Epoch {epoch} train loss: {sum(epoch_loss) / (len(train_loop) / self.accumulation_steps)}')
+        self.log(f'Epoch {epoch} val loss: {val_loss}')
+        self.log(f'Epoch {epoch} metrics: {metrics}\n')
 
     def setup_training(self) -> DataLoader:
         self.model.train()
@@ -142,8 +140,9 @@ class EHRTrainer():
     def validate(self):
         """Returns the validation loss and metrics"""
         if self.val_dataset is None:
+            self.log('No validation dataset provided')
             return None, None
-
+        
         self.model.eval()
         dataloader = DataLoader(self.val_dataset, batch_size=self.args['batch_size'], shuffle=False, collate_fn=self.args['collate_fn'])
         val_loop = tqdm(dataloader, total=len(dataloader), file=TqdmToLogger(self.logger) if self.logger else None)
@@ -160,6 +159,8 @@ class EHRTrainer():
 
         self.model.train()
         return val_loss / len(val_loop), {name: sum(values) / len(values) for name, values in metric_values.items()}
+
+
 
     def to_device(self, batch: dict) -> None:
         """Moves a batch to the device in-place"""

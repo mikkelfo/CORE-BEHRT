@@ -24,7 +24,8 @@ class EHRTrainer():
         run = None
     ):
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-        logger.info(f"Run on {self.device}")
+        if logger:
+            logger.info(f"Run on {self.device}")
         self.run_folder = os.path.join(cfg.paths.output_path, cfg.paths.run_name)
         self.model = model.to(self.device)
         self.train_dataset = train_dataset
@@ -35,7 +36,8 @@ class EHRTrainer():
         self.metrics = {k: instantiate(v) for k, v in metrics.items()}
         self.sampler = sampler
         self.cfg = cfg
-        self.logger = logger
+        if logger:
+            self.logger = logger
         self.run = run
         default_args = {
             'save_every_k_steps': float('inf'),
@@ -66,7 +68,7 @@ class EHRTrainer():
         dataloader = self.setup_training()
 
         for epoch in range(self.args['epochs']):
-            train_loop = tqdm(enumerate(dataloader), total=len(dataloader), file=TqdmToLogger(self.logger))
+            train_loop = tqdm(enumerate(dataloader), total=len(dataloader), file=TqdmToLogger(self.logger) if self.logger else None)
             train_loop.set_description(f'Train {epoch}')
             epoch_loss = []
             step_loss = 0
@@ -83,7 +85,8 @@ class EHRTrainer():
 
                     train_loop.set_postfix(loss=step_loss / accumulation_steps)
                     if self.args['info']:
-                        self.logger.info(f'Train loss {(i+1) // accumulation_steps}: {step_loss / accumulation_steps}')
+                        self.log(f'Train loss {(i+1) // accumulation_steps}: {step_loss / accumulation_steps}')
+    
                     epoch_loss.append(step_loss / accumulation_steps)
                     if self.run is not None:
                         self.run.log_metric(name='Train loss', value=(step_loss/accumulation_steps))
@@ -103,9 +106,10 @@ class EHRTrainer():
             self.save_checkpoint(id=f'epoch{epoch}_end', train_loss=epoch_loss, val_loss=val_loss, metrics=metrics, final_step_loss=epoch_loss[-1])
 
             # Print epoch info
-            self.logger.info(f'Epoch {epoch} train loss: {sum(epoch_loss) / (len(train_loop) / accumulation_steps)}')
-            self.logger.info(f'Epoch {epoch} val loss: {val_loss}')
-            self.logger.info(f'Epoch {epoch} metrics: {metrics}\n')
+            
+            self.log(f'Epoch {epoch} train loss: {sum(epoch_loss) / (len(train_loop) / accumulation_steps)}')
+            self.log(f'Epoch {epoch} val loss: {val_loss}')
+            self.log(f'Epoch {epoch} metrics: {metrics}\n')
 
     def setup_training(self) -> DataLoader:
         self.model.train()
@@ -142,7 +146,7 @@ class EHRTrainer():
 
         self.model.eval()
         dataloader = DataLoader(self.val_dataset, batch_size=self.args['batch_size'], shuffle=False, collate_fn=self.args['collate_fn'])
-        val_loop = tqdm(dataloader, total=len(dataloader), file=TqdmToLogger(self.logger))
+        val_loop = tqdm(dataloader, total=len(dataloader), file=TqdmToLogger(self.logger) if self.logger else None)
         val_loop.set_description('Validation')
         val_loss = 0
         metric_values = {name: [] for name in self.metrics}
@@ -162,23 +166,31 @@ class EHRTrainer():
         for key, value in batch.items():
             batch[key] = value.to(self.device)
 
+    def log(self, message: str) -> None:
+        """Logs a message to the logger and stdout"""
+        if self.logger:
+            self.logger.info(message)
+        else:
+            print(message)
 
     def save_setup(self):
         """Saves the config and model config"""
         self.model.config.save_pretrained(self.run_folder)  
         with open(os.path.join(self.run_folder, 'pretrain_config.yaml'), 'w') as file:
             yaml.dump(self.cfg.to_dict(), file)
-        self.logger.info(f'Saved config to {self.run_folder}')
+        self.log(f'Saved config to {self.run_folder}')
+       
         self.train_dataset.save_vocabulary(os.path.join(self.run_folder, 'vocabulary.pt'))
-        self.logger.info(f'Saved vocabulary to {self.run_folder}')
+        self.log(f'Saved vocabulary to {self.run_folder}')
+       
         try:
             self.train_dataset.save_pids(os.path.join(self.run_folder, 'train_pids.pt'))
             self.val_dataset.save_pids(os.path.join(self.run_folder, 'val_pids.pt'))
             if self.test_dataset is not None:
                 self.test_dataset.save_pids(os.path.join(self.run_folder, 'test_pids.pt'))
-            self.logger.info(f'Copied pids to {self.run_folder}')
+            self.log(f'Copied pids to {self.run_folder}')
         except AttributeError:
-            self.logger.info("Failed to save pids")
+            self.log("Failed to save pids")
             
 
     def save_checkpoint(self, id, **kwargs):

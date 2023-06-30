@@ -1,11 +1,13 @@
-from torch.utils.data import Dataset, DataLoader
-import torch
-from tqdm import tqdm
 import os
-from dataloader.collate_fn import dynamic_padding
-from common.config import instantiate, get_function, Config
-from common.logger import TqdmToLogger
+
+import torch
 import yaml
+from common.config import Config, get_function, instantiate
+from common.logger import TqdmToLogger
+from dataloader.collate_fn import dynamic_padding
+from torch.utils.data import DataLoader, Dataset
+from tqdm import tqdm
+
 yaml.add_representer(Config, lambda dumper, data: data.yaml_repr(dumper))
 
 class EHRTrainer():

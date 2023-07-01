@@ -191,8 +191,9 @@ class HierarchicalLargeDataset(MLMLargeDataset):
         self.leaf_counts = tree.get_leaf_counts()
         self.n_leafs = len(self.leaf_counts)
         target_mapping = tree.create_target_mapping()
-        self.vocabulary = torch.load(join(data_dir, 'hierarchical','vocabulary.pt'))
-        self.target_mapping = {self.vocabulary[k]: v for k,v in target_mapping.items()}    # adjusts target mapping to vocabulary
+        self.vocabulary = torch.load(join(data_dir, 'vocabulary.pt'))
+        self.h_vocabulary = torch.load(join(data_dir, 'hierarchical', 'vocabulary.pt'))
+        self.target_mapping = {self.h_vocabulary[k]: v for k,v in target_mapping.items()}    # adjusts target mapping to vocabulary
 
     def get_patient(self, file_name: str):
         features = torch.load(file_name)
@@ -257,6 +258,7 @@ class HierarchicalLargeDataset(MLMLargeDataset):
         probabilities[~mask] = unknown_probabilities
         return probabilities
 
+    
 
 class CensorDataset(BaseDataset):
     """

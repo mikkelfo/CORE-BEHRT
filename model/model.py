@@ -23,6 +23,7 @@ class BertEHRModel(BertModel):
         position_ids=None,
         inputs_embeds=None,
         labels=None,
+        labels_mask=None,
     ):
         outputs = super().forward(
             input_ids=input_ids,
@@ -37,11 +38,11 @@ class BertEHRModel(BertModel):
         outputs.logits = logits
 
         if labels is not None:
-            outputs.loss = self.get_loss(logits, labels)
+            outputs.loss = self.get_loss(logits, labels, labels_mask)
 
         return outputs
 
-    def get_loss(self, logits, labels):
+    def get_loss(self, logits, labels, labels_mask=None):
         return self.loss_fct(logits.view(-1, self.config.vocab_size), labels.view(-1))
 
 
@@ -56,14 +57,14 @@ class BertForFineTuning(BertEHRModel):
         self.loss_fct = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
         self.cls = FineTuneHead(config)
 
-    def get_loss(self, hidden_states, labels):    
+    def get_loss(self, hidden_states, labels, labels_mask=None):    
         return self.loss_fct(hidden_states.view(-1), labels.view(-1))
 
 
 class HierarchicalBertForPretraining(BertEHRModel):
     def __init__(self, config, tree=None):
         super().__init__(config)
-        
+
         self.loss_fct = nn.CrossEntropyLoss(reduction='none')
         self.cls = HMLMHead(config)
 
@@ -94,3 +95,4 @@ class HierarchicalBertForPretraining(BertEHRModel):
             acc_loss += (loss * self.linear_combination[i]).mean()
         
         return acc_loss / levels
+

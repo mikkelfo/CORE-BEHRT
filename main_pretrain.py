@@ -29,7 +29,7 @@ def main_train(config_path):
     logger = setup_run_folder(cfg)
     logger.info(f"Access data from {cfg.paths.data_path}")
     logger.info('Loading data')
-    
+    logger.info(f"Using {cfg.dataset.get('num_patients', 'all')} patients")
     train_dataset, val_dataset, vocabulary = create_datasets(cfg)
     
     logger.info('Initializing model')
@@ -65,7 +65,7 @@ def main_train(config_path):
     logger.info('Start training')
     trainer.train()
     if cfg.env == 'azure':
-        setup['mount_context'].stop()
+        mount_context.stop()
 
 if __name__ == '__main__':
     main_train(config_path)

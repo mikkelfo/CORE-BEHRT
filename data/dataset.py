@@ -1,3 +1,4 @@
+import random
 from os.path import join
 from typing import Dict
 
@@ -93,7 +94,7 @@ class MLMDataset(BaseDataset):
             raise TypeError(f'Unsupported vocabulary input {type(vocabulary)}')
     
 class MLMLargeDataset(IterableDataset):
-    def __init__(self, data_dir:str, mode:str,  **kwargs):
+    def __init__(self, data_dir:str, mode:str, max_patients: int=None, **kwargs):
         """Initializes the dataset for masked language modeling
         mode is one of 'train', 'val' or 'test'"""
         self.kwargs = kwargs
@@ -105,18 +106,25 @@ class MLMLargeDataset(IterableDataset):
         
         self.masked_ratio = self.kwargs.get('masked_ratio', 0.3)
         self.batch_size = kwargs.get('batch_size', 32)
-
+        self.max_patients = max_patients
         if kwargs.get('ignore_special_tokens', True):
             self.n_special_tokens = len([token for token in self.vocabulary if token.startswith('[')])
         else:
             self.n_special_tokens = 0
 
     def __iter__(self):
+        if self.seed is not None:
+            random.seed(self.seed)
+            np.random.seed(self.seed)
+
         data_files = self.data_files.copy()  # Create a copy of data_files
         np.random.shuffle(data_files)  # Shuffle the copy
+        patient_count = 0
         for file_name in self.data_files:
+            if self.max_patients is not None and patient_count >= self.max_patients:
+                return
             yield from self.get_patient(file_name) # test!
-
+            patient_count += 1
     def get_patient(self, file_name: str):
         """Loads a single patient from a file"""
         features = torch.load(file_name)
@@ -181,8 +189,8 @@ class MLMLargeDataset(IterableDataset):
 
 
 class HierarchicalLargeDataset(MLMLargeDataset):
-    def __init__(self, data_dir:str, mode:str, tree=None, ignore_index=-100,**kwargs):
-        super().__init__(data_dir, mode, **kwargs)
+    def __init__(self, data_dir:str, mode:str, tree=None, ignore_index=-100, max_patients=None,**kwargs):
+        super().__init__(data_dir, mode, max_patients, **kwargs)
 
         self.ignore_index = ignore_index
         self.tree_matrix = tree.get_tree_matrix()

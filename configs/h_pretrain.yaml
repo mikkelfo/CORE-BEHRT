@@ -1,3 +1,4 @@
+env: local
 paths:
   # data_path: 'pretrain_datasets/diagnosis_medication/070623/outputs/data' # inside mounted datastore
   data_path: C:\Users\fjn197\PhD\projects\PHAIR\pipelines\ehr2vec-azure-std\ehr2vec\outputs\data_icd10 # inside mounted datastore
@@ -5,6 +6,7 @@ paths:
   run_name: h_behrt
   
 dataset:
+  hierarchical: true
   masked_ratio: 0.15
   ignore_special_tokens: true
 

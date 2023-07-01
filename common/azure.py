@@ -16,18 +16,17 @@ def get_datastore(name):
     datastore = Datastore.get(workspace, name)
     return datastore
 
-def setup_azure(cfg):
+def setup_azure(run_name, datastore_name='workspaceblobstore', dataset_name='PHAIR'):
+    """Sets up azure run and mounts data on PHAIR blobstore"""
     from azure_run.run import Run
     from azure_run import datastore
     from azureml.core import Dataset
-
+    
     run = Run
-    run.name(f"Pretrain hierarchical diagnosis medication")
-    ds = datastore("workspaceblobstore")
-    dataset = Dataset.File.from_files(path=(ds, 'PHAIR'))
+    run.name(run_name)
+    ds = datastore(datastore_name)
+    dataset = Dataset.File.from_files(path=(ds, dataset_name))
     mount_context = dataset.mount()
     mount_context.start()  # this will mount the file streams
-    cfg.paths.data_path = join(mount_context.mount_point, cfg.paths.data_path)
-    setup = {'run': run, 'mount_context': mount_context, 'cfg': cfg}
-    return setup
+    return run, mount_context
 

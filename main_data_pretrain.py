@@ -1,3 +1,4 @@
+"""Create tokenized features from formatted data. config template: data.yaml"""
 from os.path import join
 
 import torch
@@ -14,7 +15,7 @@ from data_fixes.handle import Handler
 from tqdm import tqdm
 
 
-config_path = join('configs', 'data.yaml')
+config_path = join('configs', 'data_pretrain.yaml')
 
 def main_data(config_path):
     """
@@ -29,8 +30,9 @@ def main_data(config_path):
     """
     cfg = load_config(config_path)
     if cfg.env=='azure':
-        setup = azure.setup_azure(cfg)
-        cfg = setup['cfg']
+        _, mount_context = azure.setup_azure(cfg.paths.run_name)
+        mount_dir = mount_context.mount_dir
+        cfg.paths.features = join(mount_dir, cfg.paths.features) # specify paths here
 
     logger = prepare_directory(config_path, cfg)  
     logger.info('Mount Dataset')
@@ -69,7 +71,7 @@ def main_data(config_path):
     torch.save(batches.test.file_ids, join(cfg.output_dir, 'test_file_ids.pt'))
     logger.info('Finished')
     if cfg.env=='azure':
-        setup['mount_context'].stop()
+        mount_context.stop()
 
 if __name__ == '__main__':
     main_data(config_path)

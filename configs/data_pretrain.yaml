@@ -1,4 +1,5 @@
 output_dir: "outputs/data_icd10"
+run_name: "icd10"
 loader:
   data_dir: C:\Users\fjn197\PhD\projects\PHAIR\pipelines\ehr_preprocess\ehr_preprocess\formatted_data\synthea500_icd10_test
   patients_info: patients_info.csv

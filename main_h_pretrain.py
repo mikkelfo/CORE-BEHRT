@@ -1,3 +1,5 @@
+"""Pretrain hierarchical model on EHR data. Use config_template h_pretrain.yaml. Run setup_hierarchical.py first to create the vocabulary and tree."""
+
 from os.path import join
 
 import torch
@@ -11,7 +13,7 @@ from trainer.trainer import EHRTrainer
 from transformers import BertConfig
 
 config_path = 'configs/h_pretrain.yaml'
-
+run_name = "h_pretrain"
 
 def load_hierarchical_data(cfg):
     """Load hierarchical data from disk"""
@@ -26,9 +28,8 @@ def main_train(config_path):
     cfg = load_config(config_path)
     
     if cfg.env=='azure':
-        setup = azure.setup_azure(cfg)
-        run = setup['run']
-        cfg = setup['cfg']
+        run, mount_context = azure.setup_azure(run_name)
+        cfg.paths.output_path = join(mount_context.mount_point, cfg.paths.output_path)
     else:
         run = None
         cfg.paths.output_path = join('outputs', cfg.paths.output_path)
@@ -65,7 +66,7 @@ def main_train(config_path):
     logger.info("Start training")
     trainer.train()
     if cfg.env == 'azure':
-        setup['mount_context'].stop()
+        mount_context.stop()
 
 if __name__ == '__main__':
     main_train(config_path)

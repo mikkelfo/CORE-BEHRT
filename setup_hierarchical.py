@@ -12,7 +12,7 @@ config_path = join('configs', 'h_setup.yaml')
 def setup_hierarchical(config_path=config_path):
     cfg = load_config(config_path)
     if cfg.env=='azure':
-        run, mount_context = azure.setup_azure(cfg)
+        _, mount_context = azure.setup_azure(cfg.run_name)
         mount_dir = mount_context.mount_dir
         cfg.paths.features = join(mount_dir, cfg.paths.features)
 

@@ -1,3 +1,5 @@
+env: local
+run_name: base_hierarchical
 paths:
   features: "outputs/data_icd10"
 cutoff_level: 5

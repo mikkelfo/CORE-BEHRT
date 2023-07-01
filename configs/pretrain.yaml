@@ -9,6 +9,7 @@ paths:
 dataset:
   masked_ratio: 0.15
   ignore_special_tokens: true
+  num_patients: 100000
 
 trainer_args:
   batch_size: 32

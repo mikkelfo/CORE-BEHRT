@@ -94,22 +94,20 @@ class MLMDataset(BaseDataset):
             raise TypeError(f'Unsupported vocabulary input {type(vocabulary)}')
     
 class MLMLargeDataset(IterableDataset):
-    def __init__(self, data_dir:str, mode:str, max_patients: int=None, seed=0, **kwargs):
+    def __init__(self, data_dir:str, mode:str, **kwargs):
         """Initializes the dataset for masked language modeling
         mode is one of 'train', 'val' or 'test'"""
         self.kwargs = kwargs
         self.mode = mode
         self.data_dir = data_dir
-        self.seed = seed
-        self.max_patients = max_patients
         
         self.file_ids = self.get_file_ids()
 
-        if self.seed is not None:
-            random.seed(self.seed)
-            np.random.seed(self.seed)
+        if self.kwargs.get('seed'):
+            random.seed(self.kwargs['seed'])
+            np.random.seed(self.kwargs['seed'])
 
-        if self.max_patients is None:
+        if not self.kwargs.get('num_patients'):
             self.pids = torch.load(join(self.data_dir, f'{mode}_pids.pt'))
             self.num_patients = len(self.pids)
 
@@ -117,9 +115,9 @@ class MLMLargeDataset(IterableDataset):
             self.pid_files = self.get_pid_files(self.file_ids)
             np.random.shuffle(self.pid_files)
             self.pids, self.file_ids = self.load_selected_pids()
-            self.num_patients = self.max_patients
-            torch.save(self.pids, join(self.data_dir, f'{mode}_pids_{self.max_patients}_patients.pt'))
-            torch.save(self.file_ids, join(self.data_dir, f'{mode}_file_ids_{self.max_patients}_patients.pt'))
+            self.num_patients = self.kwargs['num_patients']
+            torch.save(self.pids, join(self.data_dir, f'{mode}_pids_{self.num_patients}_patients.pt'))
+            torch.save(self.file_ids, join(self.data_dir, f'{mode}_file_ids_{self.num_patients}_patients.pt'))
         self.data_files = self.get_data_files(self.file_ids)
         self.vocabulary = torch.load(join(data_dir, 'vocabulary.pt'))
         
@@ -133,14 +131,13 @@ class MLMLargeDataset(IterableDataset):
 
         
     def __iter__(self):
-        data_files = self.data_files.copy()  # Create a copy of data_files
-        np.random.shuffle(data_files)  # Shuffle the copy
         patient_count = 0
         for file_name in self.data_files:
-            if self.max_patients is not None and patient_count >= self.max_patients:
+            if patient_count >= self.num_patients:
                 return
             yield from self.get_patient(file_name) # test!
             patient_count += 1
+            
     def get_patient(self, file_name: str):
         """Loads a single patient from a file"""
         features = torch.load(file_name)
@@ -171,7 +168,7 @@ class MLMLargeDataset(IterableDataset):
     def get_pid_files(self, file_ids):
         return [join(self.data_dir, 'features', f'pids_features_{file_id}.pt') for file_id in file_ids]
 
-    def load_selected_pids(self):
+    def load_selected_pids(self, num_patients):
         """Loads the selected patient IDs from the files"""
         selected_pids = []
         selected_file_ids = []
@@ -180,8 +177,8 @@ class MLMLargeDataset(IterableDataset):
             file_id = split(pid_file_name)[-1].split('_')[-1][:-3]
             selected_file_ids.append(file_id)
             pids = torch.load(pid_file_name)
-            selected_pids.extend(pids[:self.max_patients - len(selected_pids)])
-            if len(selected_pids) >= self.max_patients:
+            selected_pids.extend(pids[:num_patients - len(selected_pids)])
+            if len(selected_pids) >= num_patients:
                 break
         return selected_pids, selected_file_ids
 

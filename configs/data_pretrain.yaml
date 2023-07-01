@@ -1,3 +1,4 @@
+env: local
 output_dir: "outputs/data_icd10"
 run_name: "icd10"
 loader:

@@ -1,4 +1,5 @@
 """Create tokenized features from formatted data. config template: data.yaml"""
+import os
 from os.path import join
 
 import torch
@@ -15,7 +16,9 @@ from data_fixes.handle import Handler
 from tqdm import tqdm
 
 
-config_path = join('configs', 'data_pretrain.yaml')
+config_path = join('configs', 'data_pretrain.yaml')#
+config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
+
 
 def main_data(config_path):
     """

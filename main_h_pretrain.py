@@ -1,5 +1,5 @@
 """Pretrain hierarchical model on EHR data. Use config_template h_pretrain.yaml. Run setup_hierarchical.py first to create the vocabulary and tree."""
-
+import os
 from os.path import join
 
 import torch
@@ -13,6 +13,7 @@ from trainer.trainer import EHRTrainer
 from transformers import BertConfig
 
 config_path = 'configs/h_pretrain.yaml'
+config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
 run_name = "h_pretrain"
 
 def load_hierarchical_data(cfg):

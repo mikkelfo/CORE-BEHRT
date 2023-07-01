@@ -1,4 +1,5 @@
 """Script to prepare hierarchical data. config template: h_setup.yaml . main_pretrain.py needs to be run first. Here, we use the tokenized data to build the hierarchical vocabulary and tree and the hierarchical target."""
+import os
 from os.path import join
 
 import torch
@@ -8,6 +9,7 @@ from common.setup import prepare_directory_hierarchical
 from tree.helpers import build_tree, get_counts
 
 config_path = join('configs', 'h_setup.yaml')
+config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
 
 def setup_hierarchical(config_path=config_path):
     cfg = load_config(config_path)

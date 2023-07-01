@@ -1,4 +1,5 @@
 """Pretrain BERT model on EHR data. Use config_template pretrain.yaml. Run main_data_pretrain.py first to create the dataset and vocabulary."""
+import os
 from os.path import join
 
 from common import azure
@@ -11,6 +12,8 @@ from trainer.trainer import EHRTrainer
 from transformers import BertConfig, get_linear_schedule_with_warmup
 
 config_path = join("configs", "pretrain.yaml")
+config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
+
 run_name = "pretrain"
 
 def main_train(config_path):

@@ -231,20 +231,20 @@ class HierarchicalLargeDataset(MLMLargeDataset):
 
         if mask.any():
             # Set "class indices" to 1
-            probabilities = self.handle_masked_values(probabilities, mask, target_levels)
+            probabilities = self.probs_above_target(probabilities, mask, target_levels)
 
             if (~mask).any():
-                probabilities = self.handle_unmasked_values(probabilities, mask, target_levels, seq_len)
+                probabilities = self.probs_below_target(probabilities, mask, target_levels, seq_len)
                 
         return probabilities
     
-    def handle_masked_values(self, probabilities, mask, target_levels):
-        """Handles the operations for the masked values"""
+    def probs_above_target(self, probabilities, mask, target_levels):
+        """Sets the probabilities for values up to target level. Simple one-hot encoding."""
         probabilities[mask, target_levels[mask]] = 1
         return probabilities
 
-    def handle_unmasked_values(self, probabilities, mask, target_levels, seq_len):
-        """Handles the operations for the unmasked values"""
+    def probs_below_target(self, probabilities, mask, target_levels, seq_len):
+        """Sets the probabilities for values below target level. Uses the tree matrix to calculate the probabilities based on occurence frequency."""
         last_parents_idx = mask.sum(1)-1
         seq_class_idx = zip(last_parents_idx, target_levels[range(seq_len), last_parents_idx])  # tuple indices of (class_level, class_idx)
 

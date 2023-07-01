@@ -133,7 +133,7 @@ class EHRTrainer():
                 'age': batch['age'] if 'age' in batch else None,
                 'abspos': batch['abspos'] if 'abspos' in batch else None
             },
-            labels=batch['target'] if 'target' in batch else None
+            labels=batch['target'] if 'target' in batch else None,
             label_mask=batch['target_mask'] if 'target_mask' in batch else None
         )
 

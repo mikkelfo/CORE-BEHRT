@@ -1,5 +1,7 @@
 from os.path import join
 
+import torch
+from common import azure
 from common.config import load_config
 from common.loader import create_hierarchical_dataset
 from common.setup import setup_run_folder
@@ -7,19 +9,9 @@ from model.model import HierarchicalBertForPretraining
 from torch.optim import AdamW
 from trainer.trainer import EHRTrainer
 from transformers import BertConfig
-import torch
-# from azure_run.run import Run
-# from azure_run import datastore
-# from azureml.core import Dataset
 
-
-# run = Run
-run = None
-# run.name(f"Pretrain hierarchical diagnosis medication")
-
-# ds = datastore("workspaceblobstore")
-# dataset = Dataset.File.from_files(path=(ds, 'PHAIR'))
 config_path = 'configs/h_pretrain.yaml'
+
 
 def load_hierarchical_data(cfg):
     """Load hierarchical data from disk"""
@@ -33,11 +25,13 @@ def load_hierarchical_data(cfg):
 def main_train(config_path):
     cfg = load_config(config_path)
     
-    # mount_context = dataset.mount()
-    # mount_context.start()  # this will mount the file streams
-    
-    # cfg.paths.data_path = join(mount_context.mount_point, cfg.paths.data_path)
-    cfg.paths.output_path = join('outputs', cfg.paths.output_path)
+    if cfg.env=='azure':
+        setup = azure.setup_azure(cfg)
+        run = setup['run']
+        cfg = setup['cfg']
+    else:
+        run = None
+        cfg.paths.output_path = join('outputs', cfg.paths.output_path)
     
     logger = setup_run_folder(cfg)
     
@@ -66,10 +60,12 @@ def main_train(config_path):
         metrics=cfg.metrics,
         cfg=cfg,
         logger=logger,
+        run=run
     )
-    breakpoint()
+    logger.info("Start training")
     trainer.train()
-
+    if cfg.env == 'azure':
+        setup['mount_context'].stop()
 
 if __name__ == '__main__':
     main_train(config_path)

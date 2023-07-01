@@ -1,3 +1,4 @@
+import os
 import random
 from os.path import join, split
 from typing import Dict
@@ -102,7 +103,6 @@ class MLMLargeDataset(IterableDataset):
         self.data_dir = data_dir
         
         self.file_ids = self.get_file_ids()
-
         if self.kwargs.get('seed'):
             random.seed(self.kwargs['seed'])
             np.random.seed(self.kwargs['seed'])
@@ -112,12 +112,11 @@ class MLMLargeDataset(IterableDataset):
             self.num_patients = len(self.pids)
 
         else:
+            self.num_patients = self.kwargs['num_patients']
             self.pid_files = self.get_pid_files(self.file_ids)
             np.random.shuffle(self.pid_files)
-            self.pids, self.file_ids = self.load_selected_pids()
-            self.num_patients = self.kwargs['num_patients']
-            torch.save(self.pids, join(self.data_dir, f'{mode}_pids_{self.num_patients}_patients.pt'))
-            torch.save(self.file_ids, join(self.data_dir, f'{mode}_file_ids_{self.num_patients}_patients.pt'))
+            self.pids, self.file_ids = self.load_selected_pids(self.num_patients)
+
         self.data_files = self.get_data_files(self.file_ids)
         self.vocabulary = torch.load(join(data_dir, 'vocabulary.pt'))
         
@@ -137,7 +136,7 @@ class MLMLargeDataset(IterableDataset):
                 return
             yield from self.get_patient(file_name) # test!
             patient_count += 1
-            
+
     def get_patient(self, file_name: str):
         """Loads a single patient from a file"""
         features = torch.load(file_name)
@@ -172,7 +171,6 @@ class MLMLargeDataset(IterableDataset):
         """Loads the selected patient IDs from the files"""
         selected_pids = []
         selected_file_ids = []
-        self.pid_files = np.random.shuffle(self.pid_files)
         for pid_file_name in self.pid_files:
             file_id = split(pid_file_name)[-1].split('_')[-1][:-3]
             selected_file_ids.append(file_id)
@@ -222,10 +220,10 @@ class MLMLargeDataset(IterableDataset):
 
 
 class HierarchicalLargeDataset(MLMLargeDataset):
-    def __init__(self, data_dir:str, mode:str, tree=None, ignore_index=-100, max_patients=None,**kwargs):
-        super().__init__(data_dir, mode, max_patients, **kwargs)
+    def __init__(self, data_dir:str, mode:str, tree=None, **kwargs):
+        super().__init__(data_dir, mode, **kwargs)
 
-        self.ignore_index = ignore_index
+        self.ignore_index = self.kwargs.get('ignore_index', -100)
         self.tree_matrix = tree.get_tree_matrix()
         self.levels = tree.get_max_level()
         self.tree_matrix_sparse = self.tree_matrix.to_sparse()

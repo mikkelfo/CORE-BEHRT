@@ -114,6 +114,7 @@ class EHRTrainer():
     def setup_training(self) -> DataLoader:
         self.model.train()
         self.save_setup()
+        self.save_pids()
         dataloader = DataLoader(self.train_dataset, batch_size=self.args['batch_size'], shuffle=False, collate_fn=self.args['collate_fn'])
         return dataloader
 
@@ -134,7 +135,7 @@ class EHRTrainer():
                 'abspos': batch['abspos'] if 'abspos' in batch else None
             },
             labels=batch['target'] if 'target' in batch else None,
-            label_mask=batch['target_mask'] if 'target_mask' in batch else None
+            labels_mask=batch['target_mask'] if 'target_mask' in batch else None
         )
 
     def backward_pass(self, loss):
@@ -163,8 +164,6 @@ class EHRTrainer():
         self.model.train()
         return val_loss / len(val_loop), {name: sum(values) / len(values) for name, values in metric_values.items()}
 
-
-
     def to_device(self, batch: dict) -> None:
         """Moves a batch to the device in-place"""
         for key, value in batch.items():
@@ -187,11 +186,15 @@ class EHRTrainer():
         self.train_dataset.save_vocabulary(os.path.join(self.run_folder, 'vocabulary.pt'))
         self.log(f'Saved vocabulary to {self.run_folder}')
        
+    def save_pids(self):
+        """Saves the pids of the train, val and test datasets"""
         try:
-            self.train_dataset.save_pids(os.path.join(self.run_folder, 'train_pids.pt'))
-            self.val_dataset.save_pids(os.path.join(self.run_folder, 'val_pids.pt'))
-            if self.test_dataset is not None:
-                self.test_dataset.save_pids(os.path.join(self.run_folder, 'test_pids.pt'))
+            torch.save(self.train_dataset.pids, os.path.join(self.run_folder, 'train_pids.pt'))
+            torch.save(self.val_dataset.pids, os.path.join(self.run_folder, 'val_pids.pt'))
+            torch.save(self.train_dataset.file_ids, os.path.join(self.run_folder, 'train_file_ids.pt'))
+            torch.save(self.val_dataset.file_ids, os.path.join(self.run_folder, 'val_file_ids.pt'))            
+            if self.test_dataset:
+                torch.save(self.test_dataset.pid, os.path.join(self.run_folder, 'test_pids.pt'))
             self.log(f'Copied pids to {self.run_folder}')
         except AttributeError:
             self.log("Failed to save pids")

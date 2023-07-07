@@ -220,17 +220,17 @@ class MLMLargeDataset(IterableDataset):
 
 
 class HierarchicalLargeDataset(MLMLargeDataset):
-    def __init__(self, data_dir:str, mode:str, tree=None, **kwargs):
+    def __init__(self, data_dir:str, mode:str, tree=None, tree_matrix=None, **kwargs):
         super().__init__(data_dir, mode, **kwargs)
 
         self.ignore_index = self.kwargs.get('ignore_index', -100)
-        self.tree_matrix = tree.get_tree_matrix()
+        if tree_matrix is None:
+            self.tree_matrix = tree.get_tree_matrix()
         self.levels = tree.get_max_level()
         self.tree_matrix_sparse = self.tree_matrix.to_sparse()
         self.leaf_counts = tree.get_leaf_counts()
         self.n_leafs = len(self.leaf_counts)
         target_mapping = tree.create_target_mapping()
-        self.vocabulary = torch.load(join(data_dir, 'vocabulary.pt'))
         self.h_vocabulary = torch.load(join(data_dir, 'hierarchical', 'vocabulary.pt'))
         self.target_mapping = {self.h_vocabulary[k]: v for k,v in target_mapping.items()}    # adjusts target mapping to vocabulary
 
@@ -239,22 +239,12 @@ class HierarchicalLargeDataset(MLMLargeDataset):
         num_patients = len(features['concept'])
         for patient_index in range(num_patients):
             patient = self.get_patient_dic(features, patient_index)
-            self.mask_patient_concepts(patient)
-            self.create_patient_target(patient)
+            
+            target_mask = patient['target'] != -100
+            patient['target_mask'] = target_mask
+
+            patient['target'] = self._hierarchical_target(patient['target'][patient['target_mask']])
             yield patient
-
-    def mask_patient_concepts(self, patient):
-        masked_concepts, target = self._mask(patient)
-        patient['concept'] = masked_concepts
-        patient['target_temp'] = target
-        target_mask = patient['target_temp'] != self.ignore_index
-        patient['target_mask'] = target_mask
-
-    def create_patient_target(self, patient):
-        patient['target'] = torch.ones(size=(len(patient['target_temp']), self.levels, self.n_leafs),
-                dtype=torch.long) * self.ignore_index
-        patient['target'][patient['target_mask']] = self._hierarchical_target(patient['target_temp'][patient['target_mask']]).long()
-        del patient['target_temp']
 
     def _hierarchical_target(self, target):
         target_levels = torch.tensor([self.target_mapping[t.item()] for t in target]) # Converts target to target for each level

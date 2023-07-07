@@ -44,20 +44,23 @@ class Node:
             self.add_child(self.name)
         for child in self.children:
             child.extend_leaves(level-1)
-    def cutoff_at_level(self, cutoff_level):
-        if not self.children:
-            return self
+    def cutoff_at_level(self, cutoff_level, method='flatten'):
+        if method == 'flatten':
+            if not self.children:
+                return self
 
-        if cutoff_level <= 0:
-            new_childs = [self] + [child.cutoff_at_level(cutoff_level-1) for child in self.children]
-            self.children = []
-            return new_childs
+            if cutoff_level <= 0:
+                new_childs = [self] + [child.cutoff_at_level(cutoff_level-1) for child in self.children]
+                self.children = []
+                return new_childs
+            else:
+                self.children = [child.cutoff_at_level(cutoff_level-1) for child in self.children]
+                self.children = flatten(self.children)
+                for child in self.children:
+                    child.parent = self
+                return self
         else:
-            self.children = [child.cutoff_at_level(cutoff_level-1) for child in self.children]
-            self.children = flatten(self.children)
-            for child in self.children:
-                child.parent = self
-            return self
+            raise NotImplementedError # TODO: Implement collapse method
 
     def get_tree_matrix(self):
         n_levels = self.get_max_level()

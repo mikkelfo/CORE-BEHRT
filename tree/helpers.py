@@ -10,7 +10,10 @@ from tree.node import Node
 
 
 class TreeBuilder:
-    def __init__(self, files, counts, cutoff_level=None):
+    def __init__(self, 
+                 counts, 
+                 cutoff_level=None,
+                 files=['data_dumps/sks_dump_diagnose.csv', 'data_dumps/sks_dump_medication.csv'],):
         self.files = files
         self.counts = counts
         self.cutoff_level = cutoff_level
@@ -20,7 +23,7 @@ class TreeBuilder:
         tree = self.create_tree(tree_codes)
         tree.cutoff_at_level(self.cutoff_level)
         tree.extend_leaves(self.cutoff_level)
-        tree.base_counts()
+        tree.base_counts(self.counts)
         tree.sum_counts()
         tree.redist_counts()
 
@@ -118,7 +121,7 @@ class TreeBuilder:
             return {code: count for code, count in self.counts.items() if code.startswith('M')}
         else:
             raise NotImplementedError
-
+    @staticmethod
     def augment_database(df:pd.DataFrame, data_codes:dict)->pd.DataFrame:
         """Takes a DataFrame and a dictionary of codes and returns a DataFrame with the codes inserted in the correct position."""
         df_data = pd.DataFrame(list(data_codes.items()), columns=['Kode', 'Tekst'])
@@ -136,7 +139,6 @@ class TreeBuilder:
         # Reset the index of the DataFrame
         df = df.reset_index(drop=True, inplace=False)
         return df
-
 
 def get_counts(cfg, logger)-> dict:
     """Takes a cfg and logger and returns a dictionary of counts for each code in the vocabulary."""

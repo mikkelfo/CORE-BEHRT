@@ -10,7 +10,7 @@ from tree.node import Node
 
 
 def build_tree(files=['data_dumps/sks_dump_diagnose.csv', 'data_dumps/sks_dump_medication.csv'], counts=None, cutoff_level=5):
-    codes = create_levels(files)
+    codes = create_levels(files, counts)
     tree = create_tree(codes)
     tree.cutoff_at_level(cutoff_level)
     tree.extend_leaves(cutoff_level)
@@ -22,11 +22,13 @@ def build_tree(files=['data_dumps/sks_dump_diagnose.csv', 'data_dumps/sks_dump_m
     tree.redist_counts()
     return tree
 
-def create_levels(files=['data_dumps/sks_dump_diagnose.csv', 'data_dumps/sks_dump_medication.csv']):
+def create_levels(files=['data_dumps/sks_dump_diagnose.csv', 'data_dumps/sks_dump_medication.csv'], counts=None):
     codes = []
     for file in files:
+        data_codes = get_codes_from_data(file, counts)
+        
         df = pd.read_csv(file)
-
+        df = augment_database(df, data_codes)
         level = -1
         prev_code = ''
         for i, (code, text) in df.iterrows():
@@ -57,13 +59,61 @@ def create_levels(files=['data_dumps/sks_dump_diagnose.csv', 'data_dumps/sks_dum
     background = [
         (0, 'BG'), 
             (1, '[GENDER]'), 
-                (2, 'BG_Mand'), (2, 'BG_Kvinde'), 
+                (2, 'BG_Mand'), (2, 'BG_Kvinde'), (2, 'BG_nan'), (2, 'BG_F'), (2, 'BG_M'),
             (1, '[BMI]'), 
                 (2, 'BG_underweight'), (2, 'BG_normal'), (2, 'BG_overweight'), (2, 'BG_obese'), (2, 'BG_extremely-obese'), (2, 'BG_morbidly-obese'), (2, 'BG_nan')
         ]
+    background = augment_background(background, counts)
     codes.extend(background)
 
     return codes
+
+def augment_background(background:list, counts:dict)->list:
+    """Takes a list of background codes and returns a list of background codes with counts."""
+    background_codes = [k for k in counts.keys() if k.startswith('BG')]
+    for code in background_codes:
+        code_ls = code.split('_')
+        
+        if len(code_ls)==2:
+            type_ = (1, '[EXTRA]')
+            if type_ not in background:
+                background.append(type_)
+        elif len(code_ls)==3:
+            type_ = (1, '['+code_ls[1]+']')
+            if type_ not in background:
+                background.append(type_)
+        else:
+            raise NotImplementedError(f'Background code {code} does not follow standard format BG_Type_Value or BG_Value')
+        insert_index = background.index(type_)+1
+        background.insert(insert_index, (2, code))
+    return background
+
+def get_codes_from_data(file:str, counts:dict)->dict:
+    if 'diagnose' in file:
+        return {code: count for code, count in counts.items() if code.startswith('D')}
+    elif 'medication' in file:
+        return {code: count for code, count in counts.items() if code.startswith('M')}
+    else:
+        raise NotImplementedError
+
+def augment_database(df:pd.DataFrame, data_codes:dict)->pd.DataFrame:
+    """Takes a DataFrame and a dictionary of codes and returns a DataFrame with the codes inserted in the correct position."""
+    df_data = pd.DataFrame(list(data_codes.items()), columns=['Kode', 'Tekst'])
+    # Iterate over the rows of the new DataFrame
+    for idx, row in df_data.iterrows():
+        # Find the correct position in athe original DataFrame where the new row should be inserted
+        insert_position = df.index[df['Kode'] > row['Kode']].min()
+        # If there is no such position, append the row at the end
+        if pd.isna(insert_position):
+            df = df.append(row)
+        else:
+            # Insert the new row at this position in the original DataFrame
+            df = pd.concat([df.loc[:insert_position - 1], pd.DataFrame(row).T, df.loc[insert_position:]]).reset_index(drop=True)
+
+    # Reset the index of the DataFrame
+    df = df.reset_index(drop=True, inplace=False)
+    return df
+    
 
 def create_tree(codes):
     root = Node('root')

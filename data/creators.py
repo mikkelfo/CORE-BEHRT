@@ -59,7 +59,7 @@ class BackgroundCreator(BaseCreator):
         background = {
             'PID': patients_info['PID'].tolist() * len(self.config.background),
             'CONCEPT': itertools.chain.from_iterable(
-                [(self.prepend_token + patients_info[col].astype(str)).tolist() for col in self.config.background])
+                [(self.prepend_token + col + '_' +patients_info[col].astype(str)).tolist() for col in self.config.background])
         }
 
         if 'segment' in self.config:

@@ -35,7 +35,7 @@ def setup_hierarchical(config_path=config_path):
     logger.info('Save tree')
     torch.save(tree, join(data_dir, 'hierarchical','tree.pt'))
     logger.info('Construct and Save tree matrix')
-    torch.save(tree.get_matrix(), join(data_dir, 'hierarchical', 'tree_matrix.pt'))
+    torch.save(tree.get_tree_matrix(), join(data_dir, 'hierarchical', 'tree_matrix.pt'))
     if cfg.env == 'azure':
         mount_context.stop()
 

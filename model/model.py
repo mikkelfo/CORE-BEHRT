@@ -62,7 +62,7 @@ class BertForFineTuning(BertEHRModel):
 
 
 class HierarchicalBertForPretraining(BertEHRModel):
-    def __init__(self, config, tree=None):
+    def __init__(self, config, tree=None, tree_matrix=None):
         super().__init__(config)
 
         self.loss_fct = nn.CrossEntropyLoss(reduction='none')
@@ -72,7 +72,10 @@ class HierarchicalBertForPretraining(BertEHRModel):
         self.linear_combination = torch.arange(config.levels, 0, -1) / config.levels
         if not tree:
             tree = build_tree()
-        self.tree_matrix = tree.get_tree_matrix()
+        if not tree_matrix:
+            tree_matrix = tree.get_tree_matrix()
+
+        self.tree_matrix = tree_matrix
         self.tree_matrix_sparse = self.tree_matrix.to_sparse()
         self.tree_mask = self.tree_matrix.any(2)
 

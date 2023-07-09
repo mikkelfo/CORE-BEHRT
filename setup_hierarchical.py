@@ -6,7 +6,7 @@ import torch
 from common import azure
 from common.config import load_config
 from common.setup import prepare_directory_hierarchical
-from tree.helpers import build_tree, get_counts
+from tree.helpers import TreeBuilder, get_counts
 
 config_path = join('configs', 'h_setup.yaml')
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
@@ -25,13 +25,17 @@ def setup_hierarchical(config_path=config_path):
     logger.info('Get Counts')
     counts = get_counts(cfg, logger=logger)
     logger.info('Build Tree')
-    tree = build_tree(counts=counts, cutoff_level=cfg.cutoff_level)
+    tree = TreeBuilder(counts=counts, cutoff_level=cfg.cutoff_level).build()
     logger.info('Create Vocabulary')
     vocabulary = tree.create_vocabulary()
-
+    logger.info('Save hierarchical vocabulary')
     torch.save(vocabulary, join(data_dir,'hierarchical', 'vocabulary.pt'))
+    logger.info('Save base counts')
     torch.save(counts, join(data_dir, 'hierarchical', 'base_counts.pt'))
+    logger.info('Save tree')
     torch.save(tree, join(data_dir, 'hierarchical','tree.pt'))
+    logger.info('Construct and Save tree matrix')
+    torch.save(tree.get_matrix(), join(data_dir, 'hierarchical', 'tree_matrix.pt'))
     if cfg.env == 'azure':
         mount_context.stop()
 

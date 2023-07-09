@@ -56,8 +56,14 @@ class EHRTokenizer():
             for concept in concepts:
                 if concept not in self.vocabulary:
                     self.vocabulary[concept] = len(self.vocabulary)
-
-        return [self.vocabulary.get(concept, self.vocabulary['[UNK]']) for concept in concepts]
+        if self.new_vocab:
+            encoded_sequence = [self.vocabulary.get(concept, self.vocabulary['[UNK]']) for concept in concepts]
+        else:
+            encoded_sequence = [self.vocabulary.get(concept, self.find_closest_ancestor(concept)) for concept in concepts]
+        return encoded_sequence
+    
+    def find_closest_ancestor(self, concept):
+        raise NotImplementedError('find_closest_ancestor is not implemented yet')
 
     @staticmethod
     def truncate(patient: dict, max_len: int):

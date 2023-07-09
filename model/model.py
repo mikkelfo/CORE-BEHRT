@@ -18,12 +18,11 @@ class BertEHRModel(BertModel):
     def forward(
         self,
         input_ids=None,
-        attention_mask=None,
+        attention_mask=None, # It's used for both attention and labels mask
         token_type_ids=None,
         position_ids=None,
         inputs_embeds=None,
         labels=None,
-        labels_mask=None,
     ):
         outputs = super().forward(
             input_ids=input_ids,
@@ -38,11 +37,11 @@ class BertEHRModel(BertModel):
         outputs.logits = logits
 
         if labels is not None:
-            outputs.loss = self.get_loss(logits, labels, labels_mask)
+            outputs.loss = self.get_loss(logits, labels, attention_mask)
 
         return outputs
 
-    def get_loss(self, logits, labels, labels_mask=None):
+    def get_loss(self, logits, labels, attention_mask=None):
         return self.loss_fct(logits.view(-1, self.config.vocab_size), labels.view(-1))
 
 

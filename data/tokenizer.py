@@ -63,7 +63,11 @@ class EHRTokenizer():
         return encoded_sequence
     
     def find_closest_ancestor(self, concept):
-        raise NotImplementedError('find_closest_ancestor is not implemented yet')
+        """Find closest ancestor of concept in vocabulary"""
+        while concept not in self.vocabulary and len(concept>0):
+            concept = concept[:-1]
+        return self.vocabulary.get(concept, self.vocabulary['[UNK]'])
+    # TODO: thinks what happens to short tokens that don't occur, should we instead look at closest node in the tree includign siblings?
 
     @staticmethod
     def truncate(patient: dict, max_len: int):

@@ -220,7 +220,7 @@ class MLMLargeDataset(IterableDataset):
 
 
 class HierarchicalLargeDataset(MLMLargeDataset):
-    def __init__(self, data_dir:str, mode:str, tree=None, tree_matrix=None, **kwargs):
+    def __init__(self, data_dir:str, mode:str, tree, tree_matrix=None, **kwargs):
         super().__init__(data_dir, mode, **kwargs)
 
         self.ignore_index = self.kwargs.get('ignore_index', -100)
@@ -234,12 +234,15 @@ class HierarchicalLargeDataset(MLMLargeDataset):
         self.h_vocabulary = torch.load(join(data_dir, 'hierarchical', 'vocabulary.pt'))
         self.target_mapping = {self.h_vocabulary[k]: v for k,v in target_mapping.items()}    # adjusts target mapping to vocabulary
 
+
     def get_patient(self, file_name: str):
         features = torch.load(file_name)
         num_patients = len(features['concept'])
         for patient_index in range(num_patients):
             patient = self.get_patient_dic(features, patient_index)
-            
+            masked_concepts, target = self._mask(patient)
+            patient['concept'] = masked_concepts
+            patient['target'] = target
             target_mask = patient['target'] != -100
             patient['target_mask'] = target_mask
 

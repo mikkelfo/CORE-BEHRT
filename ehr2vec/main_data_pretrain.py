@@ -33,9 +33,9 @@ def main_data(config_path):
     """
     cfg = load_config(config_path)
     if cfg.env=='azure':
-        _, mount_context = azure.setup_azure(cfg.paths.run_name)
+        _, mount_context = azure.setup_azure(cfg.run_name)
         mount_dir = mount_context.mount_dir
-        cfg.paths.features = join(mount_dir, cfg.paths.features) # specify paths here
+        cfg.loader.data_dir = join(mount_dir, cfg.loader.data_dir) # specify paths here
 
     logger = prepare_directory(config_path, cfg)  
     logger.info('Mount Dataset')

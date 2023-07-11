@@ -18,11 +18,12 @@ run_name = "h_pretrain"
 
 def load_hierarchical_data(cfg):
     """Load hierarchical data from disk"""
-    vocab = torch.load(join(cfg.paths.data_path, 'vocabulary.pt'))
-    tree = torch.load(join(cfg.paths.data_path, 'hierarchical', 'tree.pt'))
+    vocab = torch.load(join(cfg.paths.data_path, 'hierarchical' ,'vocabulary.pt'))
+    # tree = torch.load(join(cfg.paths.data_path, 'hierarchical', 'tree.pt'))
+    tree_matrix = torch.load(join(cfg.paths.data_path, 'hierarchical', 'tree_matrix.pt'))
     train_dataset, val_dataset = create_hierarchical_dataset(cfg)
 
-    return vocab, tree, train_dataset, val_dataset
+    return vocab, tree_matrix, train_dataset, val_dataset
 
 
 def main_train(config_path):
@@ -41,6 +42,9 @@ def main_train(config_path):
     vocab, tree, train_dataset, val_dataset = load_hierarchical_data(cfg)
   
     logger.info("Setup model")
+    # TODO: find bug in tree
+    print("number of leafs", len(train_dataset.leaf_counts))
+    print("vocab size", len(vocab))
     bertconfig = BertConfig(leaf_size=len(train_dataset.leaf_counts), vocab_size=len(vocab), **cfg.model)
     model = HierarchicalBertForPretraining(bertconfig, tree=tree)
 

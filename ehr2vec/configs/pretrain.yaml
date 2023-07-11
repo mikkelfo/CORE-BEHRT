@@ -4,12 +4,12 @@ paths:
   # data_path: 'pretrain_datasets/diagnosis_medication/070623/outputs/data' # inside mounted datastore
   data_path: C:\Users\fjn197\PhD\projects\PHAIR\pipelines\ehr2vec-azure-std\ehr2vec\outputs\data_icd10 
   output_path: 'pretraining'
-  run_name: behrt_base_diag_scheduler
+  run_name: behrt_base_diag_scheduler_100_patients
   
 dataset:
   masked_ratio: 0.15
   ignore_special_tokens: true
-  num_patients: 100000
+  num_patients: 100
 
 trainer_args:
   batch_size: 32

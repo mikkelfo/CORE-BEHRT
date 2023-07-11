@@ -6,7 +6,7 @@ import torch
 from common import azure
 from common.config import load_config
 from common.setup import prepare_directory_hierarchical
-from tree.helpers import TreeBuilder, get_counts
+from tree.tree import TreeBuilder, get_counts
 
 config_path = join('configs', 'h_setup.yaml')
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)

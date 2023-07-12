@@ -29,11 +29,14 @@ def build_tree(
     ],
     counts=None,
     cutoff_level=5,
+    extend_level=5
 ):
     codes = create_levels(files)
     tree = create_tree(codes)
-    tree.cutoff_at_level(cutoff_level)
-    tree.extend_leaves(cutoff_level)
+    if cutoff_level is not None:
+        tree.cutoff_at_level(cutoff_level)
+    if extend_level is not None:
+        tree.extend_leaves(extend_level)
 
     if counts is None:
         counts = torch.load("data/extra/base_counts.pt")

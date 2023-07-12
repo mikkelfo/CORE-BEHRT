@@ -4,7 +4,7 @@ hidden_size: 192
 num_hidden_layers: 6
 num_attention_heads: 6
 intermediate_size: 64
-vocab_size: 26440
+vocab_size: 26445
 leaf_size: 24142
 type_vocab_size: 306
 pool_type: mean

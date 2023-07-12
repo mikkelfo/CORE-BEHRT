@@ -1,5 +1,5 @@
 import torch
-from tree.helpers import get_counts, build_tree
+from src.tree.helpers import get_counts, build_tree
 
 
 def setup_hierarchical():

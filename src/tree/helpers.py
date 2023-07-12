@@ -1,6 +1,6 @@
 import pandas as pd
 import torch
-from tree.node import Node
+from src.tree.node import Node
 
 
 # TODO: Needs config file?

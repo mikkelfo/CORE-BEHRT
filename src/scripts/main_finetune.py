@@ -17,7 +17,7 @@ def main_finetune(cfg):
         os.path.join(cfg.paths.data_dir, f"train_{cfg.paths.encoded_suffix}.pt")
     )
     val_encoded = torch.load(
-        os.path.join(cfg.paths.data_dir, f"test_{cfg.paths.encoded_suffix}.pt")
+        os.path.join(cfg.paths.data_dir, f"val_{cfg.paths.encoded_suffix}.pt")
     )
     train_outcomes = torch.load(
         os.path.join(cfg.paths.data_dir, f"train_{cfg.paths.outcomes_suffix}.pt")

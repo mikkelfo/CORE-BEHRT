@@ -1,3 +1,4 @@
+import json
 import os
 
 import torch
@@ -35,7 +36,10 @@ class EHRTrainer():
         self.val_dataset = val_dataset
         self.optimizer = optimizer
         self.scheduler = scheduler
-        self.metrics = {k: instantiate(v) for k, v in metrics.items()}
+        if 'metrics' in cfg:
+            self.metrics = {k: instantiate(v) for k, v in cfg.metrics.items()}
+        else:
+            self.metrics = metrics
         self.sampler = sampler
         self.cfg = cfg
         if logger:
@@ -128,7 +132,7 @@ class EHRTrainer():
         self.to_device(batch)
         return self.model(
             input_ids=batch['concept'],
-            attention_mask=batch['attention_mask'] if 'attention_mask' in batch else batch['target_mask'],
+            attention_mask=batch['attention_mask'] if 'attention_mask' in batch else None,
             token_type_ids=batch['segment'] if 'segment' in batch else None,
             position_ids={
                 'age': batch['age'] if 'age' in batch else None,
@@ -151,17 +155,21 @@ class EHRTrainer():
         val_loop = tqdm(dataloader, total=len(dataloader), file=TqdmToLogger(self.logger) if self.logger else None)
         val_loop.set_description('Validation')
         val_loss = 0
-        metric_values = {name: [] for name in self.metrics}
+        if self.metrics:
+            metric_values = {name: [] for name in self.metrics}
         with torch.no_grad():
             for batch in val_loop:
                 outputs = self.forward_pass(batch)
                 val_loss += outputs.loss.item()
-
-                for name, func in self.metrics.items():
-                    metric_values[name].append(func(outputs, batch))
+                if self.metrics:
+                    for name, func in self.metrics.items():
+                        metric_values[name].append(func(outputs, batch))
 
         self.model.train()
-        return val_loss / len(val_loop), {name: sum(values) / len(values) for name, values in metric_values.items()}
+        if self.metrics:
+            return val_loss / len(val_loop), {name: sum(values) / len(values) for name, values in metric_values.items()}
+        else:
+            return val_loss / len(val_loop), None
 
     def to_device(self, batch: dict) -> None:
         """Moves a batch to the device in-place"""
@@ -176,14 +184,11 @@ class EHRTrainer():
             print(message)
 
     def save_setup(self):
-        """Saves the config and model config"""
-        self.model.config.save_pretrained(self.run_folder)  
-        with open(os.path.join(self.run_folder, 'pretrain_config.yaml'), 'w') as file:
-            yaml.dump(self.cfg.to_dict(), file)
-        self.log(f'Saved config to {self.run_folder}')
-       
-        self.train_dataset.save_vocabulary(os.path.join(self.run_folder, 'vocabulary.pt'))
-        self.log(f'Saved vocabulary to {self.run_folder}')
+        # with open(os.path.join(self.run_folder, 'config_args.json'), 'w') as f:
+            # json.dump(self.cfg, f)
+        model_config = self.model.config.to_dict()
+        with open(os.path.join(self.run_folder, 'config.json'), 'w') as f:
+            json.dump(model_config, f)
        
     def save_pids(self):
         """Saves the pids of the train, val and test datasets"""

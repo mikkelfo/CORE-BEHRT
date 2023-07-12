@@ -138,7 +138,7 @@ class EHRTrainer:
         return outputs.loss
 
     def forward_pass(self, batch: dict):
-        batch = self.to_device(batch)
+        self.to_device(batch)   # Moves batch to device in-place
         return self.model(
             input_ids=batch["concept"],
             attention_mask=batch["attention_mask"],
@@ -181,8 +181,9 @@ class EHRTrainer:
             name: sum(values) / len(values) for name, values in metric_values.items()
         }
 
-    def to_device(self, batch: dict) -> dict:
-        return {key: value.to(self.device) for key, value in batch.items()}
+    def to_device(self, batch: dict) -> None:
+        for key, value in batch.items():
+            batch[key] = value.to(self.device)
 
     def setup_run_folder(self):
         # Generate unique run_name if not provided

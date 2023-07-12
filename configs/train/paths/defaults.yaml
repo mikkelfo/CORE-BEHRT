@@ -2,4 +2,6 @@ data_dir: 'data/processed'
 encoded_suffix: 'encoded'
 outcomes_suffix: 'outcomes'
 vocabulary: 'vocabulary.pt'
-pretrained_model: 'pretrained_model.pt'
+pretraining:
+  dir: 'pretraining'
+  model_file: 'final_model.pt'

@@ -225,7 +225,8 @@ class HierarchicalLargeDataset(MLMLargeDataset):
 
         self.ignore_index = self.kwargs.get('ignore_index', -100)
         if tree_matrix is None:
-            self.tree_matrix = tree.get_tree_matrix()
+            tree_matrix = tree.get_tree_matrix()
+        self.tree_matrix = tree_matrix
         self.levels = tree.get_max_level()
         self.tree_matrix_sparse = self.tree_matrix.to_sparse()
         self.leaf_counts = tree.get_leaf_counts()
@@ -233,7 +234,6 @@ class HierarchicalLargeDataset(MLMLargeDataset):
         target_mapping = tree.create_target_mapping()
         self.h_vocabulary = torch.load(join(data_dir, 'hierarchical', 'vocabulary.pt'))
         self.target_mapping = {self.h_vocabulary[k]: v for k,v in target_mapping.items()}    # adjusts target mapping to vocabulary
-
 
     def get_patient(self, file_name: str):
         features = torch.load(file_name)

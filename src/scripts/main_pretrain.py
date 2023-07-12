@@ -29,6 +29,9 @@ def main_train(cfg):
         ignore_special_tokens=cfg.ignore_special_tokens,
     )
 
+    # Model configuration
+    if cfg.model.vocab_size is None:  # Calculates vocab_size if not given
+        cfg.model.vocab_size = len(vocabulary)
     model = BertEHRModel(BertConfig(**cfg.model))
 
     optimizer = AdamW(

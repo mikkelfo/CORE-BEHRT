@@ -18,17 +18,26 @@ def main_train(cfg):
         os.path.join(cfg.paths.data_dir, f"val_{cfg.paths.encoded_suffix}.pt")
     )
     vocabulary = torch.load(os.path.join(cfg.paths.data_dir, cfg.paths.vocabulary))
+    tree = torch.load(os.path.join(cfg.paths.extra_dir, "tree.pt"))
+
     train_dataset = HierarchicalDataset(
         train_encoded,
+        tree=tree,
         vocabulary=vocabulary,
         ignore_special_tokens=cfg.ignore_special_tokens,
     )
     val_dataset = HierarchicalDataset(
         val_encoded,
+        tree=tree,
         vocabulary=vocabulary,
         ignore_special_tokens=cfg.ignore_special_tokens,
     )
 
+    # Model configuration
+    if cfg.model.vocab_size is None:  # Calculates vocab_size if not given
+        cfg.model.vocab_size = len(vocabulary)
+    if cfg.model.leaf_size is None:  # Calculate leaf_size if not given
+        cfg.model.leaf_size = tree.num_children_leaves()
     model = HierarchicalBertForPretraining(BertConfig(**cfg.model))
 
     optimizer = AdamW(

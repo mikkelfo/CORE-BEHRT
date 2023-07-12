@@ -138,7 +138,7 @@ class EHRTrainer:
         return outputs.loss
 
     def forward_pass(self, batch: dict):
-        self.to_device(batch)   # Moves batch to device in-place
+        self.to_device(batch)  # Moves batch to device in-place
         return self.model(
             input_ids=batch["concept"],
             attention_mask=batch["attention_mask"],

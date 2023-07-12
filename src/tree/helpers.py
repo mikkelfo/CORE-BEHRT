@@ -29,7 +29,7 @@ def build_tree(
     ],
     counts=None,
     cutoff_level=5,
-    extend_level=5
+    extend_level=5,
 ):
     codes = create_levels(files)
     tree = create_tree(codes)

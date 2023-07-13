@@ -62,9 +62,9 @@ def main_data(config_path):
     train, test, val = features_split['train'], features_split['test'], features_split['val']
 
     logger.info("Saving split data")
-    torch.save(train, join(cfg.output_dir, 'train.pt'))
-    torch.save(test, join(cfg.output_dir, 'test.pt'))
-    torch.save(val, join(cfg.output_dir, 'val.pt'))
+    torch.save(train, join(cfg.output_dir, 'features','train.pt'))
+    torch.save(test, join(cfg.output_dir, 'features','test.pt'))
+    torch.save(val, join(cfg.output_dir,'features','val.pt'))
     
     logger.info("Tokenizing")
     tokenizer = EHRTokenizer(config=cfg.tokenizer)
@@ -75,9 +75,9 @@ def main_data(config_path):
     val_encoded = tokenizer(val)
 
     logger.info("Saving tokenized data")
-    torch.save(train_encoded, join(cfg.output_dir,'tokenized','train_encoded.pt'))
-    torch.save(val_encoded, join(cfg.output_dir, 'tokenized','val_encoded.pt'))
-    torch.save(test_encoded, join(cfg.output_dir, 'tokenized','test_encoded.pt'))
+    torch.save(train_encoded, join(cfg.output_dir,'tokenized','tokenized_train.pt'))
+    torch.save(val_encoded, join(cfg.output_dir, 'tokenized','tokenized_val.pt'))
+    torch.save(test_encoded, join(cfg.output_dir, 'tokenized','tokenized_test.pt'))
     torch.save(tokenizer.vocabulary, join(cfg.output_dir, 'vocabulary.pt'))
     
     logger.info('Finished data processing')

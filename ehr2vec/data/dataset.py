@@ -244,9 +244,9 @@ class HierarchicalLargeDataset(MLMLargeDataset):
             patient['concept'] = masked_concepts
             patient['target'] = target
             target_mask = patient['target'] != -100
-            patient['target_mask'] = target_mask
+            patient['attention_mask'] = target_mask
 
-            patient['target'] = self._hierarchical_target(patient['target'][patient['target_mask']])
+            patient['target'] = self._hierarchical_target(patient['target'][patient['attention_mask']])
             yield patient
 
     def _hierarchical_target(self, target):

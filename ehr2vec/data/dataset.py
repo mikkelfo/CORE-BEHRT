@@ -94,6 +94,9 @@ class MLMDataset(BaseDataset):
         else:
             raise TypeError(f'Unsupported vocabulary input {type(vocabulary)}')
     
+    def save_vocabulary(self, run_folder: str):
+        torch.save(self.vocabulary, join(run_folder, 'vocabulary.pt'))
+
 class MLMLargeDataset(IterableDataset):
     def __init__(self, data_dir:str, mode:str, **kwargs):
         """Initializes the dataset for masked language modeling
@@ -211,8 +214,8 @@ class MLMLargeDataset(IterableDataset):
 
         return masked_concepts, target
 
-    def save_vocabulary(self, file_name: str):
-        torch.save(self.vocabulary, file_name)
+    def save_vocabulary(self, run_folder: str):
+        torch.save(self.vocabulary, join(run_folder, 'vocabulary.pt'))
 
     def save_pids(self, file_name: str):
         torch.save(self.pids, file_name)
@@ -302,6 +305,9 @@ class HierarchicalDataset(MLMDataset):
                 probabilities[~mask] = unknown_probabilities
 
         return probabilities
+    def save_vocabulary(self, run_folder: str):
+        torch.save(self.vocabulary, join(run_folder, 'vocabulary.pt'))
+        torch.save(self.h_vocabulary, join(run_folder, 'h_vocabulary.pt'))
 
 class HierarchicalLargeDataset(MLMLargeDataset):
     def __init__(self, data_dir:str, mode:str, tree, tree_matrix=None, **kwargs):
@@ -373,6 +379,10 @@ class HierarchicalLargeDataset(MLMLargeDataset):
 
         probabilities[~mask] = unknown_probabilities
         return probabilities
+
+    def save_vocabulary(self, run_folder: str):
+        torch.save(self.vocabulary, join(run_folder, 'vocabulary.pt'))
+        torch.save(self.h_vocabulary, join(run_folder, 'h_vocabulary.pt'))
 
     
 

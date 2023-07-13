@@ -36,7 +36,6 @@ def main_data(config_path):
 
     logger = prepare_directory(config_path, cfg)  
     logger.info('Mount Dataset')
-    print(cfg.loader)
     logger.info('Starting data processing')
     concepts, patients_info = ConceptLoader()(**cfg.loader)
    

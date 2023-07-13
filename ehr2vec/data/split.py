@@ -1,15 +1,15 @@
 import torch
-
+from os.path import join
 
 class Splitter():
     def __init__(self, ratios: dict = {'train':0.7, 'val':0.2, 'test':0.1}) -> None:
         self.ratios = ratios
         self.ratios_list = [ratio for ratio in self.ratios.values()]
         self.splits = None
-    def __call__(self, features: dict, )-> dict:
-        return self.split_features(features)
+    def __call__(self, features: dict, pids: list)-> dict:
+        return self.split_features(features, pids)
 
-    def split_features(self, features: dict)-> dict:
+    def split_features(self, features: dict, pids: list)-> dict:
         """
         Split features into train, validation and test sets
         """
@@ -21,10 +21,12 @@ class Splitter():
 
         self._split_indices(N)
         split_dic = {}
+        pids_dic = {}
         for set_, split in self.splits.items():
             split_dic[set_] = {key: [values[s] for s in split] for key, values in features.items()}
-        return split_dic
-    @staticmethod
+            pids_dic[set_] = [pids[s] for s in split]
+        return split_dic, pids_dic
+
     def _split_indices(self, N: int)-> dict:
         indices = torch.randperm(N)
         self.splits = {}

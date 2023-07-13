@@ -27,7 +27,7 @@ class BaseDataset(Dataset):
 
 
 class MLMDataset(BaseDataset):
-    def __init__(self, features: dict, vocabulary='vocabulary.pt', masked_ratio=0.3, ignore_special_tokens=True):
+    def __init__(self, features: dict, vocabulary='vocabulary.pt', masked_ratio=0.3, ignore_special_tokens=True, **kwargs):
         super().__init__(features)
         if isinstance(vocabulary, str):
             self.vocabulary = self.load_vocabulary(vocabulary)

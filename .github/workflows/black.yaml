@@ -1,0 +1,8 @@
+name: black
+on: [push, pull_request]
+jobs:
+  formatting:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: psf/black@stable

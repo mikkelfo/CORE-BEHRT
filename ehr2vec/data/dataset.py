@@ -27,7 +27,7 @@ class BaseDataset(Dataset):
 
 
 class MLMDataset(BaseDataset):
-    def __init__(self, features: dict, vocabulary='vocabulary.pt', masked_ratio=0.3, ignore_special_tokens=True, **kwargs):
+    def __init__(self, features: dict, vocabulary='vocabulary.pt', masked_ratio=0.3, ignore_special_tokens=True, pids=None, **kwargs):
         super().__init__(features)
         if isinstance(vocabulary, str):
             self.vocabulary = self.load_vocabulary(vocabulary)
@@ -40,7 +40,7 @@ class MLMDataset(BaseDataset):
             self.n_special_tokens = len([token for token in vocabulary if token.startswith('[')])
         else:
             self.n_special_tokens = 0
-
+        self.pids = pids
     def __getitem__(self, index):
         patient = super().__getitem__(index)
 
@@ -217,8 +217,6 @@ class MLMLargeDataset(IterableDataset):
     def save_vocabulary(self, run_folder: str):
         torch.save(self.vocabulary, join(run_folder, 'vocabulary.pt'))
 
-    def save_pids(self, file_name: str):
-        torch.save(self.pids, file_name)
 
 class HierarchicalDataset(MLMDataset):
     def __init__(
@@ -227,10 +225,11 @@ class HierarchicalDataset(MLMDataset):
         tree=None,
         tree_matrix=None,
         vocabulary=None,
+        pids=None,
         masked_ratio=0.3,
         ignore_special_tokens=True,
     ):
-        super().__init__(features, vocabulary, masked_ratio, ignore_special_tokens)
+        super().__init__(features, vocabulary, masked_ratio, ignore_special_tokens, pids=pids)
 
         if tree_matrix is None:
             tree_matrix = tree.get_tree_matrix()
@@ -241,7 +240,7 @@ class HierarchicalDataset(MLMDataset):
         self.target_mapping = {
             self.vocabulary[k]: v for k, v in tree.create_target_mapping().items()
         }  # adjusts target mapping to vocabulary
-
+        # TODO: add both vocab and h_vocab
     def __getitem__(self, index):
         patient = super().__getitem__(index)
 
@@ -306,8 +305,8 @@ class HierarchicalDataset(MLMDataset):
 
         return probabilities
     def save_vocabulary(self, run_folder: str):
-        torch.save(self.vocabulary, join(run_folder, 'vocabulary.pt'))
-        torch.save(self.h_vocabulary, join(run_folder, 'h_vocabulary.pt'))
+        torch.save(self.vocabulary, join(run_folder, 'h_vocabulary.pt'))
+        # torch.save(self.h_vocabulary, join(run_folder, 'h_vocabulary.pt'))
 
 class HierarchicalLargeDataset(MLMLargeDataset):
     def __init__(self, data_dir:str, mode:str, tree, tree_matrix=None, **kwargs):

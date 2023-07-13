@@ -32,6 +32,8 @@ def main_train(cfg):
     # Model configuration
     if cfg.model.vocab_size is None:  # Calculates vocab_size if not given
         cfg.model.vocab_size = len(vocabulary)
+    if cfg.model.type_vocab_size is None:  # Max number of segments if SEP tokens
+        cfg.model.type_vocab_size = cfg.model.max_position_embeddings // 2
     model = BertEHRModel(BertConfig(**cfg.model))
 
     optimizer = AdamW(

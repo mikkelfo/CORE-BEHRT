@@ -38,6 +38,8 @@ def main_train(cfg):
         cfg.model.vocab_size = len(vocabulary)
     if cfg.model.leaf_size is None:  # Calculate leaf_size if not given
         cfg.model.leaf_size = tree.num_children_leaves()
+    if cfg.model.type_vocab_size is None:  # Max number of segments if SEP tokens
+        cfg.model.type_vocab_size = cfg.model.max_position_embeddings // 2
     model = HierarchicalBertForPretraining(BertConfig(**cfg.model))
 
     optimizer = AdamW(

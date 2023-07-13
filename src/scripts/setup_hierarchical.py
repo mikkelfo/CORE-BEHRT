@@ -9,6 +9,7 @@ def setup_hierarchical():
 
     torch.save(vocabulary, "data/processed/vocabulary.pt")
     torch.save(counts, "data/extra/base_counts.pt")
+    torch.save(tree, "data/extra/tree.pt")
     return tree, vocabulary
 
 

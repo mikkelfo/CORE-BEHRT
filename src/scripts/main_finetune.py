@@ -1,4 +1,5 @@
 import os
+import json
 import torch
 import pandas as pd
 import hydra
@@ -60,10 +61,16 @@ def main_finetune(cfg):
         f'Setting up finetune task on [{outcome_type}] with [{n_hours}] hours censoring at [{censor_type}] using pos_weight [{pos_weight}] and sampler [{cfg.trainer_args["sampler"]}]'
     )
 
-    model = BertForFineTuning(BertConfig(**cfg.model, pos_weight=pos_weight))
-    model.load_state_dict(
-        torch.load(cfg.paths.pretrained_model)["model_state_dict"], strict=False
-    )
+    # Initializing based on pretraining
+    pretraining_dir = os.path.join("runs", cfg.paths.pretraining.dir)
+    config_path = os.path.join(pretraining_dir, "model_config.json")
+    model_path = os.path.join(pretraining_dir, cfg.paths.pretraining.model_file)
+    # Loading the files
+    model_config = json.load(open(config_path))
+    state_dict = torch.load(model_path)["model_state_dict"]
+    # Initialize model
+    model = BertForFineTuning(BertConfig(**model_config, pos_weight=pos_weight))
+    model.load_state_dict(state_dict, strict=False)
 
     optimizer = AdamW(
         model.parameters(),

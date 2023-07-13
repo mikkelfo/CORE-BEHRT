@@ -45,10 +45,10 @@ def main_data(cfg):
     get_covid_split(
         cfg, outcomes
     )  # This will save the splits in the extra_dir, which is loaded below
-    train_features, test_features, val_features = Splitter()(
+    train_features, val_features, test_features = Splitter()(
         features, dir=cfg.paths.extra_dir
     )
-    train_outcomes, test_outcomes, val_outcomes = Splitter()(
+    train_outcomes, val_outcomes, test_outcomes = Splitter()(
         outcomes, dir=cfg.paths.extra_dir, load_splits="splits.pt"
     )
 

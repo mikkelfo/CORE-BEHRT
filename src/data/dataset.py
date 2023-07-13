@@ -7,7 +7,6 @@ from src.tree.helpers import build_tree
 class BaseDataset(Dataset):
     def __init__(self, features: dict):
         self.features = features
-        self.max_segments = self.get_max_segments()
 
     def __len__(self):
         return len(self.features["concept"])
@@ -16,11 +15,6 @@ class BaseDataset(Dataset):
         return {
             key: torch.tensor(values[index]) for key, values in self.features.items()
         }
-
-    def get_max_segments(self):
-        if "segment" not in self.features:
-            return None
-        return max([max(segment) for segment in self.features["segment"]]) + 1
 
 
 class MLMDataset(BaseDataset):

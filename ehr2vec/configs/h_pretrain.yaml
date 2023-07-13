@@ -1,12 +1,12 @@
 env: local
+large_dataset: false
 paths:
   # data_path: 'pretrain_datasets/diagnosis_medication/070623/outputs/data' # inside mounted datastore
-  data_path: C:\Users\fjn197\PhD\projects\PHAIR\pipelines\ehr2vec-azure-std\ehr2vec\outputs\data_icd10 # inside mounted datastore
-  output_path: 'h_pretraining'
-  run_name: h_behrt
+  data_path: C:\Users\fjn197\PhD\projects\PHAIR\pipelines\ehr2vec-azure-std\ehr2vec\outputs\data_icd10_small # inside mounted datastore
+  output_path: "h_pretraining"
+  run_name: h_behrt_small
   
 dataset:
-  hierarchical: true
   masked_ratio: 0.15
   ignore_special_tokens: true
 
@@ -36,14 +36,5 @@ optimizer:
 scheduler:
   num_warmup_steps: 10
   num_training_steps: 100
-
 metrics:
-  top1:
-    _target_: evaluation.metrics.PrecisionAtK
-    topk: 1
-  top10:
-    _target_: evaluation.metrics.PrecisionAtK
-    topk: 10
-  top100:
-    _target_: evaluation.metrics.PrecisionAtK
-    topk: 100
+  null

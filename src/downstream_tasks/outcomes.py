@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 from src.data.concept_loader import ConceptLoader
 from src.data_fixes.infer import Inferrer
@@ -43,7 +44,7 @@ class OutcomeMaker:
 
                 # Death
                 elif key == "DEATH":
-                    patient_outcomes[pid]["DEATH"] = death.get(pid)
+                    patient_outcomes[pid]["DEATH"] = death.get(pid, np.nan)
 
                 # ICU admission
                 elif key == "ICU_ADMISSION":
@@ -82,7 +83,7 @@ class OutcomeMaker:
         for idx in range(len(concepts)):
             if concepts[idx] == "COVID_TEST" and values[idx] == "Positiv":
                 return patient["TIMESTAMP"].iloc[idx]
-        return None
+        return np.nan
 
     @staticmethod
     def hospital_admission(patient: pd.DataFrame):
@@ -90,7 +91,7 @@ class OutcomeMaker:
         for idx, adm in enumerate(admission):
             if not adm.startswith("unq_"):
                 return patient["TIMESTAMP"].iloc[idx]
-        return None
+        return np.nan
 
     @staticmethod
     def icu_admission(patient: pd.DataFrame):
@@ -98,7 +99,7 @@ class OutcomeMaker:
         for idx, concept in enumerate(concepts):
             if concept == "ICU":
                 return patient["TIMESTAMP"].iloc[idx]
-        return None
+        return np.nan
 
     @staticmethod
     def respirator(patient: pd.DataFrame):
@@ -106,4 +107,4 @@ class OutcomeMaker:
         for idx, concept in enumerate(concepts):
             if concept == "RESPIRATOR":
                 return patient["TIMESTAMP"].iloc[idx]
-        return None
+        return np.nan

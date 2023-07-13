@@ -1,0 +1,4 @@
+torch
+pandas
+transformers
+hydra-core

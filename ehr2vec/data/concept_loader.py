@@ -9,25 +9,27 @@ import pyarrow.parquet as pq
 
 
 class ConceptLoader():
-    def __call__(self, concepts=['diagnose', 'medication'], data_dir: str = 'formatted_data', patients_info: str = 'patients_info.csv'):
-        return self.load(concepts=concepts, data_dir=data_dir, patients_info=patients_info)
-    
-    def load(self, concepts=['diagnose', 'medication'], data_dir: str = 'formatted_data', patients_info: str = 'patients_info.csv'):
+    def __init__(self, concepts=['diagnose', 'medication'], data_dir: str = 'formatted_data', patients_info: str = 'patients_info.csv'):
+        self.concepts = concepts
+        self.data_dir = data_dir
+        self.patients_info = patients_info
+
+    def __call__(self):
         # Get all concept files
-        concept_paths = os.path.join(data_dir, 'concept.*')
+        concept_paths = os.path.join(self.data_dir, 'concept.*')
         path = glob.glob(concept_paths)
         # Filter out concepts files
-        path = [p for p in path if (split(p)[1]).split('.')[1] in concepts]
+        path = [p for p in path if (split(p)[1]).split('.')[1] in self.concepts]
         # Load concepts
         concepts = pd.concat([self._read_file(p) for p in path], ignore_index=True).drop_duplicates()
         
         concepts = concepts.sort_values('TIMESTAMP')
 
         # Load patient data
-        patient_path = os.path.join(data_dir, patients_info)
+        patient_path = os.path.join(self.data_dir, self.patients_info)
         patients_info = self._read_file(patient_path)
 
-        return concepts, patients_info
+        return concepts, patients_info    
 
     def _read_file(self, file_path: str) -> pd.DataFrame:
         file_type = file_path.split(".")[-1]

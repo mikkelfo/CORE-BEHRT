@@ -37,7 +37,7 @@ def main_data(config_path):
     logger = prepare_directory(config_path, cfg)  
     logger.info('Mount Dataset')
     logger.info('Starting data processing')
-    concepts, patients_info = ConceptLoader()(**cfg.loader)
+    concepts, patients_info = ConceptLoader(**cfg.loader)()
    
     logger.info("Creating feature sequences")
     features = FeatureMaker(cfg.features)(concepts, patients_info)
@@ -47,10 +47,11 @@ def main_data(config_path):
     torch.save(features, join(cfg.output_dir, 'features', f'features.pt'))
     torch.save(pids, join(cfg.output_dir, 'features', f'pids_features.pt'))
     
-    print("Splitting data")
+    logger.info("Splitting data")
     splitter = Splitter(ratios=cfg.split_ratios)
     features_split, pids_split = splitter(features, pids)
 
+    logger.info("Saving split pids")
     torch.save(pids_split['train'], join(cfg.output_dir, 'train_pids.pt'))
     torch.save(pids_split['test'], join(cfg.output_dir, 'test_pids.pt'))
     torch.save(pids_split['val'], join(cfg.output_dir, 'val_pids.pt'))
@@ -60,18 +61,20 @@ def main_data(config_path):
     splitter.save(cfg.output_dir)
     train, test, val = features_split['train'], features_split['test'], features_split['val']
 
-    
+    logger.info("Saving split data")
     torch.save(train, join(cfg.output_dir, 'train.pt'))
     torch.save(test, join(cfg.output_dir, 'test.pt'))
     torch.save(val, join(cfg.output_dir, 'val.pt'))
     
-    print("Tokenizing")
+    logger.info("Tokenizing")
     tokenizer = EHRTokenizer(config=cfg.tokenizer)
     train_encoded = tokenizer(train)
     tokenizer.freeze_vocabulary()
     tokenizer.save_vocab(join(cfg.output_dir, 'vocabulary.pt'))
     test_encoded = tokenizer(test)
     val_encoded = tokenizer(val)
+
+    logger.info("Saving tokenized data")
     torch.save(train_encoded, join(cfg.output_dir,'tokenized','train_encoded.pt'))
     torch.save(val_encoded, join(cfg.output_dir, 'tokenized','val_encoded.pt'))
     torch.save(test_encoded, join(cfg.output_dir, 'tokenized','test_encoded.pt'))

@@ -63,10 +63,10 @@ def main_finetune(cfg):
 
     # Initializing based on pretraining
     pretraining_dir = os.path.join("runs", cfg.paths.pretraining.dir)
-    config_path = os.path.join(pretraining_dir, "model_config.json")
+    config_path = os.path.join(pretraining_dir, "config.json")
     model_path = os.path.join(pretraining_dir, cfg.paths.pretraining.model_file)
     # Loading the files
-    model_config = json.load(open(config_path))
+    model_config = json.load(open(config_path))["model_config"]
     state_dict = torch.load(model_path)["model_state_dict"]
     # Initialize modelb
     model = BertForFineTuning(BertConfig(**model_config, pos_weight=pos_weight))

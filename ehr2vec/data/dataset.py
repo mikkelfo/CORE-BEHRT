@@ -1,4 +1,3 @@
-import os
 import random
 from os.path import join, split
 from typing import Dict
@@ -31,7 +30,7 @@ class MLMDataset(BaseDataset):
         
         features = torch.load(join(data_dir, 'tokenized', f'tokenized_{mode}.pt'))
         super().__init__(features)
-        if vocabulary is None:
+        if isinstance(vocabulary, type(None)):
             vocabulary = torch.load(join(data_dir, 'vocabulary.pt'))
         self.vocabulary = vocabulary
         self.masked_ratio = masked_ratio
@@ -225,23 +224,32 @@ class HierarchicalDataset(MLMDataset):
         mode,
         masked_ratio=0.3,
         ignore_special_tokens=True,
+        tree=None,
+        tree_matrix=None,
     ):
+        
+        vocabulary = torch.load(join(data_dir, 'vocabulary.pt'))
+        super().__init__(data_dir, mode, vocabulary=vocabulary, masked_ratio=masked_ratio, ignore_special_tokens=ignore_special_tokens)
+        
         hierarchical_dir = join(data_dir, 'hierarchical')
-        vocab = torch.load(join(hierarchical_dir, 'vocabulary.pt'))
-        super().__init__(data_dir, mode, vocab, masked_ratio=masked_ratio, ignore_special_tokens=ignore_special_tokens)
-        tree = torch.load(join(hierarchical_dir, 'tree.pt'))
-        self.tree_matrix = torch.load(join(hierarchical_dir, 'tree_matrix.pt'))
+        self.h_vocabulary = torch.load(join(hierarchical_dir, 'vocabulary.pt'))
+        if isinstance(tree_matrix, type(None)):
+            tree_matrix = torch.load(join(hierarchical_dir, 'tree_matrix.pt'))
+        if isinstance(tree, type(None)):
+            tree = torch.load(join(hierarchical_dir, 'tree.pt'))
+        self.tree_matrix = tree_matrix
         
         self.tree_matrix_sparse = self.tree_matrix.to_sparse()
         self.leaf_counts = tree.get_leaf_counts()
-        # TODO: add pids to features
+        target_mapping_temp = {
+            self.h_vocabulary[k]: v for k, v in tree.create_target_mapping().items()
+        }  
         self.target_mapping = {
-            self.vocabulary[k]: v for k, v in tree.create_target_mapping().items()
-        }  # adjusts target mapping to vocabulary
-        # TODO: add both vocab and h_vocab
+           self.vocabulary[k]:target_mapping_temp[self.h_vocabulary[k]] for k, v in vocabulary.items() if self.h_vocabulary[k] in target_mapping_temp
+        }
+
     def __getitem__(self, index):
         patient = super().__getitem__(index)
-
         target_mask = patient["target"] != -100
         patient["attention_mask"] = target_mask
 
@@ -250,6 +258,7 @@ class HierarchicalDataset(MLMDataset):
         return patient
 
     def _hierarchical_target(self, target):
+
         target_levels = torch.tensor(
             [self.target_mapping[t.item()] for t in target]
         )  # Converts target to target for each level
@@ -303,8 +312,8 @@ class HierarchicalDataset(MLMDataset):
 
         return probabilities
     def save_vocabulary(self, run_folder: str):
-        torch.save(self.vocabulary, join(run_folder, 'h_vocabulary.pt'))
-        # torch.save(self.h_vocabulary, join(run_folder, 'h_vocabulary.pt'))
+        torch.save(self.vocabulary, join(run_folder, 'vocabulary.pt'))
+        torch.save(self.h_vocabulary, join(run_folder, 'h_vocabulary.pt'))
 
 class HierarchicalLargeDataset(MLMLargeDataset):
     def __init__(self, data_dir:str, mode:str, **kwargs):

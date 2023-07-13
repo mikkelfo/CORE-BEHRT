@@ -8,7 +8,7 @@ from common.config import load_config
 from common.logger import TqdmToLogger
 from common.setup import prepare_directory
 from data.batch import Batches, BatchTokenize
-from data.concept_loader import ConceptLoader
+from data.concept_loader import ConceptLoaderLarge
 from data.featuremaker import FeatureMaker
 from data.tokenizer import EHRTokenizer
 from data_fixes.exclude import Excluder
@@ -16,7 +16,7 @@ from data_fixes.handle import Handler
 from tqdm import tqdm
 
 
-config_path = join('configs', 'data_pretrain.yaml')#
+config_path = join('configs', 'data_pretrain.yaml')
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
 
 
@@ -42,7 +42,7 @@ def main_data(config_path):
     
     
     logger.info('Initialize Processors')
-    conceptloader = ConceptLoader(**cfg.loader)
+    conceptloader = ConceptLoaderLarge(**cfg.loader)
     
     handler = Handler(**cfg.handler)
     excluder = Excluder(**cfg.excluder)

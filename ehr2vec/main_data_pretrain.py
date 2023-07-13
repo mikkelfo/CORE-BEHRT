@@ -4,6 +4,7 @@ from os.path import join
 
 import torch
 
+from common import azure
 from common.config import load_config
 from common.setup import prepare_directory
 from data.concept_loader import ConceptLoader
@@ -13,7 +14,8 @@ from data.tokenizer import EHRTokenizer
 from data_fixes.exclude import Excluder
 from data_fixes.handle import Handler
 
-config_path = join('configs', 'data_pretrain.yaml')
+config_path = join('configs', 'data_pretrain.yaml')#
+config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
 
 def main_data(config_path):
     """
@@ -27,8 +29,14 @@ def main_data(config_path):
         Saves
     """
     cfg = load_config(config_path)
+    if cfg.env=='azure':
+        _, mount_context = azure.setup_azure(cfg.run_name)
+        mount_dir = mount_context.mount_dir
+        cfg.loader.data_dir = join(mount_dir, cfg.loader.data_dir) # specify paths here
+
     logger = prepare_directory(config_path, cfg)  
-    
+    logger.info('Mount Dataset')
+    print(cfg.loader)
     logger.info('Starting data processing')
     concepts, patients_info = ConceptLoader()(**cfg.loader)
    
@@ -44,14 +52,16 @@ def main_data(config_path):
     splitter = Splitter(ratios=cfg.split_ratios)
     features_split, pids_split = splitter(features, pids)
 
+    torch.save(pids_split['train'], join(cfg.output_dir, 'train_pids.pt'))
+    torch.save(pids_split['test'], join(cfg.output_dir, 'test_pids.pt'))
+    torch.save(pids_split['val'], join(cfg.output_dir, 'val_pids.pt'))
+
     if not os.path.exists(cfg.output_dir):
         os.makedirs(cfg.output_dir)
     splitter.save(cfg.output_dir)
     train, test, val = features_split['train'], features_split['test'], features_split['val']
 
-    torch.save(pids_split['train'], join(cfg.output_dir, 'train_pids.pt'))
-    torch.save(pids_split['test'], join(cfg.output_dir, 'test_pids.pt'))
-    torch.save(pids_split['val'], join(cfg.output_dir, 'val_pids.pt'))
+    
     torch.save(train, join(cfg.output_dir, 'train.pt'))
     torch.save(test, join(cfg.output_dir, 'test.pt'))
     torch.save(val, join(cfg.output_dir, 'val.pt'))
@@ -69,6 +79,9 @@ def main_data(config_path):
     torch.save(tokenizer.vocabulary, join(cfg.output_dir, 'vocabulary.pt'))
     
     logger.info('Finished data processing')
+
+    if cfg.env=='azure':
+        mount_context.stop()
 
 if __name__ == '__main__':
     main_data(config_path)

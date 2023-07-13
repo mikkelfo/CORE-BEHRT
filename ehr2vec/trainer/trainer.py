@@ -36,14 +36,13 @@ class EHRTrainer():
         self.val_dataset = val_dataset
         self.optimizer = optimizer
         self.scheduler = scheduler
-        if 'metrics' in cfg:
+        if cfg.metrics:
             self.metrics = {k: instantiate(v) for k, v in cfg.metrics.items()}
         else:
             self.metrics = metrics
         self.sampler = sampler
         self.cfg = cfg
-        if logger:
-            self.logger = logger
+        self.logger = logger
         self.run = run
         default_args = {
             'save_every_k_steps': float('inf'),
@@ -169,7 +168,7 @@ class EHRTrainer():
         if self.metrics:
             return val_loss / len(val_loop), {name: sum(values) / len(values) for name, values in metric_values.items()}
         else:
-            return val_loss / len(val_loop), None
+            return val_loss / len(val_loop), {None: None}
 
     def to_device(self, batch: dict) -> None:
         """Moves a batch to the device in-place"""
@@ -184,11 +183,23 @@ class EHRTrainer():
             print(message)
 
     def save_setup(self):
-        # with open(os.path.join(self.run_folder, 'config_args.json'), 'w') as f:
-            # json.dump(self.cfg, f)
-        model_config = self.model.config.to_dict()
-        with open(os.path.join(self.run_folder, 'config.json'), 'w') as f:
-            json.dump(model_config, f)
+        """Saves the config and model config"""
+        self.model.config.save_pretrained(self.run_folder)  
+        with open(os.path.join(self.run_folder, 'pretrain_config.yaml'), 'w') as file:
+            yaml.dump(self.cfg.to_dict(), file)
+        self.log(f'Saved config to {self.run_folder}')
+       
+        self.train_dataset.save_vocabulary(self.run_folder)
+        self.log(f'Saved vocabulary to {self.run_folder}')
+       
+        try:
+            self.train_dataset.save_pids(os.path.join(self.run_folder, 'train_pids.pt'))
+            self.val_dataset.save_pids(os.path.join(self.run_folder, 'val_pids.pt'))
+            if self.test_dataset is not None:
+                self.test_dataset.save_pids(os.path.join(self.run_folder, 'test_pids.pt'))
+            self.log(f'Copied pids to {self.run_folder}')
+        except AttributeError:
+            self.log("Failed to save pids")
        
     def save_pids(self):
         """Saves the pids of the train, val and test datasets"""

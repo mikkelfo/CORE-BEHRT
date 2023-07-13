@@ -217,7 +217,91 @@ class MLMLargeDataset(IterableDataset):
     def save_pids(self, file_name: str):
         torch.save(self.pids, file_name)
 
+class HierarchicalDataset(MLMDataset):
+    def __init__(
+        self,
+        features: dict,
+        tree=None,
+        tree_matrix=None,
+        vocabulary=None,
+        masked_ratio=0.3,
+        ignore_special_tokens=True,
+    ):
+        super().__init__(features, vocabulary, masked_ratio, ignore_special_tokens)
 
+        if tree_matrix is None:
+            tree_matrix = tree.get_tree_matrix()
+        self.tree_matrix = tree_matrix
+        self.tree_matrix_sparse = self.tree_matrix.to_sparse()
+        self.leaf_counts = tree.get_leaf_counts()
+        # TODO: add pids to features
+        self.target_mapping = {
+            self.vocabulary[k]: v for k, v in tree.create_target_mapping().items()
+        }  # adjusts target mapping to vocabulary
+
+    def __getitem__(self, index):
+        patient = super().__getitem__(index)
+
+        target_mask = patient["target"] != -100
+        patient["attention_mask"] = target_mask
+
+        patient["target"] = self._hierarchical_target(patient["target"][target_mask])
+
+        return patient
+
+    def _hierarchical_target(self, target):
+        target_levels = torch.tensor(
+            [self.target_mapping[t.item()] for t in target]
+        )  # Converts target to target for each level
+        return self.expand_to_class_probabilities(
+            target_levels
+        )  # Converts target for each level to probabilities
+
+    def expand_to_class_probabilities(self, target_levels):
+        levels = self.tree_matrix.shape[0]
+        seq_len = len(target_levels)
+        target_levels = target_levels.view(-1, levels)
+
+        probabilities = torch.zeros(seq_len, levels, len(self.leaf_counts))
+        mask = target_levels != -100
+
+        if mask.any():
+            # Set "class indices" to 1
+            probabilities[mask, target_levels[mask]] = 1
+
+            if (~mask).any():
+                last_parents_idx = mask.sum(1) - 1
+                seq_class_idx = zip(
+                    last_parents_idx, target_levels[range(seq_len), last_parents_idx]
+                )  # tuple indices of (class_level, class_idx)
+
+                relevant_leaf_counts = torch.stack(
+                    [
+                        self.tree_matrix[class_lvl, class_idx] * self.leaf_counts
+                        for class_lvl, class_idx in seq_class_idx
+                    ]
+                )
+                relevant_leaf_probs = relevant_leaf_counts / relevant_leaf_counts.sum(
+                    1
+                ).unsqueeze(-1)
+
+                unknown_targets_idx = zip(
+                    *torch.where(~mask)
+                )  # tuple indices of (seq_idx, level_idx)
+
+                unknown_probabilities = torch.stack(
+                    [
+                        torch.matmul(
+                            self.tree_matrix_sparse[lvl_idx],
+                            relevant_leaf_probs[seq_idx],
+                        )
+                        for seq_idx, lvl_idx in unknown_targets_idx
+                    ]
+                )
+
+                probabilities[~mask] = unknown_probabilities
+
+        return probabilities
 
 class HierarchicalLargeDataset(MLMLargeDataset):
     def __init__(self, data_dir:str, mode:str, tree, tree_matrix=None, **kwargs):

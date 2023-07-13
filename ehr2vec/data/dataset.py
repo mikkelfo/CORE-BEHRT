@@ -27,20 +27,20 @@ class BaseDataset(Dataset):
 
 
 class MLMDataset(BaseDataset):
-    def __init__(self, features: dict, vocabulary='vocabulary.pt', masked_ratio=0.3, ignore_special_tokens=True, pids=None, **kwargs):
+    def __init__(self, data_dir: str, mode: str, vocabulary=None, masked_ratio=0.3, ignore_special_tokens=True,  **kwargs):
+        
+        features = torch.load(join(data_dir, 'tokenized', f'tokenized_{mode}.pt'))
         super().__init__(features)
-        if isinstance(vocabulary, str):
-            self.vocabulary = self.load_vocabulary(vocabulary)
-        elif isinstance(vocabulary, dict):
-            self.vocabulary = vocabulary
-        else:
-            raise TypeError(f'Unsupported vocabulary input {type(vocabulary)}')
+        if vocabulary is None:
+            vocabulary = torch.load(join(data_dir, 'vocabulary.pt'))
+        self.vocabulary = vocabulary
         self.masked_ratio = masked_ratio
         if ignore_special_tokens:
             self.n_special_tokens = len([token for token in vocabulary if token.startswith('[')])
         else:
             self.n_special_tokens = 0
-        self.pids = pids
+        self.pids = torch.load(join(data_dir, f'{mode}_pids.pt'))
+        
     def __getitem__(self, index):
         patient = super().__getitem__(index)
 
@@ -221,19 +221,17 @@ class MLMLargeDataset(IterableDataset):
 class HierarchicalDataset(MLMDataset):
     def __init__(
         self,
-        features: dict,
-        tree=None,
-        tree_matrix=None,
-        vocabulary=None,
-        pids=None,
+        data_dir,
+        mode,
         masked_ratio=0.3,
         ignore_special_tokens=True,
     ):
-        super().__init__(features, vocabulary, masked_ratio, ignore_special_tokens, pids=pids)
-
-        if tree_matrix is None:
-            tree_matrix = tree.get_tree_matrix()
-        self.tree_matrix = tree_matrix
+        hierarchical_dir = join(data_dir, 'hierarchical')
+        vocab = torch.load(join(hierarchical_dir, 'vocabulary.pt'))
+        super().__init__(data_dir, mode, vocab, masked_ratio=masked_ratio, ignore_special_tokens=ignore_special_tokens)
+        tree = torch.load(join(hierarchical_dir, 'tree.pt'))
+        self.tree_matrix = torch.load(join(hierarchical_dir, 'tree_matrix.pt'))
+        
         self.tree_matrix_sparse = self.tree_matrix.to_sparse()
         self.leaf_counts = tree.get_leaf_counts()
         # TODO: add pids to features
@@ -309,13 +307,12 @@ class HierarchicalDataset(MLMDataset):
         # torch.save(self.h_vocabulary, join(run_folder, 'h_vocabulary.pt'))
 
 class HierarchicalLargeDataset(MLMLargeDataset):
-    def __init__(self, data_dir:str, mode:str, tree, tree_matrix=None, **kwargs):
+    def __init__(self, data_dir:str, mode:str, **kwargs):
         super().__init__(data_dir, mode, **kwargs)
 
         self.ignore_index = self.kwargs.get('ignore_index', -100)
-        if tree_matrix is None:
-            tree_matrix = tree.get_tree_matrix()
-        self.tree_matrix = tree_matrix
+        tree = torch.load(join(data_dir, 'hierarchical', 'tree.pt'))
+        self.tree_matrix = torch.load(join(data_dir, 'hierarchical', 'tree_matrix.pt'))
         self.levels = tree.get_max_level()
         self.tree_matrix_sparse = self.tree_matrix.to_sparse()
         self.leaf_counts = tree.get_leaf_counts()

@@ -30,13 +30,13 @@ def main_train(config_path):
     logger.info(f"Access data from {cfg.paths.data_path}")
     logger.info('Loading data')
     logger.info(f"Using {cfg.dataset.get('num_patients', 'all')} patients")
-    train_dataset, val_dataset, vocabulary = create_datasets(cfg)
+    train_dataset, val_dataset = create_datasets(cfg)
     
     logger.info('Initializing model')
     model = BertEHRModel(
         BertConfig(
             **cfg.model,
-            vocab_size=len(vocabulary),
+            vocab_size=len(train_dataset.vocabulary),
 
         )
     )

@@ -8,7 +8,7 @@ import torch
 from torch.utils.data import Dataset, IterableDataset
 
 
-class BaseDataset(Dataset):
+class BaseSmallDataset(Dataset):
     def __init__(self, features: dict):
         self.features = features
         self.max_segments = self.get_max_segments()
@@ -24,12 +24,11 @@ class BaseDataset(Dataset):
             return None
         return max([max(segment) for segment in self.features['segment']]) + 1
 
-
-class MLMDataset(BaseDataset):
-    def __init__(self, data_dir: str, mode: str, vocabulary=None, masked_ratio=0.3, ignore_special_tokens=True,  **kwargs):
+class BaseMLMDataset():
+    def __init__(self, data_dir: str, mode: str, vocabulary: dict=None, masked_ratio=0.3, ignore_special_tokens=True):
+        self.data_dir = data_dir
+        self.mode = mode
         
-        features = torch.load(join(data_dir, 'tokenized', f'tokenized_{mode}.pt'))
-        super().__init__(features)
         if isinstance(vocabulary, type(None)):
             vocabulary = torch.load(join(data_dir, 'vocabulary.pt'))
         self.vocabulary = vocabulary
@@ -39,21 +38,15 @@ class MLMDataset(BaseDataset):
         else:
             self.n_special_tokens = 0
         self.pids = torch.load(join(data_dir, f'{mode}_pids.pt'))
-        
-    def __getitem__(self, index):
-        patient = super().__getitem__(index)
 
-        masked_concepts, target = self._mask(patient)
-        patient['concept'] = masked_concepts
-        patient['target'] = target
-    
-        return patient
+    def get_tokenized_features(self):
+        return torch.load(join(self.data_dir, 'tokenized', f'tokenized_{self.mode}.pt'))
 
     def _mask(self, patient: dict):
+        """Masks a patient's concepts and create a target according to the MLM procedure"""
         concepts = patient['concept']
 
         N = len(concepts)
-
         # Initialize
         masked_concepts = torch.clone(concepts)
         target = torch.ones(N, dtype=torch.long) * -100
@@ -69,14 +62,14 @@ class MLMDataset(BaseDataset):
         adj_rng = rng[masked].div(self.masked_ratio)            # Fix ratio to 0-100 interval
 
         # Operation masks
-        rng_mask = adj_rng < 0.8                                # 80% - Mask token
-        rng_replace = (0.8 <= adj_rng) & (adj_rng < 0.9)        # 10% - replace with random word
-        # rng_keep = adj_rng >= 0.9                             # 10% - keep token (Redundant)
+        mask_tokens_percentage = 0.8
+        replace_tokens_percentage = 0.1
+        rng_mask = adj_rng < mask_tokens_percentage             # 80% - Mask token
+        rng_replace = (mask_tokens_percentage <= adj_rng) & (adj_rng < (mask_tokens_percentage+replace_tokens_percentage)) # 10% - replace with random word, remaining 10% are kept
 
         # Apply operations (Mask, replace, keep)
         selected_concepts = torch.where(rng_mask, self.vocabulary['[MASK]'], selected_concepts) # Replace with [MASK]
         selected_concepts = torch.where(rng_replace, torch.randint(self.n_special_tokens, len(self.vocabulary), (len(selected_concepts),)), selected_concepts) # Replace with random word
-        # selected_concepts = torch.where(rng_keep, selected_concepts, selected_concepts)       # Redundant
 
         # Update outputs (nonzero for double masking)
         target[eligible_mask.nonzero()[:,0][masked]] = eligible_concepts[masked]    # Set "true" token
@@ -84,52 +77,36 @@ class MLMDataset(BaseDataset):
 
         return masked_concepts, target
 
-    @staticmethod
-    def load_vocabulary(vocabulary):
-        if isinstance(vocabulary, str):
-            return torch.load(vocabulary)
-        elif isinstance(vocabulary, dict):
-            return vocabulary
-        else:
-            raise TypeError(f'Unsupported vocabulary input {type(vocabulary)}')
-    
     def save_vocabulary(self, run_folder: str):
         torch.save(self.vocabulary, join(run_folder, 'vocabulary.pt'))
+        if "h_vocabulary" in self:
+            torch.save(self.vocabulary, join(run_folder, 'h_vocabulary.pt'))
+        if "target_mapping" in self:
+            torch.save(self.vocabulary, join(run_folder, 'target_mapping.pt'))
 
-class MLMLargeDataset(IterableDataset):
+class MLMDataset(BaseMLMDataset, BaseSmallDataset):
+    def __init__(self, data_dir: str, mode: str, vocabulary=None, masked_ratio=0.3, ignore_special_tokens=True,  **kwargs):
+        BaseMLMDataset.__init__(self, data_dir, mode, vocabulary=vocabulary, masked_ratio=masked_ratio, ignore_special_tokens=ignore_special_tokens)
+        features = self.get_tokenized_features()
+        BaseSmallDataset.__init__(self, features)
+    
+    def __getitem__(self, index):
+        patient = super().__getitem__(index)
+
+        masked_concepts, target = self._mask(patient)
+        patient['concept'] = masked_concepts
+        patient['target'] = target
+    
+        return patient
+
+class MLMLargeDataset(BaseMLMDataset, IterableDataset):
     def __init__(self, data_dir:str, mode:str, **kwargs):
-        """Initializes the dataset for masked language modeling
-        mode is one of 'train', 'val' or 'test'"""
+        super().__init__(data_dir, mode, **kwargs)
         self.kwargs = kwargs
-        self.mode = mode
-        self.data_dir = data_dir
-        
         self.file_ids = self.get_file_ids()
-        if self.kwargs.get('seed'):
-            random.seed(self.kwargs['seed'])
-            np.random.seed(self.kwargs['seed'])
-
-        if not self.kwargs.get('num_patients'):
-            self.pids = torch.load(join(self.data_dir, f'{mode}_pids.pt'))
-            self.num_patients = len(self.pids)
-
-        else:
-            self.num_patients = self.kwargs['num_patients']
-            self.pid_files = self.get_pid_files(self.file_ids)
-            np.random.shuffle(self.pid_files)
-            self.pids, self.file_ids = self.load_selected_pids(self.num_patients)
-
+        self.set_random_seed()
         self.data_files = self.get_data_files(self.file_ids)
-        self.vocabulary = torch.load(join(data_dir, 'vocabulary.pt'))
-        
-        self.masked_ratio = self.kwargs.get('masked_ratio', 0.3)
-        self.batch_size = kwargs.get('batch_size', 32)
-        
-        if kwargs.get('ignore_special_tokens', True):
-            self.n_special_tokens = len([token for token in self.vocabulary if token.startswith('[')])
-        else:
-            self.n_special_tokens = 0
-
+        self.set_pids_and_file_ids()
         
     def __iter__(self):
         patient_count = 0
@@ -139,6 +116,10 @@ class MLMLargeDataset(IterableDataset):
             yield from self.get_patient(file_name) # test!
             patient_count += 1
 
+    def __len__(self):
+        """Number of patients in the dataset"""
+        return self.num_patients
+    
     def get_patient(self, file_name: str):
         """Loads a single patient from a file"""
         features = torch.load(file_name)
@@ -153,11 +134,22 @@ class MLMLargeDataset(IterableDataset):
     def get_patient_dic(self, features: Dict, patient_index: int):
         """Get a patient dictionary from a patient index"""
         return {key: torch.tensor(values[patient_index]) for key, values in features.items()}
-
-    def __len__(self):
-        """Number of patients in the dataset"""
-        return self.num_patients
     
+    def set_pids_and_file_ids(self):
+        if not self.kwargs.get('num_patients'):
+            self.pids = torch.load(join(self.data_dir, f'{self.mode}_pids.pt'))
+            self.num_patients = len(self.pids)
+        else:
+            self.num_patients = self.kwargs['num_patients']
+            self.pid_files = self.get_pid_files(self.file_ids)
+            np.random.shuffle(self.pid_files)
+            self.pids, self.file_ids = self.load_selected_pids(self.num_patients)
+
+    def set_random_seed(self):
+        if self.kwargs.get('seed'):
+            random.seed(self.kwargs['seed'])
+            np.random.seed(self.kwargs['seed'])
+
     def get_file_ids(self):
         """Returns the file ids for the given mode"""
         return torch.load(join(self.data_dir, f'{self.mode}_file_ids.pt'))
@@ -182,54 +174,10 @@ class MLMLargeDataset(IterableDataset):
                 break
         return selected_pids, selected_file_ids
 
-    def _mask(self, patient: dict):
-        concepts = patient['concept']
-        N = len(concepts)
 
-        # Initialize
-        masked_concepts = torch.clone(concepts)
-        target = torch.ones(N, dtype=torch.long) * -100
-        # Apply special token mask and create MLM mask
-        eligible_mask = masked_concepts >= self.n_special_tokens
-        eligible_concepts = masked_concepts[eligible_mask]      # Ignore special tokens
-        rng = torch.rand(len(eligible_concepts))                # Random number for each token
-        masked = rng < self.masked_ratio                        # Mask tokens with probability masked_ratio
-
-        # Get masked MLM concepts
-        selected_concepts = eligible_concepts[masked]           # Select set % of the tokens
-        adj_rng = rng[masked].div(self.masked_ratio)            # Fix ratio to 0-100 interval
-
-        # Operation masks
-        rng_mask = adj_rng < 0.8                                # 80% - Mask token
-        rng_replace = (0.8 <= adj_rng) & (adj_rng < 0.9)        # 10% - replace with random word
-        # rng_keep = adj_rng >= 0.9                             # 10% - keep token (Redundant)
-        # Apply operations (Mask, replace, keep)
-        selected_concepts = torch.where(rng_mask, self.vocabulary['[MASK]'], selected_concepts) # Replace with [MASK]
-        selected_concepts = torch.where(rng_replace, torch.randint(self.n_special_tokens, len(self.vocabulary), (len(selected_concepts),)), selected_concepts) # Replace with random word
-        # selected_concepts = torch.where(rng_keep, selected_concepts, selected_concepts)       # Redundant
-        # Update outputs (nonzero for double masking)
-        target[eligible_mask.nonzero()[:,0][masked]] = eligible_concepts[masked]    # Set "true" token
-        masked_concepts[eligible_mask.nonzero()[:,0][masked]]= selected_concepts    # Sets new concepts
-
-        return masked_concepts, target
-
-    def save_vocabulary(self, run_folder: str):
-        torch.save(self.vocabulary, join(run_folder, 'vocabulary.pt'))
-
-
-class HierarchicalDataset(MLMDataset):
-    def __init__(
-        self,
-        data_dir,
-        mode,
-        masked_ratio=0.3,
-        ignore_special_tokens=True,
-        tree=None,
-        tree_matrix=None,
-    ):
-        
+class BaseHierarchicalDataset(BaseMLMDataset):
+    def __init__(self, data_dir, mode, masked_ratio=0.3, ignore_special_tokens=True, tree=None, tree_matrix=None):
         super().__init__(data_dir, mode, masked_ratio=masked_ratio, ignore_special_tokens=ignore_special_tokens)
-        
         hierarchical_dir = join(data_dir, 'hierarchical')
         self.h_vocabulary = torch.load(join(hierarchical_dir, 'vocabulary.pt'))
         if isinstance(tree_matrix, type(None)):
@@ -242,7 +190,8 @@ class HierarchicalDataset(MLMDataset):
         self.tree_matrix_sparse = self.tree_matrix.to_sparse()
         self.leaf_counts = self.tree.get_leaf_counts()
         self.target_mapping = self.get_target_mapping()
-
+        self.levels = self.tree_matrix.shape[0]
+    
     def get_target_mapping(self):
         """Target mapping with the vocabulary used for tokenization."""
         target_mapping_temp = {
@@ -251,16 +200,6 @@ class HierarchicalDataset(MLMDataset):
         return {
            self.vocabulary[k]:target_mapping_temp[self.h_vocabulary[k]] for k, v in self.vocabulary.items() if self.h_vocabulary[k] in target_mapping_temp
         }
-        
-    def __getitem__(self, index):
-        patient = super().__getitem__(index)
-        target_mask = patient["target"] != -100
-        patient["attention_mask"] = target_mask
-
-        patient["target"] = self._hierarchical_target(patient["target"][target_mask])
-
-        return patient
-
     def _hierarchical_target(self, target):
 
         target_levels = torch.tensor(
@@ -269,96 +208,6 @@ class HierarchicalDataset(MLMDataset):
         return self.expand_to_class_probabilities(
             target_levels
         )  # Converts target for each level to probabilities
-
-    def expand_to_class_probabilities(self, target_levels):
-        levels = self.tree_matrix.shape[0]
-        seq_len = len(target_levels)
-        target_levels = target_levels.view(-1, levels)
-
-        probabilities = torch.zeros(seq_len, levels, len(self.leaf_counts))
-        mask = target_levels != -100
-
-        if mask.any():
-            # Set "class indices" to 1
-            probabilities[mask, target_levels[mask]] = 1
-
-            if (~mask).any():
-                last_parents_idx = mask.sum(1) - 1
-                seq_class_idx = zip(
-                    last_parents_idx, target_levels[range(seq_len), last_parents_idx]
-                )  # tuple indices of (class_level, class_idx)
-
-                relevant_leaf_counts = torch.stack(
-                    [
-                        self.tree_matrix[class_lvl, class_idx] * self.leaf_counts
-                        for class_lvl, class_idx in seq_class_idx
-                    ]
-                )
-                relevant_leaf_probs = relevant_leaf_counts / relevant_leaf_counts.sum(
-                    1
-                ).unsqueeze(-1)
-
-                unknown_targets_idx = zip(
-                    *torch.where(~mask)
-                )  # tuple indices of (seq_idx, level_idx)
-
-                unknown_probabilities = torch.stack(
-                    [
-                        torch.matmul(
-                            self.tree_matrix_sparse[lvl_idx],
-                            relevant_leaf_probs[seq_idx],
-                        )
-                        for seq_idx, lvl_idx in unknown_targets_idx
-                    ]
-                )
-
-                probabilities[~mask] = unknown_probabilities
-
-        return probabilities
-    
-    def save_vocabulary(self, run_folder: str):
-        torch.save(self.vocabulary, join(run_folder, 'vocabulary.pt'))
-        torch.save(self.h_vocabulary, join(run_folder, 'h_vocabulary.pt'))
-
-class HierarchicalLargeDataset(MLMLargeDataset):
-    def __init__(self, data_dir:str, mode:str, **kwargs):
-        super().__init__(data_dir, mode, **kwargs)
-        self.ignore_index = self.kwargs.get('ignore_index', -100)
-        
-        self.tree = torch.load(join(data_dir, 'hierarchical', 'tree.pt'))
-        self.tree_matrix = torch.load(join(data_dir, 'hierarchical', 'tree_matrix.pt'))
-        self.levels = self.tree.get_max_level()
-        self.tree_matrix_sparse = self.tree_matrix.to_sparse()
-        self.leaf_counts = self.tree.get_leaf_counts()
-        self.n_leafs = len(self.leaf_counts)
-        self.h_vocabulary = torch.load(join(data_dir, 'hierarchical', 'vocabulary.pt'))
-        self.target_mapping = self.get_target_mapping()    # adjusts target mapping to vocabulary
-
-    def get_target_mapping(self):
-        target_mapping_temp = {
-            self.h_vocabulary[k]: v for k, v in self.tree.create_target_mapping().items()
-        }  
-        return {
-           self.vocabulary[k]:target_mapping_temp[self.h_vocabulary[k]] for k, v in self.vocabulary.items() if self.h_vocabulary[k] in target_mapping_temp
-        }
-
-    def get_patient(self, file_name: str):
-        features = torch.load(file_name)
-        num_patients = len(features['concept'])
-        for patient_index in range(num_patients):
-            patient = self.get_patient_dic(features, patient_index)
-            masked_concepts, target = self._mask(patient)
-            patient['concept'] = masked_concepts
-            patient['target'] = target
-            target_mask = patient['target'] != -100
-            patient['attention_mask'] = target_mask
-
-            patient['target'] = self._hierarchical_target(patient['target'][patient['attention_mask']])
-            yield patient
-
-    def _hierarchical_target(self, target):
-        target_levels = torch.tensor([self.target_mapping[t.item()] for t in target]) # Converts target to target for each level
-        return self.expand_to_class_probabilities(target_levels)    # Converts target for each level to probabilities
 
     def expand_to_class_probabilities(self, target_levels):
         levels = self.tree_matrix.shape[0]
@@ -397,12 +246,39 @@ class HierarchicalLargeDataset(MLMLargeDataset):
         probabilities[~mask] = unknown_probabilities
         return probabilities
 
-    def save_vocabulary(self, run_folder: str):
-        torch.save(self.vocabulary, join(run_folder, 'vocabulary.pt'))
-        torch.save(self.h_vocabulary, join(run_folder, 'h_vocabulary.pt'))
+class HierarchicalDataset(BaseHierarchicalDataset, MLMDataset):
+    def __init__(self, data_dir, mode, masked_ratio=0.3, ignore_special_tokens=True, tree=None,tree_matrix=None):
+        BaseHierarchicalDataset.__init__(self, data_dir, mode, masked_ratio=masked_ratio, ignore_special_tokens=ignore_special_tokens, tree=tree, tree_matrix=tree_matrix)
+        MLMDataset.__init__(self, data_dir, mode, masked_ratio=masked_ratio, ignore_special_tokens=ignore_special_tokens)
 
+    def __getitem__(self, index):
+        patient = super().__getitem__(index)
+        target_mask = patient["target"] != -100
+        patient["attention_mask"] = target_mask
+
+        patient["target"] = self._hierarchical_target(patient["target"][target_mask])
+        return patient
+
+class HierarchicalLargeDataset(MLMLargeDataset, BaseHierarchicalDataset):
+    def __init__(self, data_dir:str, mode:str, tree=None, tree_matrix=None, **kwargs):
+        MLMLargeDataset.__init__(self, data_dir, mode, **kwargs)
+        BaseHierarchicalDataset.__init__(self, data_dir, mode, tree=tree, tree_matrix=tree_matrix, **kwargs)
+        
+    def get_patient(self, file_name: str):
+        features = torch.load(file_name)
+        num_patients = len(features['concept'])
+        for patient_index in range(num_patients):
+            patient = self.get_patient_dic(features, patient_index)
+            masked_concepts, target = self._mask(patient)
+            patient['concept'] = masked_concepts
+            patient['target'] = target
+            target_mask = patient['target'] != -100
+            patient['attention_mask'] = target_mask
+
+            patient['target'] = self._hierarchical_target(patient['target'][patient['attention_mask']])
+            yield patient
     
-class CensorDataset(BaseDataset):
+class CensorDataset(BaseSmallDataset):
     """
         n_hours can be both negative and positive (indicating before/after censor token)
         outcomes is a list of the outcome timestamps to predict

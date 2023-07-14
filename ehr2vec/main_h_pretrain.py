@@ -32,7 +32,8 @@ def main_train(config_path):
     
     logger.info(f'Loading data from {cfg.paths.data_path}')
     train_dataset, val_dataset = create_datasets(cfg, hierarchical=True)
-  
+    if logger:
+        logger.info(f"Using {type(train_dataset).__name__} for training")
     logger.info("Setup model")
     bertconfig = BertConfig(leaf_size=len(train_dataset.leaf_counts), 
                             vocab_size=len(train_dataset.vocabulary),

@@ -228,8 +228,7 @@ class HierarchicalDataset(MLMDataset):
         tree_matrix=None,
     ):
         
-        vocabulary = torch.load(join(data_dir, 'vocabulary.pt'))
-        super().__init__(data_dir, mode, vocabulary=vocabulary, masked_ratio=masked_ratio, ignore_special_tokens=ignore_special_tokens)
+        super().__init__(data_dir, mode, masked_ratio=masked_ratio, ignore_special_tokens=ignore_special_tokens)
         
         hierarchical_dir = join(data_dir, 'hierarchical')
         self.h_vocabulary = torch.load(join(hierarchical_dir, 'vocabulary.pt'))
@@ -237,17 +236,22 @@ class HierarchicalDataset(MLMDataset):
             tree_matrix = torch.load(join(hierarchical_dir, 'tree_matrix.pt'))
         if isinstance(tree, type(None)):
             tree = torch.load(join(hierarchical_dir, 'tree.pt'))
+        self.tree = tree
         self.tree_matrix = tree_matrix
         
         self.tree_matrix_sparse = self.tree_matrix.to_sparse()
-        self.leaf_counts = tree.get_leaf_counts()
-        target_mapping_temp = {
-            self.h_vocabulary[k]: v for k, v in tree.create_target_mapping().items()
-        }  
-        self.target_mapping = {
-           self.vocabulary[k]:target_mapping_temp[self.h_vocabulary[k]] for k, v in vocabulary.items() if self.h_vocabulary[k] in target_mapping_temp
-        }
+        self.leaf_counts = self.tree.get_leaf_counts()
+        self.target_mapping = self.get_target_mapping()
 
+    def get_target_mapping(self):
+        """Target mapping with the vocabulary used for tokenization."""
+        target_mapping_temp = {
+            self.h_vocabulary[k]: v for k, v in self.tree.create_target_mapping().items()
+        }  
+        return {
+           self.vocabulary[k]:target_mapping_temp[self.h_vocabulary[k]] for k, v in self.vocabulary.items() if self.h_vocabulary[k] in target_mapping_temp
+        }
+        
     def __getitem__(self, index):
         patient = super().__getitem__(index)
         target_mask = patient["target"] != -100
@@ -311,6 +315,7 @@ class HierarchicalDataset(MLMDataset):
                 probabilities[~mask] = unknown_probabilities
 
         return probabilities
+    
     def save_vocabulary(self, run_folder: str):
         torch.save(self.vocabulary, join(run_folder, 'vocabulary.pt'))
         torch.save(self.h_vocabulary, join(run_folder, 'h_vocabulary.pt'))
@@ -318,17 +323,24 @@ class HierarchicalDataset(MLMDataset):
 class HierarchicalLargeDataset(MLMLargeDataset):
     def __init__(self, data_dir:str, mode:str, **kwargs):
         super().__init__(data_dir, mode, **kwargs)
-
         self.ignore_index = self.kwargs.get('ignore_index', -100)
-        tree = torch.load(join(data_dir, 'hierarchical', 'tree.pt'))
+        
+        self.tree = torch.load(join(data_dir, 'hierarchical', 'tree.pt'))
         self.tree_matrix = torch.load(join(data_dir, 'hierarchical', 'tree_matrix.pt'))
-        self.levels = tree.get_max_level()
+        self.levels = self.tree.get_max_level()
         self.tree_matrix_sparse = self.tree_matrix.to_sparse()
-        self.leaf_counts = tree.get_leaf_counts()
+        self.leaf_counts = self.tree.get_leaf_counts()
         self.n_leafs = len(self.leaf_counts)
-        target_mapping = tree.create_target_mapping()
         self.h_vocabulary = torch.load(join(data_dir, 'hierarchical', 'vocabulary.pt'))
-        self.target_mapping = {self.h_vocabulary[k]: v for k,v in target_mapping.items()}    # adjusts target mapping to vocabulary
+        self.target_mapping = self.get_target_mapping()    # adjusts target mapping to vocabulary
+
+    def get_target_mapping(self):
+        target_mapping_temp = {
+            self.h_vocabulary[k]: v for k, v in self.tree.create_target_mapping().items()
+        }  
+        return {
+           self.vocabulary[k]:target_mapping_temp[self.h_vocabulary[k]] for k, v in self.vocabulary.items() if self.h_vocabulary[k] in target_mapping_temp
+        }
 
     def get_patient(self, file_name: str):
         features = torch.load(file_name)
@@ -390,7 +402,6 @@ class HierarchicalLargeDataset(MLMLargeDataset):
         torch.save(self.h_vocabulary, join(run_folder, 'h_vocabulary.pt'))
 
     
-
 class CensorDataset(BaseDataset):
     """
         n_hours can be both negative and positive (indicating before/after censor token)

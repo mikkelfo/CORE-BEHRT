@@ -34,7 +34,10 @@ def main_train(config_path):
     train_dataset, val_dataset = create_hierarchical_dataset(cfg)
   
     logger.info("Setup model")
-    bertconfig = BertConfig(leaf_size=len(train_dataset.leaf_counts), vocab_size=len(train_dataset.vocabulary), **cfg.model)
+    bertconfig = BertConfig(leaf_size=len(train_dataset.leaf_counts), 
+                            vocab_size=len(train_dataset.vocabulary),
+                            levels=train_dataset.levels,
+                            **cfg.model)
     model = HierarchicalBertForPretraining(bertconfig, tree_matrix=train_dataset.tree_matrix)
 
     logger.info("Setup optimizer")

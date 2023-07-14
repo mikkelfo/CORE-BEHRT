@@ -3,7 +3,7 @@ import torch.nn as nn
 from embeddings.ehr import EhrEmbeddings
 from model.heads import FineTuneHead, HMLMHead, MLMHead
 from transformers import BertModel
-from tree.tree import TreeBuilder
+
 
 
 class BertEHRModel(BertModel):

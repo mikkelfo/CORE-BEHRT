@@ -11,9 +11,9 @@ dataset:
   ignore_special_tokens: true
 
 trainer_args:
-  batch_size: 32
+  batch_size: 64
   effective_batch_size: 128
-  epochs: 10
+  epochs: 3
   info: true
   sampler: null
 
@@ -24,8 +24,7 @@ model:
   num_hidden_layers: 3
   num_attention_heads: 3
   intermediate_size: 64
-  type_vocab_size: 1000
-  levels: 5
+  type_vocab_size: 1000 
   pool_type: mean
 
 optimizer:
@@ -34,7 +33,7 @@ optimizer:
   epsilon: 1e-6
 
 scheduler:
-  num_warmup_steps: 10
-  num_training_steps: 100
+  num_warmup_steps: 1
+  num_training_steps: 10
 metrics:
   null

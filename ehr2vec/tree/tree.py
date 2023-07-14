@@ -12,17 +12,23 @@ from tree.node import Node
 class TreeBuilder:
     def __init__(self, 
                  counts, 
-                 cutoff_level=None,
+                 cutoff_level=5,
+                 extend_level=5,
                  files=['data_dumps/sks_dump_diagnose.csv', 'data_dumps/sks_dump_medication.csv'],):
         self.files = files
         self.counts = counts
         self.cutoff_level = cutoff_level
+        self.extend_level = extend_level
+
 
     def build(self):
         tree_codes = self.create_tree_codes()
         tree = self.create_tree(tree_codes)
-        tree.cutoff_at_level(self.cutoff_level)
-        tree.extend_leaves(self.cutoff_level)
+        if self.cutoff_level is not None:
+            tree.cutoff_at_level(self.cutoff_level)
+        if self.extend_level is not None:
+            tree.extend_leaves(self.extend_level)
+
         tree.base_counts(self.counts)
         tree.sum_counts()
         tree.redist_counts()

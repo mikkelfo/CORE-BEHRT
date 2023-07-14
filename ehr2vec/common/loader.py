@@ -1,4 +1,6 @@
 import os
+from os.path import join
+
 from data.dataset import (HierarchicalDataset, HierarchicalLargeDataset,
                           MLMDataset, MLMLargeDataset)
 
@@ -14,15 +16,11 @@ def create_datasets(cfg, hierarchical:bool=False, file_prefix:str='tokenized_tra
         tuple: Returns a tuple containing train_dataset and val_dataset.
     """
     data_path = cfg.paths.data_path
-    train_files = [file for file in os.listdir(data_path) if file.startswith(file_prefix)]
-
-    DatasetClass = None
-
+    train_files = [file for file in os.listdir(join(data_path, 'tokenized')) if file.startswith(file_prefix)]
     if hierarchical:
         DatasetClass = HierarchicalLargeDataset if len(train_files) > 1 else HierarchicalDataset
     else:
         DatasetClass = MLMLargeDataset if len(train_files) > 1 else MLMDataset
-
     train_dataset, val_dataset = load_datasets(cfg, DatasetClass)
     return train_dataset, val_dataset
 

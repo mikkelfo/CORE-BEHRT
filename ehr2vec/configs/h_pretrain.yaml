@@ -1,8 +1,7 @@
 env: local
-large_dataset: false
 paths:
   # data_path: 'pretrain_datasets/diagnosis_medication/070623/outputs/data' # inside mounted datastore
-  data_path: C:\Users\fjn197\PhD\projects\PHAIR\pipelines\ehr2vec-azure-std\ehr2vec\outputs\data_icd10_small # inside mounted datastore
+  data_path: C:\Users\fjn197\PhD\projects\PHAIR\pipelines\ehr2vec-azure-std\ehr2vec\outputs\data_icd10 # inside mounted datastore
   output_path: "h_pretraining"
   run_name: h_behrt_small
   

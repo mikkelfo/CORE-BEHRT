@@ -59,9 +59,9 @@ class ConceptLoader():
                     continue
         return date_columns
 
-class ConceptLoaderLarge():
+class ConceptLoaderLarge(ConceptLoader):
     def __init__(self, concepts: list = ['diagnosis', 'medication'], data_dir: str = 'formatted_data', patients_info: str = 'patients_info.csv', batch_size:int = 100000, chunksize: int = 100000, test: bool=False, ):
-
+        
         concept_paths = glob.glob(os.path.join(data_dir, 'concept.*'))
         # Filter out concepts files
         self.concept_paths = [p for p in concept_paths if (split(p)[1]).split('.')[1] in concepts]

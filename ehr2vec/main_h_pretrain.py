@@ -5,7 +5,7 @@ from os.path import join
 import torch
 from common import azure
 from common.config import load_config
-from common.loader import create_hierarchical_dataset
+from common.loader import create_datasets
 from common.setup import setup_run_folder
 from model.model import HierarchicalBertForPretraining
 from torch.optim import AdamW
@@ -31,7 +31,7 @@ def main_train(config_path):
     logger = setup_run_folder(cfg)
     
     logger.info(f'Loading data from {cfg.paths.data_path}')
-    train_dataset, val_dataset = create_hierarchical_dataset(cfg)
+    train_dataset, val_dataset = create_datasets(cfg, hierarchical=True)
   
     logger.info("Setup model")
     bertconfig = BertConfig(leaf_size=len(train_dataset.leaf_counts), 

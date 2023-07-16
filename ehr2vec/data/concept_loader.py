@@ -9,7 +9,7 @@ import pyarrow.parquet as pq
 
 
 class ConceptLoader():
-    def __init__(self, concepts=['diagnose', 'medication'], data_dir: str = 'formatted_data', patients_info: str = 'patients_info.csv'):
+    def __init__(self, concepts=['diagnose', 'medication'], data_dir: str = 'formatted_data', patients_info: str = 'patients_info.csv', **kwargs):
         self.concepts = concepts
         self.data_dir = data_dir
         self.patients_info = patients_info
@@ -60,15 +60,15 @@ class ConceptLoader():
         return date_columns
 
 class ConceptLoaderLarge(ConceptLoader):
-    def __init__(self, concepts: list = ['diagnosis', 'medication'], data_dir: str = 'formatted_data', patients_info: str = 'patients_info.csv', batch_size:int = 100000, chunksize: int = 100000, test: bool=False, ):
+    def __init__(self, concepts: list = ['diagnosis', 'medication'], data_dir: str = 'formatted_data', patients_info: str = 'patients_info.csv', test: bool=False, **kwargs):
         
         concept_paths = glob.glob(os.path.join(data_dir, 'concept.*'))
         # Filter out concepts files
         self.concept_paths = [p for p in concept_paths if (split(p)[1]).split('.')[1] in concepts]
         self.patients_df = self._read_file(join(data_dir, patients_info))
         self.patient_ids = self.patients_df['PID'].unique().tolist()
-        self.chunksize = chunksize
-        self.batch_size = batch_size
+        self.chunksize = kwargs.get('chunksize', 10000)
+        self.batch_size = kwargs.get('batch_size', 100000)
         self.test = test
 
     def __call__(self):

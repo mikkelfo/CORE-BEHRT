@@ -80,9 +80,9 @@ class BaseMLMDataset():
     def save_vocabulary(self, run_folder: str):
         torch.save(self.vocabulary, join(run_folder, 'vocabulary.pt'))
         if "h_vocabulary" in self:
-            torch.save(self.vocabulary, join(run_folder, 'h_vocabulary.pt'))
+            torch.save(self.h_vocabulary, join(run_folder, 'h_vocabulary.pt'))
         if "target_mapping" in self:
-            torch.save(self.vocabulary, join(run_folder, 'target_mapping.pt'))
+            torch.save(self.target_mapping, join(run_folder, 'target_mapping.pt'))
 
 class MLMDataset(BaseMLMDataset, BaseSmallDataset):
     def __init__(self, data_dir: str, mode: str, vocabulary=None, masked_ratio=0.3, ignore_special_tokens=True,  **kwargs):

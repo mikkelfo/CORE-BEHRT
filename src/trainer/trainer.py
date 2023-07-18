@@ -33,7 +33,10 @@ class EHRTrainer:
         self.val_dataset = val_dataset
         self.optimizer = optimizer
         self.scheduler = scheduler
-        self.metrics = {k: instantiate(v) for k, v in metrics.items()}
+        if metrics:
+            self.metrics = {k: instantiate(v) for k, v in metrics.items()}
+        else:
+            self.metrics = {}
         self.sampler = sampler
         self.cfg = cfg
 

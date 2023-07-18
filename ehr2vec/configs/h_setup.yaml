@@ -1,6 +1,6 @@
 env: local
 run_name: base_hierarchical
 paths:
-  features: "../outputs/data_icd10"
+  features: "..\\outputs\\data_icd10_l"
 cutoff_level: 5
 extend_level: 5

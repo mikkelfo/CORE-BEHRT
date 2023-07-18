@@ -1,8 +1,8 @@
 env: local
-output_dir: "outputs/data_icd10"
+output_dir: "../outputs/data_icd10_l"
 run_name: "icd10"
 loader:
-  data_dir: C:\Users\fjn197\PhD\projects\PHAIR\pipelines\ehr_preprocess\ehr_preprocess\formatted_data\synthea500_icd10_test
+  data_dir: ../data/formatted/synthea500_icd10
   patients_info: patients_info.csv
   concepts: [
     diagnose

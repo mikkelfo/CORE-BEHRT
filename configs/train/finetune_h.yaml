@@ -1,6 +1,5 @@
 defaults:
   - metrics: classification
-  - model: hierarchical
   - optimizer: defaults
   - paths: defaults
   - trainer_args: defaults

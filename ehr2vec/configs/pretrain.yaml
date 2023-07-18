@@ -1,9 +1,9 @@
 env: local
 paths:
   # data_path: 'pretrain_datasets/diagnosis_medication/070623/outputs/data' # inside mounted datastore
-  data_path: C:\Users\fjn197\PhD\projects\PHAIR\pipelines\ehr2vec-azure-std\ehr2vec\outputs\data_icd10
+  data_path: "..\\outputs\\data_icd10_l"
   output_path: 'pretraining'
-  run_name: test_small2
+  run_name: test
   
 dataset:
   masked_ratio: 0.15

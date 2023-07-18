@@ -36,10 +36,11 @@ class EHRTrainer():
         self.val_dataset = val_dataset
         self.optimizer = optimizer
         self.scheduler = scheduler
-        if cfg.metrics:
-            self.metrics = {k: instantiate(v) for k, v in cfg.metrics.items()}
+        if metrics:
+            self.metrics = {k: instantiate(v) for k, v in metrics.items()}
         else:
-            self.metrics = metrics
+            self.metrics = {}
+        
         self.sampler = sampler
         self.cfg = cfg
         self.logger = logger
@@ -154,21 +155,18 @@ class EHRTrainer():
         val_loop = tqdm(dataloader, total=len(dataloader), file=TqdmToLogger(self.logger) if self.logger else None)
         val_loop.set_description('Validation')
         val_loss = 0
-        if self.metrics:
-            metric_values = {name: [] for name in self.metrics}
+        
+        metric_values = {name: [] for name in self.metrics}
         with torch.no_grad():
             for batch in val_loop:
                 outputs = self.forward_pass(batch)
                 val_loss += outputs.loss.item()
-                if self.metrics:
-                    for name, func in self.metrics.items():
-                        metric_values[name].append(func(outputs, batch))
+                for name, func in self.metrics.items():
+                    metric_values[name].append(func(outputs, batch))
 
         self.model.train()
-        if self.metrics:
-            return val_loss / len(val_loop), {name: sum(values) / len(values) for name, values in metric_values.items()}
-        else:
-            return val_loss / len(val_loop), {None: None}
+        
+        return val_loss / len(val_loop), {name: sum(values) / len(values) for name, values in metric_values.items()}
 
     def to_device(self, batch: dict) -> None:
         """Moves a batch to the device in-place"""

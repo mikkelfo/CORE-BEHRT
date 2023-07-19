@@ -41,18 +41,18 @@ class BaseEHRDataset(IterableDataset):
         """Get a patient dictionary from a patient index"""
         return {key: torch.tensor(values[patient_index]) for key, values in features.items()}
 
-    def set_pids_and_file_ids(self):
+    def set_pids(self):
         if self.num_patients:
-            self.prepare_with_num_patients()
+            self.get_n_patients()
         else:
-            self.prepare_without_num_patients()
+            self.get_all_patients()
 
-    def prepare_with_num_patients(self):
+    def get_n_patients(self):
         self.pid_files = self.get_pid_files(self.file_ids)
         np.random.shuffle(self.pid_files)
-        self.pids, self.file_ids = self.load_selected_pids(self.num_patients)
+        self.pids = self.load_selected_pids(self.num_patients)
 
-    def prepare_without_num_patients(self):
+    def get_all_patients(self):
         self.pids = torch.load(join(self.data_dir, f'{self.mode}_pids.pt'))
         self.num_patients = len(self.pids)
 
@@ -70,15 +70,12 @@ class BaseEHRDataset(IterableDataset):
     def load_selected_pids(self, num_patients):
         """Loads the selected patient IDs from the files"""
         selected_pids = []
-        selected_file_ids = []
         for pid_file_name in self.pid_files:
-            file_id = split(pid_file_name)[-1].split('_')[-1][:-3]
-            selected_file_ids.append(file_id)
             pids = torch.load(pid_file_name)
             selected_pids.extend(pids[:num_patients - len(selected_pids)])
             if len(selected_pids) >= num_patients:
                 break
-        return selected_pids, selected_file_ids
+        return selected_pids
 
     def set_random_seed(self):
         if self.seed:

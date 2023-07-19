@@ -1,38 +1,41 @@
 import os
 import torch
+import pandas as pd
 from datetime import datetime
 
 
-def get_covid_split(config, outcomes, covid_date=datetime(2020, 6, 17)):
-    origin_point = datetime(**config.features.abspos)
-    covid_abspos = (covid_date - origin_point).total_seconds() / 60 / 60
-    covid_split = [i for i, val in enumerate(outcomes["COVID"]) if val < covid_abspos]
-    torch.save(covid_split, os.path.join(config.paths.extra_dir, "covid_split.pt"))
-    return covid_split
-
-
 class Splitter:
-    def __call__(
-        self, data: dict, ratios: list = [0.8, 0.2], dir: str = "", load_splits=None
-    ):
-        if load_splits is None:
-            return self.covid_split(data, ratios, dir=dir)
-        else:
-            return self.load_splits(data, dir=dir, file=load_splits)
+    def __init__(self, config, split_name="splits.pt", mode="random") -> None:
+        self.config = config
+        self.dir = config.paths.extra_dir
+        self.split_name = split_name
+        self.mode = mode
 
-    @staticmethod
-    def load_splits(data, dir, file):
-        splits = torch.load(os.path.join(dir, file))
+    def __call__(
+        self,
+        data: dict,
+        ratios: list = [0.8, 0.2],
+        file=None,
+    ):
+        if self.mode == "random":
+            return self.random_split(data, ratios)
+        elif self.mode == "covid":
+            return self.covid_split(data, ratios)
+        elif self.mode == "load":
+            return self.load_splits(data, file=file)
+
+    def load_splits(self, data, file):
+        splits = torch.load(os.path.join(self.dir, file))
         # Train, val, test is last
         for split in splits:
             yield {key: [values[s] for s in split] for key, values in data.items()}
 
     # Notice ratios is the train/val split as test split is fixed
-    def covid_split(self, data: dict, ratios: list = [0.8, 0.2], dir: str = ""):
+    def covid_split(self, data: dict, ratios: list = [0.8, 0.2]):
         N = len(next(iter(data.values())))  # Get length of first value in dict
 
         # Covid split is all patients where their entire abspos is < the covid_split abspos
-        covid_split = torch.load(os.path.join(dir, "covid_split.pt"))
+        covid_split = self.get_covid_split()
         normal_split = [i for i in range(N) if i not in covid_split]
 
         splits = self._split_indices(len(normal_split), ratios)
@@ -40,20 +43,20 @@ class Splitter:
 
         # We put the covid_split as the last split
         splits.append(covid_split)
-        torch.save(splits, os.path.join(dir, "splits.pt"))
+        torch.save(splits, os.path.join(self.dir, self.split_name))
         print(f"Resulting split ratios: {[round(len(s) / N, 2) for s in splits]}")
         # Train, val, test is last
         for split in splits:
             yield {key: [values[s] for s in split] for key, values in data.items()}
 
-    def random_split(self, data: dict, ratios: list = [0.7, 0.2, 0.1], dir: str = ""):
+    def random_split(self, data: dict, ratios: list = [0.8, 0.2]):
         if round(sum(ratios), 5) != 1:
             raise ValueError(f"Sum of ratios ({ratios}) != 1 ({round(sum(ratios), 5)})")
 
         N = len(next(iter(data.values())))  # Get length of first value in dict
 
         splits = self._split_indices(N, ratios)
-        torch.save(splits, os.path.join(dir, "splits.pt"))
+        torch.save(splits, os.path.join(self.dir, self.split_name))
         print(f"Resulting split ratios: {[round(len(s) / N, 2) for s in splits]}")
         # Train, val, test is last
         for split in splits:
@@ -74,3 +77,20 @@ class Splitter:
             splits[-1] = torch.cat((splits[-1], indices))
 
         return splits
+
+    def get_covid_split(self, outcomes=None, covid_date=datetime(2020, 6, 17)):
+        if outcomes is None:
+            outcomes = torch.load(
+                os.path.join(self.config.paths.data_dir, "outcomes.pt")
+            )
+        origin_point = datetime(**self.config.features.abspos)
+        covid_abspos = (covid_date - origin_point).total_seconds() / 60 / 60
+        covid_outcomes = [
+            (timestamp - origin_point).total_seconds() / 60 / 60
+            for timestamp in outcomes["COVID"]
+        ]
+        covid_split = [i for i, val in enumerate(covid_outcomes) if val < covid_abspos]
+        torch.save(
+            covid_split, os.path.join(self.config.paths.extra_dir, "covid_split.pt")
+        )
+        return covid_split

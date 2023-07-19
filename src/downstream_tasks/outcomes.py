@@ -1,110 +1,53 @@
+import torch
+import os
 import numpy as np
 import pandas as pd
-from src.data.concept_loader import ConceptLoader
-from src.data_fixes.infer import Inferrer
 
 
 class OutcomeMaker:
     def __init__(self, config: dict):
-        # We reload concepts to load in custom events
-        self.concepts_plus, _ = ConceptLoader()(
-            concepts=config.loader.concepts + ["custom_events"] + ["labtests"],
-            data_dir=config.loader.data_dir,
-            patients_info=config.loader.patients_info,
-        )
-        self.concepts_plus = Inferrer()(self.concepts_plus)
         self.outcomes = config.outcomes
+        self.config = config
 
-    def __call__(self, concepts: pd.DataFrame, patients_info: pd.DataFrame):
-        patient_set = set(concepts.PID.unique())
+    def __call__(self, concepts_plus: pd.DataFrame, patients_info: pd.DataFrame):
+        # Remove nan TIMESTAMPs and convert cols to str
+        concepts_plus = concepts_plus[concepts_plus.TIMESTAMP.notna()]
 
-        # Initalize patient_outcomes dict
-        patient_outcomes = {
-            pid: {k: None for k in self.outcomes}
-            for pid in self.concepts_plus["PID"].unique()
-        }
+        # Convert patients_info to dict
+        patients_info_dict = patients_info.set_index("PID").to_dict()
 
-        # Create {PID: DATE_OF_DEATH} dict
-        if self.outcomes.DEATH:
-            death = pd.Series(
-                patients_info["DATE_OF_DEATH"].values, index=patients_info["PID"]
-            ).to_dict()
+        # Init outcome dataframe
+        patient_set = torch.load(os.path.join(self.config.paths.extra_dir, "PIDs.pt"))
+        outcome_df = pd.DataFrame({"PID": patient_set})
 
-        for pid, patient in self.concepts_plus.groupby(
-            "PID", sort=False
-        ):  # For each patient
-            if pid not in patient_set:
-                continue
-            for key in self.outcomes:  # For each outcome
-                # Hospital admission
-                if key == "HOSPITAL_ADMISSION":
-                    patient_outcomes[pid][
-                        "HOSPITAL_ADMISSION"
-                    ] = self.hospital_admission(patient)
+        for outcome, attrs in self.outcomes.items():
+            types = attrs["type"]
+            matches = attrs["match"]
 
-                # Death
-                elif key == "DEATH":
-                    patient_outcomes[pid]["DEATH"] = death.get(pid, np.nan)
+            if types == "patients_info":
+                timestamps = outcome_df.PID.map(
+                    lambda pid: patients_info_dict[matches].get(pid, pd.NaT)
+                )  # Get from dict [outcome] [pid]
+                timestamps = pd.Series(
+                    timestamps.values, index=outcome_df.PID
+                )  # Convert to series
+            else:
+                col_booleans = [
+                    concepts_plus[typ].astype(str).str.startswith(tuple(lst), False)
+                    for typ, lst in zip(types, matches)
+                ]
+                mask = np.bitwise_and.reduce(col_booleans)
 
-                # ICU admission
-                elif key == "ICU_ADMISSION":
-                    patient_outcomes[pid]["ICU_ADMISSION"] = self.icu_admission(patient)
-
-                # Mechanical ventilation
-                elif key == "MECHANICAL_VENTILATION":
-                    patient_outcomes[pid]["MECHANICAL_VENTILATION"] = self.respirator(
-                        patient
-                    )
-
-                # COVID-19 diagnosis
-                elif key == "COVID":
-                    patient_outcomes[pid]["COVID"] = self.covid(patient)
-
+                if "negation" in attrs:
+                    timestamps = concepts_plus[~mask].groupby("PID").TIMESTAMP.min()
                 else:
-                    raise KeyError("Unknown outcome key")
+                    timestamps = concepts_plus[mask].groupby("PID").TIMESTAMP.min()
 
-        # Add patient_outcomes to patient info (converted to dict)
-        info = patients_info.set_index("PID").to_dict("index")
-        for pid, values in patient_outcomes.items():
-            for key, outcome in values.items():
-                info.setdefault(pid, {})[f"OUTCOME_{key}"] = outcome
+            timestamps = timestamps.rename(outcome)
 
-        # Convert back to dataframe
-        return (
-            pd.DataFrame.from_dict(info, orient="index")
-            .reset_index()
-            .rename(columns={"index": "PID"})
-        )
+            outcome_df = outcome_df.merge(timestamps, on="PID", how="left")
 
-    @staticmethod
-    def covid(patient: pd.DataFrame):
-        concepts = patient["CONCEPT"].values
-        values = patient["VALUE"].values
-        for idx in range(len(concepts)):
-            if concepts[idx] == "COVID_TEST" and values[idx] == "Positiv":
-                return patient["TIMESTAMP"].iloc[idx]
-        return np.nan
+        outcomes = outcome_df.to_dict("list")
+        del outcomes["PID"]
 
-    @staticmethod
-    def hospital_admission(patient: pd.DataFrame):
-        admission = patient["ADMISSION_ID"].values
-        for idx, adm in enumerate(admission):
-            if not adm.startswith("unq_"):
-                return patient["TIMESTAMP"].iloc[idx]
-        return np.nan
-
-    @staticmethod
-    def icu_admission(patient: pd.DataFrame):
-        concepts = patient["CONCEPT"].values
-        for idx, concept in enumerate(concepts):
-            if concept == "ICU":
-                return patient["TIMESTAMP"].iloc[idx]
-        return np.nan
-
-    @staticmethod
-    def respirator(patient: pd.DataFrame):
-        concepts = patient["CONCEPT"].values
-        for idx, concept in enumerate(concepts):
-            if concept == "RESPIRATOR":
-                return patient["TIMESTAMP"].iloc[idx]
-        return np.nan
+        return outcomes

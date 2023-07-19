@@ -4,9 +4,9 @@ from src.data_fixes.handle import Handler
 
 
 class EHRTokenizer:
-    def __init__(self, config):
+    def __init__(self, config, vocabulary=None):
         self.config = config
-        if config.vocabulary is None:
+        if config.vocabulary is None and vocabulary is None:
             self.new_vocab = True
             self.vocabulary = {
                 "[PAD]": 0,
@@ -17,7 +17,9 @@ class EHRTokenizer:
             }
         else:
             self.new_vocab = False
-            self.vocabulary = self.load_vocabulary(config.vocabulary)
+            self.vocabulary = self.load_vocabulary(
+                config.vocabulary if vocabulary is None else vocabulary
+            )
 
     def __call__(self, features: dict, padding=None, truncation=None):
         if padding is None:

@@ -14,3 +14,5 @@ hydra:
   run:  
     dir: .
 
+paths:
+  encoded_suffix: finetune

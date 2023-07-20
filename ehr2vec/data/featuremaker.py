@@ -47,10 +47,10 @@ class FeatureMaker():
 
     def create_features(self, concepts: pd.DataFrame, patients_info: pd.DataFrame) -> tuple:
         # Add standard info
+        pids = concepts['PID'].unique()
         for pid, patient in concepts.groupby('PID'):
             for feature, value in self.features.items():
                 value.append(patient[feature.upper()].tolist())
-
         # Add outcomes if in config
         
         info_dict = patients_info.set_index('PID').to_dict('index')
@@ -68,5 +68,5 @@ class FeatureMaker():
 
             return self.features, outcomes
         else:
-            return self.features
+            return self.features, pids
 

@@ -19,6 +19,33 @@ from tqdm import tqdm
 config_path = join('configs', 'data_pretrain.yaml')
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
 
+def check_for_tokenized_files(cfg, logger):
+    tokenized_dir = join(cfg.output_dir, 'tokenized')
+    tokenized_files = os.listdir(tokenized_dir) 
+    if len(tokenized_files)>0:
+        logger.warning(f"The directory {tokenized_dir} is not empty.")
+        logger.warning(f"Deleting tokenized files.")
+        for file in tokenized_files:
+            os.remove(join(tokenized_dir, file))
+
+
+def create_and_save_features(logger, cfg, conceptloader, handler, excluder)-> list[list]:
+    """
+    Creates features and saves them to disk.
+    Returns a list of lists of pids for each batch
+    """
+    pids = []
+    for i, (concept_batch, patient_batch) in enumerate(tqdm(conceptloader(), desc='Batch Process Data', file=TqdmToLogger(logger))):
+        pids_batch = patient_batch.PID.tolist()
+        feature_maker = FeatureMaker(cfg.features) # Otherwise appended to old features
+        features_batch = feature_maker(concept_batch, patient_batch)
+        features_batch = handler(features_batch)
+        features_batch, _, kept_indices  = excluder(features_batch)
+        kept_pids = [pids_batch[idx] for idx in kept_indices]
+        torch.save(features_batch, join(cfg.output_dir, 'features', f'features_{i}.pt'))
+        torch.save(kept_pids, join(cfg.output_dir, 'features', f'pids_features_{i}.pt'))
+        pids.append(kept_pids)
+    return pids
 
 def main_data(config_path):
     """
@@ -43,26 +70,17 @@ def main_data(config_path):
     
     logger.info('Initialize Processors')
     conceptloader = ConceptLoaderLarge(**cfg.loader)
-    
     handler = Handler(**cfg.handler)
     excluder = Excluder(**cfg.excluder)
-    logger.info('Starting data processing')
-    pids = []
-    for i, (concept_batch, patient_batch) in enumerate(tqdm(conceptloader(), desc='Batch Process Data', file=TqdmToLogger(logger))):
-        pids.append(patient_batch['PID'].tolist())
-        feature_maker = FeatureMaker(cfg.features) # Otherwise appended to old features
-        features_batch = feature_maker(concept_batch, patient_batch)
-        features_batch = handler(features_batch)
-        features_batch, _, pids_batch  = excluder(features_batch)
-        torch.save(features_batch, join(cfg.output_dir, 'features', f'features_{i}.pt'))
-        torch.save(pids_batch, join(cfg.output_dir, 'features', f'pids_features_{i}.pt'))
-        
-
-    logger.info('Finished data processing')
+    logger.info('Starting feature creation and processing')
+    pids = create_and_save_features(logger, cfg, conceptloader, handler, excluder)
+    logger.info('Finished feature creation and processing')
+    
     logger.info('Splitting batches')
     batches = Batches(cfg, pids)
     batches.split_and_save()
-
+    
+    check_for_tokenized_files(cfg, logger)
     logger.info('Tokenizing')
     tokenizer = EHRTokenizer(config=cfg.tokenizer)
     batch_tokenize = BatchTokenize(tokenizer, cfg, logger)
@@ -78,4 +96,3 @@ def main_data(config_path):
 
 if __name__ == '__main__':
     main_data(config_path)
-

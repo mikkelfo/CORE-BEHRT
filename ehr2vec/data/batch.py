@@ -37,14 +37,16 @@ class Batches:
         file_ids = np.arange(len(self.pids))
         np.random.shuffle(file_ids)
         # calculate the number of batches for each set
-        train_end = int(self.split_ratios['train'] * len(file_ids))
-        val_end = train_end + int(self.split_ratios['val'] * len(file_ids))
+        val_end = int(self.split_ratios['val'] * len(file_ids))
+        train_end = val_end + int(self.split_ratios['train'] * len(file_ids))
+        if self.split_ratios['test'] == 0:
+            train_end = len(file_ids)
         # split the batches into train, validation and test
         
-        self.train.file_ids = file_ids[:train_end]
-        self.val.file_ids = file_ids[train_end:val_end]
-        self.test.file_ids = file_ids[val_end:]
-
+        self.val.file_ids = file_ids[:val_end]
+        self.train.file_ids = file_ids[val_end:train_end]
+        self.test.file_ids = file_ids[train_end:]
+        
     def split_pids(self)-> None:
         """Splits the pids into train, validation and test sets"""
         self.train.pids, self.val.pids, self.test.pids = self.get_pids('train'), self.get_pids('val'), self.get_pids('test')

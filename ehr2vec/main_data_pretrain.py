@@ -38,14 +38,18 @@ def main_data(config_path):
     logger.info('Mount Dataset')
     logger.info('Starting data processing')
     concepts, patients_info = ConceptLoader(**cfg.loader)()
-   
+    if concepts.PID.nunique() != patients_info.PID.nunique():
+        logger.warning(f"patients info contains {patients_info.PID.nunique()} patients != \
+                       {concepts.PID.nunique()} unique patients in concepts")
+
     logger.info("Creating feature sequences")
-    features = FeatureMaker(cfg.features)(concepts, patients_info)
+    features, pids = FeatureMaker(cfg.features)(concepts, patients_info)
     features = Handler(**cfg.handler)(features)
     logger.info("Exclude patients with <k concepts")
-    features, _, pids = Excluder(**cfg.excluder)(features)
+    features, _, kept_indices = Excluder(**cfg.excluder)(features)
+    kept_pids = [pids[idx] for idx in kept_indices]
     torch.save(features, join(cfg.output_dir, 'features', f'features.pt'))
-    torch.save(pids, join(cfg.output_dir, 'features', f'pids_features.pt'))
+    torch.save(kept_pids, join(cfg.output_dir, 'features', f'pids_features.pt'))
     
     logger.info("Splitting data")
     splitter = Splitter(ratios=cfg.split_ratios)
@@ -53,8 +57,14 @@ def main_data(config_path):
 
     logger.info("Saving split pids")
     torch.save(pids_split['train'], join(cfg.output_dir, 'train_pids.pt'))
-    torch.save(pids_split['test'], join(cfg.output_dir, 'test_pids.pt'))
     torch.save(pids_split['val'], join(cfg.output_dir, 'val_pids.pt'))
+    torch.save(pids_split['test'], join(cfg.output_dir, 'test_pids.pt'))
+    # Ensure compatibility with large dataset
+    torch.save(pids_split['train'], join(cfg.output_dir, 'features' ,'pids_features_0.pt'))
+    torch.save(pids_split['val'], join(cfg.output_dir, 'features' ,'pids_features_1.pt'))
+    torch.save(pids_split['test'], join(cfg.output_dir, 'features' ,'pids_features_2.pt'))
+    
+    torch.save(kept_pids, join(cfg.output_dir, 'features', f'pids_features.pt'))
 
     if not os.path.exists(cfg.output_dir):
         os.makedirs(cfg.output_dir)
@@ -68,18 +78,21 @@ def main_data(config_path):
     
     logger.info("Tokenizing")
     tokenizer = EHRTokenizer(config=cfg.tokenizer)
-    train_encoded = tokenizer(train)
+    encoded_data = {}
+    encoded_data['train'] = tokenizer(train)
     tokenizer.freeze_vocabulary()
     tokenizer.save_vocab(join(cfg.output_dir, 'vocabulary.pt'))
-    test_encoded = tokenizer(test)
-    val_encoded = tokenizer(val)
+    encoded_data['val'] = tokenizer(val)
+    encoded_data['test'] = tokenizer(test)
+
 
     logger.info("Saving tokenized data")
-    torch.save(train_encoded, join(cfg.output_dir,'tokenized','tokenized_train.pt'))
-    torch.save(val_encoded, join(cfg.output_dir, 'tokenized','tokenized_val.pt'))
-    torch.save(test_encoded, join(cfg.output_dir, 'tokenized','tokenized_test.pt'))
+    for idx, mode in enumerate(['train', 'val', 'test']):
+        torch.save(encoded_data[mode], join(cfg.output_dir,'tokenized',f'tokenized_{mode}_{idx}.pt')) 
+        torch.save([idx],join(cfg.output_dir, f'{mode}_file_ids.pt'))
     torch.save(tokenizer.vocabulary, join(cfg.output_dir, 'vocabulary.pt'))
     
+    # Ensure compatibility with large dataset
     logger.info('Finished data processing')
 
     if cfg.env=='azure':

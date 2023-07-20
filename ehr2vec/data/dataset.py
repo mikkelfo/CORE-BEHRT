@@ -1,5 +1,6 @@
 import random
 from os.path import join, split
+from glob import glob
 
 import numpy as np
 import pandas as pd
@@ -7,24 +8,24 @@ import torch
 from torch.utils.data import IterableDataset
 
 class BaseEHRDataset(IterableDataset):
-    def __init__(self, data_dir, mode, num_patients=None, seed=None,):
+    def __init__(self, data_dir, mode, pids=None, num_patients=None, seed=None,):
         self.data_dir = data_dir
         self.mode = mode
         self.num_patients = num_patients
         self.seed = seed
-
-        self.set_pids_and_file_ids()
-        self.file_ids = self.get_file_ids()
         self.set_random_seed()
-        self.data_files = self.get_data_files(self.file_ids)
+        
+        self.tokenized_files = self.get_all_tokenized_files()
+        self.file_ids = self.get_file_ids()
+        self.pid_files = self.get_pid_files()
+        self.pids = self.set_pids(pids)
+        self.num_patients = len(self.pids)
+        self.patient_integer_ids = self.set_patient_integer_ids() # file_id: integer_id. Needed to access the correct patient in the file
+        self.tokenized_files = self.update_tokenized_files()
 
     def __iter__(self):
-        patient_count = 0
-        for file_name in self.data_files:
-            if patient_count >= self.num_patients:
-                return
+        for file_name in self.tokenized_files:
             yield from self.get_patient(file_name) 
-            patient_count += 1
 
     def __len__(self):
         """Number of patients in the dataset"""
@@ -33,47 +34,74 @@ class BaseEHRDataset(IterableDataset):
     def get_patient(self, file_name: str):
         """Loads a single patient from a file"""
         features = torch.load(file_name)
-        num_patients = len(features['concept'])
-        for patient_index in range(num_patients):
+        for patient_index in self.patient_integer_ids[self.get_file_id(file_name)]:
             yield self.get_patient_dic(features, patient_index)
 
     def get_patient_dic(self, features: dict, patient_index: int):
         """Get a patient dictionary from a patient index"""
         return {key: torch.tensor(values[patient_index]) for key, values in features.items()}
 
-    def set_pids(self):
-        if self.num_patients:
-            self.get_n_patients()
-        else:
-            self.get_all_patients()
-
-    def get_n_patients(self):
-        self.pid_files = self.get_pid_files(self.file_ids)
-        np.random.shuffle(self.pid_files)
-        self.pids = self.load_selected_pids(self.num_patients)
-
-    def get_all_patients(self):
-        self.pids = torch.load(join(self.data_dir, f'{self.mode}_pids.pt'))
-        self.num_patients = len(self.pids)
-
     def get_file_ids(self):
         """Returns the file ids for the given mode"""
-        return torch.load(join(self.data_dir, f'{self.mode}_file_ids.pt'))
-    
-    def get_data_files(self, file_ids):
-        """Returns the data files for the given mode"""
-        return [join(self.data_dir, 'tokenized', f'tokenized_{self.mode}_{file_id}.pt') for file_id in file_ids]
-    
-    def get_pid_files(self, file_ids):
-        return [join(self.data_dir, 'features', f'pids_features_{file_id}.pt') for file_id in file_ids]
+        return [self.get_file_id(f) for f in self.tokenized_files]
 
-    def load_selected_pids(self, num_patients):
+    def set_pids(self, pids):
+        if not pids:
+            if self.num_patients:
+                pids = self.get_n_patients()
+            else:
+                pids = self.get_all_patients()
+        else:
+            self.update_file_ids(pids)
+        return pids
+
+    def get_n_patients(self):
+        np.random.shuffle(self.pid_files)
+        return self.get_n_pids()
+
+    def get_all_patients(self):
+        return torch.load(join(self.data_dir, f'{self.mode}_pids.pt'))
+        
+    def update_file_ids(self, pids):
+        """Updates the file ids to only include the selected patients"""
+        self.file_ids = []
+        for file in self.pid_files:
+            pids_batch = torch.load(file)
+            if set(pids_batch).intersection(set(pids)):
+                self.file_ids.append(self.get_file_id(file))
+    
+    def set_patient_integer_ids(self)->dict:
+        patient_integer_ids = {}
+        for pid_file in self.pid_files:
+            file_id = self.get_file_id(pid_file)
+            pids = torch.load(pid_file)
+            patient_integer_ids[file_id] = [i for i, pid in enumerate(pids) if pid in self.pids]
+        return patient_integer_ids
+    
+    def get_all_tokenized_files(self):
+        """Returns the data files for the given mode"""
+        return glob(join(self.data_dir, 'tokenized',f'tokenized_{self.mode}_*.pt'))
+    
+    def update_tokenized_files(self):
+        """Updates the tokenized files to only include the selected patients"""
+        return [file for file in self.tokenized_files if self.get_file_id(file) in self.file_ids]
+
+    def get_pid_files(self):
+        return [join(self.data_dir, 'features', f'pids_features_{file_id}.pt') for file_id in self.file_ids]
+
+    def get_file_id(self, file_name: str):
+        """Returns the file id for a given file name"""
+        return int(file_name.split('_')[-1].split('.')[0])
+
+    def get_n_pids(self):
         """Loads the selected patient IDs from the files"""
         selected_pids = []
+        self.file_ids = [] # Reset file ids, use only those containing the relevant patients
         for pid_file_name in self.pid_files:
+            self.file_ids.append(self.get_file_id(pid_file_name))
             pids = torch.load(pid_file_name)
-            selected_pids.extend(pids[:num_patients - len(selected_pids)])
-            if len(selected_pids) >= num_patients:
+            selected_pids.extend(pids[:self.num_patients - len(selected_pids)])
+            if len(selected_pids) >= self.num_patients:
                 break
         return selected_pids
 

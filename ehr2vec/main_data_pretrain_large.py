@@ -19,7 +19,9 @@ from tqdm import tqdm
 config_path = join('configs', 'data_pretrain.yaml')
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
 
-def check_for_tokenized_files(cfg, logger):
+
+
+def check_and_clear_directory(cfg, logger):
     tokenized_dir = join(cfg.output_dir, 'tokenized')
     tokenized_files = os.listdir(tokenized_dir) 
     if len(tokenized_files)>0:
@@ -29,7 +31,7 @@ def check_for_tokenized_files(cfg, logger):
             os.remove(join(tokenized_dir, file))
 
 
-def create_and_save_features(logger, cfg, conceptloader, handler, excluder)-> list[list]:
+def create_and_save_features(conceptloader, handler, excluder, cfg, logger, )-> list[list]:
     """
     Creates features and saves them to disk.
     Returns a list of lists of pids for each batch
@@ -69,18 +71,18 @@ def main_data(config_path):
     
     
     logger.info('Initialize Processors')
-    conceptloader = ConceptLoaderLarge(**cfg.loader)
-    handler = Handler(**cfg.handler)
-    excluder = Excluder(**cfg.excluder)
     logger.info('Starting feature creation and processing')
-    pids = create_and_save_features(logger, cfg, conceptloader, handler, excluder)
+    pids = create_and_save_features(ConceptLoaderLarge(**cfg.loader), 
+                                    Handler(**cfg.handler), 
+                                    Excluder(**cfg.excluder), 
+                                    cfg, logger)
     logger.info('Finished feature creation and processing')
     
     logger.info('Splitting batches')
     batches = Batches(cfg, pids)
     batches.split_and_save()
     
-    check_for_tokenized_files(cfg, logger)
+    check_and_clear_directory(cfg, logger)
     logger.info('Tokenizing')
     tokenizer = EHRTokenizer(config=cfg.tokenizer)
     batch_tokenize = BatchTokenize(tokenizer, cfg, logger)

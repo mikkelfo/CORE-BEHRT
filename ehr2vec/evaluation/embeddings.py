@@ -119,7 +119,7 @@ class Forwarder(EHRTrainer):
         data['concept_enc'] = np.concatenate(hidden_all)
         return data
 
-    def produce_concept_embeddings(self, model, dataset: Dataset, batch_size:int=50, stop_iter:int=None)->dict:
+    def produce_concept_embeddings(self, model, dataset: Dataset, stop_iter:int=None)->dict:
         data = {k:[] for k in dataset.features.keys() if k in ['concept', 'age', 'abspos']}
         concepts_hidden, pat_counts = [], []
         with torch.no_grad():
@@ -127,10 +127,10 @@ class Forwarder(EHRTrainer):
                 mask = batch['attention_mask'].detach().numpy().flatten().astype(bool)
                 
                 seq_len = batch['concept'].shape[1]
-                pat_counts.append(np.repeat(np.arange(i*batch_size, (i+1)*batch_size), seq_len)[mask])
+                pat_counts.append(np.repeat(np.arange(i*self.batch_size, (i+1)*self.batch_size), seq_len)[mask])
                 if i==len(self.dataloader):
                     pat_counts.append(
-                        np.repeat(np.arange(i*batch_size, i*batch_size+len(batch['concept'])), seq_len)[mask])
+                        np.repeat(np.arange(i*self.batch_size, i*self.batch_size+len(batch['concept'])), seq_len)[mask])
                 self.to_device(batch, self.device)
                 output = self.forward(model, batch)
                 hidden_states = torch.flatten(output.hidden_states[-1], end_dim=1).detach().numpy()

@@ -34,6 +34,12 @@ def prepare_directory_hierarchical(config_path: str, cfg: Config):
     copyfile(config_path, join(hierarchical_dir, 'h_setup.yaml'))
     return setup_logger(hierarchical_dir)
 
+def prepare_embedding_directory(config_path: str, cfg: Config):
+    """Creates output directory and copies config file"""
+    create_directory(cfg.paths.output)
+    copyfile(config_path, join(cfg.paths.output, 'emb_config.yaml'))
+    return setup_logger(cfg.paths.output)
+
 def setup_run_folder(cfg):
     """Creates a run folder"""
     # Generate unique run_name if not provided

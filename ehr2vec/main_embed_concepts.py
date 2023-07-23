@@ -2,26 +2,20 @@
 This script is used to embed concepts into a vector space.
 """
 
+import json
+import os
 from os.path import join, split
-
-from evaluation import visualization, embeddings
-from model.model import BertEHRModel
-from data import dataset
-from common import io
-from common import azure
-
-from common.config import load_config
-from common.setup import prepate_embedding_directory
-from transformers import BertConfig
-
-import numpy as np
-import pandas as pd
 
 import torch
 import typer
-import json
+from common import azure, io
+from common.config import load_config
+from common.setup import prepare_embedding_directory
+from evaluation import embeddings, visualization
+from model.model import BertEHRModel
+from transformers import BertConfig
 
-import os
+from data import dataset
 
 config_path = join('configs', 'embed_concepts.yaml')
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
@@ -37,7 +31,7 @@ def main(config_path):
     model_path = cfg.paths.model
     data_path = cfg.paths.data
     
-    logger = prepate_embedding_directory(config_path, cfg)  
+    logger = prepare_embedding_directory(config_path, cfg)  
     
     model_dir = split(model_path)[0]
     with open(join(model_dir, 'config.json'), 'r') as f:

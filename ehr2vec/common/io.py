@@ -25,7 +25,7 @@ def load_input_target(data_path:str, set_:str, censor_outcome:str, target:str, p
     elif acc_method=='weighted_sum':
         file_name = f'{set_}_embedding_censor_{censor_outcome}_12h_{time}_{acc_method}_layers_{layers}.pt'
     else:
-        RaiseValueError(f"{acc_method} not implemented")
+        raise ValueError(f"{acc_method} not implemented")
     X = torch.load(join(data_path, file_name))
     y = torch.load(join(data_path, f'{set_}_outcomes.pt'))[target]
     return X, y

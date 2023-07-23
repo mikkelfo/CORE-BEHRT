@@ -1,5 +1,5 @@
 import random
-from os.path import join, split
+from os.path import join
 from glob import glob
 
 import numpy as np

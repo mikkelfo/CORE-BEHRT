@@ -23,7 +23,7 @@ class EhrEmbeddings(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
-        
+       
         self.concept_embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
         self.age_embeddings = Time2Vec(1, config.hidden_size)
         self.abspos_embeddings = Time2Vec(1, config.hidden_size)
@@ -32,7 +32,7 @@ class EhrEmbeddings(nn.Module):
         self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
-        if self.config.linear is not None:
+        if self.config.to_dict().get('linear', False):
             self.a = nn.Parameter(torch.ones(1))
             self.b = nn.Parameter(torch.zeros(1))
             self.c = nn.Parameter(torch.zeros(1))

@@ -136,7 +136,9 @@ class EHRTrainer():
             token_type_ids=batch['segment'] if 'segment' in batch else None,
             position_ids={
                 'age': batch['age'] if 'age' in batch else None,
-                'abspos': batch['abspos'] if 'abspos' in batch else None
+                'abspos': batch['abspos'] if 'abspos' in batch else None,
+                'dosage': batch['dosage'] if 'dosage' in batch else None,
+                'unit': batch['unit'] if 'unit' in batch else None,
             },
             labels=batch['target'] if 'target' in batch else None,
         )

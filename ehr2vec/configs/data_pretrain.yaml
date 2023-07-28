@@ -1,5 +1,5 @@
 env: local
-output_dir: "../outputs/data_icd10_l"
+output_dir: "../outputs/data_icd10"
 run_name: "icd10"
 loader:
   data_dir: ../data/formatted/synthea500_icd10

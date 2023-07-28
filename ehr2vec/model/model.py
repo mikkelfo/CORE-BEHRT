@@ -3,14 +3,16 @@ import torch.nn as nn
 from embeddings.ehr import EhrEmbeddings
 from model.heads import FineTuneHead, HMLMHead, MLMHead
 from transformers import BertModel
-
+from common.config import instantiate
 
 
 class BertEHRModel(BertModel):
     def __init__(self, config):
         super().__init__(config)
-
-        self.embeddings = EhrEmbeddings(config)
+        if not config.to_dict().get('embedding', None):
+            self.embeddings = EhrEmbeddings(config)
+        else:
+            self.embeddings = instantiate(config.embedding, config)
         self.loss_fct = nn.CrossEntropyLoss()
         
         self.cls = MLMHead(config)

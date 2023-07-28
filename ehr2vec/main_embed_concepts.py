@@ -7,7 +7,7 @@ import os
 from os.path import join
 
 import torch
-import typer
+
 from common import azure, io
 from common.config import load_config
 from common.setup import prepare_embedding_directory
@@ -33,19 +33,19 @@ def main(config_path):
     logger = prepare_embedding_directory(config_path, cfg)  
     
     with open(join(cfg.loader.model_dir, 'config.json'), 'r') as f:
-        cfg = json.load(f)['model_config']
+        model_cfg = json.load(f)
     logger.info('Initialize Model')
     
-    model = BertEHRModel(BertConfig(**{**cfg, **{'output_hidden_states':True}}))
+    model = BertEHRModel(BertConfig(**{**model_cfg, **{'output_hidden_states':True}}))
     model_path = join(cfg.loader.model_dir, 'checkpoints', f'checkpoint_epoch{cfg.loader.checkpoint_num}_end.pt')
     state_dict = torch.load(model_path)['model_state_dict']
     model.load_state_dict(state_dict, strict=False)
     
-    ds = dataset.BaseEHRDataset(cfg.loader.data_dir, mode='val', cfg=cfg)
+    ds = dataset.BaseEHRDataset(cfg.loader.data_dir, mode='val')
     
     logger.info('Produce embeddings')
-    forwarder = embeddings.Forwarder(model, cfg)
-    data = forwarder.produce_concept_embeddings(model, ds, **cfg.embeddings)
+    forwarder = embeddings.Forwarder(model, ds, **cfg.embeddings )
+    data = forwarder.produce_concept_embeddings()
     
     emb_save_path = join(cfg.loader, 'embeddings', f'concept_emb_{cfg.batch_size*cfg.stop_iter}pats.hdf5')
     logger.info(f"Save embeddings to {emb_save_path}")
@@ -62,4 +62,4 @@ def main(config_path):
         
 
 if __name__ == "__main__":
-    typer.run(main)
+    main(config_path)

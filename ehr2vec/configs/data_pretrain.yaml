@@ -1,8 +1,8 @@
 env: local
-output_dir: "../outputs/data_icd10"
+output_dir: ../outputs/data_icd10
 run_name: "icd10"
 loader:
-  data_dir: ../data/formatted/synthea500_icd10
+  data_dir: ../data/formatted/synthea500_icd10 
   patients_info: patients_info.csv
   concepts: [
     diagnose
@@ -30,9 +30,9 @@ excluder:
   min_len: 2
 
 split_ratios:
-  train: 0.5
-  val: 0.4
-  test: 0.1
+  train: 0.8
+  val: 0.2
+  test: 0.0
 
 handler:
   concept_fill: "[UNK]"    

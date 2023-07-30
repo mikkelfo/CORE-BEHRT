@@ -1,6 +1,8 @@
+import glob
+import os
 from os.path import join
 
-from data.dataset import MLMDataset, HierarchicalMLMDataset
+from data.dataset import HierarchicalMLMDataset, MLMDataset
 
 
 def create_datasets(cfg, hierarchical:bool=False):
@@ -22,3 +24,13 @@ def load_datasets(cfg, DS):
     train_dataset = DS(data_path, 'train', **cfg.dataset)
     val_dataset = DS(data_path, 'val', **cfg.dataset)
     return train_dataset, val_dataset
+
+def check_directory_for_features(dir_, logger):
+    features_dir = join(dir_, 'features')
+    if os.path.exists(features_dir):
+        if len(glob.glob(join(features_dir, 'features_*.pt')))>0:
+            logger.warning(f"Features already exist in {features_dir}.")
+            logger.warning(f"Skipping feature creation.")
+        return True
+    else:
+        return False

@@ -5,6 +5,7 @@ from os.path import join
 import torch
 from common import azure
 from common.config import load_config
+from common.loader import check_directory_for_features
 from common.logger import TqdmToLogger
 from common.setup import prepare_directory
 from data.batch import Batches, BatchTokenize
@@ -15,10 +16,8 @@ from data_fixes.exclude import Excluder
 from data_fixes.handle import Handler
 from tqdm import tqdm
 
-
 config_path = join('configs', 'data_pretrain.yaml')
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
-
 
 
 def check_and_clear_directory(cfg, logger):
@@ -38,9 +37,8 @@ def create_and_save_features(conceptloader, handler, excluder, cfg, logger, )-> 
     """
     pids = []
     for i, (concept_batch, patient_batch) in enumerate(tqdm(conceptloader(), desc='Batch Process Data', file=TqdmToLogger(logger))):
-        pids_batch = patient_batch.PID.tolist()
         feature_maker = FeatureMaker(cfg.features) # Otherwise appended to old features
-        features_batch = feature_maker(concept_batch, patient_batch)
+        features_batch, pids_batch = feature_maker(concept_batch, patient_batch)
         features_batch = handler(features_batch)
         features_batch, _, kept_indices  = excluder(features_batch)
         kept_pids = [pids_batch[idx] for idx in kept_indices]
@@ -72,10 +70,14 @@ def main_data(config_path):
     
     logger.info('Initialize Processors')
     logger.info('Starting feature creation and processing')
-    pids = create_and_save_features(ConceptLoaderLarge(**cfg.loader), 
-                                    Handler(**cfg.handler), 
-                                    Excluder(**cfg.excluder), 
-                                    cfg, logger)
+    if not check_directory_for_features(cfg.loader.data_dir, logger):
+        pids = create_and_save_features(ConceptLoaderLarge(**cfg.loader), 
+                                        Handler(**cfg.handler), 
+                                        Excluder(**cfg.excluder), 
+                                        cfg, logger)
+        torch.save(pids, join(cfg.output_dir, 'features', 'pids_features.pt'))
+    else:
+        pids = torch.load(join(cfg.loader.data_dir, 'features', 'pids_features.pt'))
     logger.info('Finished feature creation and processing')
     
     logger.info('Splitting batches')

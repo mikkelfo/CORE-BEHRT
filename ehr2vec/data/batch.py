@@ -3,6 +3,7 @@ from os.path import join
 import numpy as np
 import torch
 from tqdm import tqdm
+from common.loader import check_directory_for_features
 from common.logger import TqdmToLogger
 
 from typing import List, Tuple
@@ -84,8 +85,12 @@ class BatchTokenize:
     def batch_tokenize(self, batches, mode='train'):
         """Tokenizes batches and saves them"""
         files = []
+        if check_directory_for_features(self.cfg.loader.data_dir, self.logger):
+            features_dir = join(self.cfg.loader.data_dir, 'features')
+        else:
+            features_dir = join(self.cfg.loader.output_dir, 'features')
         for batch in tqdm(batches, desc=f'Tokenizing {mode} batches', file=TqdmToLogger(self.logger)):
-            features = torch.load(join(self.cfg.output_dir, 'features', f'features_{batch}.pt'))
+            features = torch.load(join(features_dir, f'features_{batch}.pt'))
             train_encoded = self.tokenizer(features)
             torch.save(train_encoded, join(self.cfg.output_dir, 'tokenized', f'tokenized_{mode}_{batch}.pt'))
             files.append(f'tokenized_{mode}_{batch}.pt')

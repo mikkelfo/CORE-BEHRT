@@ -5,6 +5,7 @@ from os.path import join
 import torch
 from common import azure
 from common.config import load_config
+from common.loader import check_directory_for_features
 from common.logger import TqdmToLogger
 from common.setup import prepare_directory
 from data.batch import Batches, BatchTokenize
@@ -15,10 +16,8 @@ from data_fixes.exclude import Excluder
 from data_fixes.handle import Handler
 from tqdm import tqdm
 
-
 config_path = join('configs', 'data_pretrain.yaml')
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
-
 
 
 def check_and_clear_directory(cfg, logger):
@@ -71,10 +70,14 @@ def main_data(config_path):
     
     logger.info('Initialize Processors')
     logger.info('Starting feature creation and processing')
-    pids = create_and_save_features(ConceptLoaderLarge(**cfg.loader), 
-                                    Handler(**cfg.handler), 
-                                    Excluder(**cfg.excluder), 
-                                    cfg, logger)
+    if not check_directory_for_features(cfg.loader.data_dir, logger):
+        pids = create_and_save_features(ConceptLoaderLarge(**cfg.loader), 
+                                        Handler(**cfg.handler), 
+                                        Excluder(**cfg.excluder), 
+                                        cfg, logger)
+        torch.save(pids, join(cfg.output_dir, 'features', 'pids_features.pt'))
+    else:
+        pids = torch.load(join(cfg.loader.data_dir, 'features', 'pids_features.pt'))
     logger.info('Finished feature creation and processing')
     
     logger.info('Splitting batches')

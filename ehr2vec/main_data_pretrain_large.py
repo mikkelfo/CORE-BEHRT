@@ -38,9 +38,8 @@ def create_and_save_features(conceptloader, handler, excluder, cfg, logger, )-> 
     """
     pids = []
     for i, (concept_batch, patient_batch) in enumerate(tqdm(conceptloader(), desc='Batch Process Data', file=TqdmToLogger(logger))):
-        pids_batch = patient_batch.PID.tolist()
         feature_maker = FeatureMaker(cfg.features) # Otherwise appended to old features
-        features_batch = feature_maker(concept_batch, patient_batch)
+        features_batch, pids_batch = feature_maker(concept_batch, patient_batch)
         features_batch = handler(features_batch)
         features_batch, _, kept_indices  = excluder(features_batch)
         kept_pids = [pids_batch[idx] for idx in kept_indices]

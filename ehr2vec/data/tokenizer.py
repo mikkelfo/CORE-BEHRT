@@ -1,6 +1,6 @@
 import torch
 from transformers import BatchEncoding
-
+from data_fixes.handle import Handler
 
 class EHRTokenizer():
     def __init__(self, config, vocabulary=None):
@@ -67,7 +67,7 @@ class EHRTokenizer():
         while concept not in self.vocabulary and len(concept)>0:
             concept = concept[:-1]
         return self.vocabulary.get(concept, self.vocabulary['[UNK]'])
-    # TODO: thinks what happens to short tokens that don't occur, should we instead look at closest node in the tree includign siblings?
+    # TODO: thinks what happens to short tokens that don't occur, should we instead look at closest node in the tree including siblings?
 
     @staticmethod
     def truncate(patient: dict, max_len: int):
@@ -82,6 +82,8 @@ class EHRTokenizer():
         for key, value in patient.items():
             patient[key] = value[:background_length] + value[-truncation_length:]    # Keep background sentence + newest information
 
+        if "segment" in patient:  # Re-normalize segments after truncation
+            patient["segment"] = Handler.normalize_segments(patient["segment"])
         return patient
 
     def pad(self, features: dict,  max_len: int):

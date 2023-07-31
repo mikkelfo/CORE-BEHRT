@@ -88,7 +88,7 @@ class BatchTokenize:
         if check_directory_for_features(self.cfg.loader.data_dir, self.logger):
             features_dir = join(self.cfg.loader.data_dir, 'features')
         else:
-            features_dir = join(self.cfg.loader.output_dir, 'features')
+            features_dir = join(self.cfg.output_dir, 'features')
         for batch in tqdm(batches, desc=f'Tokenizing {mode} batches', file=TqdmToLogger(self.logger)):
             features = torch.load(join(features_dir, f'features_{batch}.pt'))
             train_encoded = self.tokenizer(features)

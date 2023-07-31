@@ -60,7 +60,7 @@ class ConceptLoader():
         return date_columns
 
 class ConceptLoaderLarge(ConceptLoader):
-    def __init__(self, concepts: list = ['diagnosis', 'medication'], data_dir: str = 'formatted_data', patients_info: str = 'patients_info.csv', test: bool=False, **kwargs):
+    def __init__(self, concepts: list = ['diagnosis', 'medication'], data_dir: str = 'formatted_data', patients_info: str = 'patients_info.csv', **kwargs):
         
         concept_paths = glob.glob(os.path.join(data_dir, 'concept.*'))
         # Filter out concepts files
@@ -69,7 +69,7 @@ class ConceptLoaderLarge(ConceptLoader):
         self.patient_ids = self.patients_df['PID'].unique().tolist()
         self.chunksize = kwargs.get('chunksize', 10000)
         self.batch_size = kwargs.get('batch_size', 100000)
-        self.test = test
+        self.test = kwargs.get('test', False)
 
     def __call__(self):
         for patients in self.get_patient_batch():

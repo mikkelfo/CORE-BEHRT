@@ -44,7 +44,7 @@ def main_data(config_path):
     cfg = load_config(config_path)
     if cfg.env=='azure':
         _, mount_context = azure.setup_azure(cfg.run_name)
-        mount_dir = mount_context.mount_dir
+        mount_dir = mount_context.mount_point
         cfg.loader.data_dir = join(mount_dir, cfg.loader.data_dir) # specify paths here
 
     logger = prepare_directory(config_path, cfg)  

@@ -21,8 +21,8 @@ def load_datasets(cfg, DS):
     This function is used to load datasets based on the given DatasetClass and configuration.
     """
     data_path = cfg.paths.data_path
-    train_dataset = DS(data_path, 'train', **cfg.dataset)
-    val_dataset = DS(data_path, 'val', **cfg.dataset)
+    train_dataset = DS(data_path, 'train', **cfg.dataset, **cfg.train_data)
+    val_dataset = DS(data_path, 'val', **cfg.dataset, **cfg.val_data)
     return train_dataset, val_dataset
 
 def check_directory_for_features(dir_, logger):

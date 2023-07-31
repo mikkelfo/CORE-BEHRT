@@ -2,7 +2,6 @@
 import os
 from os.path import join
 
-import torch
 from common import azure
 from common.config import load_config
 from common.loader import create_datasets

@@ -5,6 +5,7 @@ from os.path import join
 import torch
 
 from common import azure
+from common.utils import check_patient_counts
 from common.config import load_config
 from common.setup import prepare_directory
 from data.concept_loader import ConceptLoader
@@ -16,11 +17,6 @@ from data_fixes.handle import Handler
 
 config_path = join('configs', 'data_pretrain.yaml')#
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
-
-def check_patient_counts(concepts, patients_info, logger):
-    if concepts.PID.nunique() != patients_info.PID.nunique():
-            logger.warning(f"patients info contains {patients_info.PID.nunique()} patients != \
-                        {concepts.PID.nunique()} unique patients in concepts")
             
 def process_data(loader, handler, excluder, cfg, logger):
     concepts, patients_info = loader()

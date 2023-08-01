@@ -41,7 +41,8 @@ class TreeBuilder:
             data_codes = self.get_codes_from_data(file)
             
             df = pd.read_csv(file)
-            df = self.augment_database(df, data_codes)
+            # TODO: Function needs to be fixed
+            # df = self.augment_database(df, data_codes)
             level = -1
             prev_code = ''
             for i, (code, text) in df.iterrows():
@@ -127,6 +128,7 @@ class TreeBuilder:
             return {code: count for code, count in self.counts.items() if code.startswith('M')}
         else:
             raise NotImplementedError
+    # TODO: Fix function below. KeyError: 'Cannot get left slice bound for non-unique label': 765
     @staticmethod
     def augment_database(df:pd.DataFrame, data_codes:dict)->pd.DataFrame:
         """Takes a DataFrame and a dictionary of codes and returns a DataFrame with the codes inserted in the correct position."""

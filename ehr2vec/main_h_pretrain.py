@@ -27,6 +27,8 @@ def main_train(config_path):
     logger = setup_run_folder(cfg)
     
     logger.info(f'Loading data from {cfg.paths.data_path}')
+    logger.info(f"Using {cfg.train_data.get('num_patients', 'all')} patients for training")
+    logger.info(f"Using {cfg.val_data.get('num_patients', 'all')} patients for validation")
     train_dataset, val_dataset = create_datasets(cfg, hierarchical=True)
     if logger:
         logger.info(f"Using {type(train_dataset).__name__} for training")

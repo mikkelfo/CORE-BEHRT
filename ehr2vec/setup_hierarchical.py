@@ -19,7 +19,7 @@ def setup_hierarchical(config_path=config_path):
         mount_dir = mount_context.mount_point
         cfg.paths.features = join(mount_dir, cfg.paths.features)
         data_dir = "outputs/data"
-    logger = prepare_directory_hierarchical(config_path, cfg)  
+    logger = prepare_directory_hierarchical(config_path, data_dir)  
     
     
     

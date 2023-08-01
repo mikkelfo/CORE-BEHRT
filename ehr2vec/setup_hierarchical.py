@@ -16,7 +16,7 @@ def setup_hierarchical(config_path=config_path):
     data_dir = cfg.paths.features
     if cfg.env=='azure':
         _, mount_context = azure.setup_azure(cfg.run_name)
-        mount_dir = mount_context.mount_dir
+        mount_dir = mount_context.mount_point
         cfg.paths.features = join(mount_dir, cfg.paths.features)
         data_dir = "outputs/data"
     logger = prepare_directory_hierarchical(config_path, cfg)  

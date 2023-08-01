@@ -19,13 +19,10 @@ run_name = "h_pretrain"
 
 def main_train(config_path):
     cfg = load_config(config_path)
-    
+    run = None
     if cfg.env=='azure':
         run, mount_context = azure.setup_azure(run_name)
         cfg.paths.output_path = join(mount_context.mount_point, cfg.paths.output_path)
-    else:
-        run = None
-        cfg.paths.output_path = join('outputs', cfg.paths.output_path)
     
     logger = setup_run_folder(cfg)
     

@@ -22,7 +22,7 @@ def main_train(config_path):
     run = None
     if cfg.env=='azure':
         run, mount_context = azure.setup_azure(run_name)
-        cfg.paths.output_path = join(mount_context.mount_point, cfg.paths.output_path)
+        cfg.paths.data_path = join(mount_context.mount_point, cfg.paths.data_path)
     
     logger = setup_run_folder(cfg)
     

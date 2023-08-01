@@ -13,14 +13,15 @@ config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_pa
 
 def setup_hierarchical(config_path=config_path):
     cfg = load_config(config_path)
+    data_dir = cfg.paths.features
     if cfg.env=='azure':
         _, mount_context = azure.setup_azure(cfg.run_name)
         mount_dir = mount_context.mount_dir
         cfg.paths.features = join(mount_dir, cfg.paths.features)
-
+        data_dir = "outputs/data"
     logger = prepare_directory_hierarchical(config_path, cfg)  
     
-    data_dir = cfg.paths.features
+    
     
     logger.info('Get Counts')
     counts = get_counts(cfg, logger=logger)

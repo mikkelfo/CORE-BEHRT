@@ -73,7 +73,6 @@ class HierarchicalBertForPretraining(BertEHRModel):
 
         tree = build_tree()
         self.tree_matrix = tree.get_tree_matrix()
-        self.tree_matrix_sparse = self.tree_matrix.to_sparse()
         self.tree_mask = self.tree_matrix.any(2)
 
     def get_loss(self, logits, labels, labels_mask):

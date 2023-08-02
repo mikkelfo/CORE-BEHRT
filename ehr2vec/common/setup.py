@@ -27,9 +27,9 @@ def prepare_directory(config_path: str, cfg: Config):
     
     return setup_logger(cfg.output_dir)
 
-def prepare_directory_hierarchical(config_path: str, cfg: Config):
+def prepare_directory_hierarchical(config_path: str, out_dir: str):
     """Creates hierarchical directory and copies config file"""
-    hierarchical_dir = join(cfg.paths.features, "hierarchical")
+    hierarchical_dir = join(out_dir, "hierarchical")
     create_directory(hierarchical_dir)
     copyfile(config_path, join(hierarchical_dir, 'h_setup.yaml'))
     return setup_logger(hierarchical_dir)

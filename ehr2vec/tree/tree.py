@@ -77,7 +77,10 @@ class TreeBuilder:
                 (1, '[GENDER]'), 
                     (2, 'BG_Mand'), (2, 'BG_Kvinde'), (2, 'BG_nan'), (2, 'BG_F'), (2, 'BG_M'),
                 (1, '[BMI]'), 
-                    (2, 'BG_underweight'), (2, 'BG_normal'), (2, 'BG_overweight'), (2, 'BG_obese'), (2, 'BG_extremely-obese'), (2, 'BG_morbidly-obese'), (2, 'BG_nan')
+                    (2, 'BG_underweight'), (2, 'BG_normal'), (2, 'BG_overweight'), (2, 'BG_obese'), (2, 'BG_extremely-obese'), (2, 'BG_morbidly-obese'), (2, 'BG_nan'),
+                (1, '[UNK]'),
+                    (2, '[UNK]'),
+
             ]
         background = self.augment_background(background)
         codes.extend(background)

@@ -203,13 +203,30 @@ class HierarchicalMLMDataset(MLMDataset):
             yield patient
 
     def get_target_mapping(self):
-        """Target mapping with the vocabulary used for tokenization."""
+        """
+        Creates a mapping between the vocabulary and the target mapping created from the tree.
+        
+        It first maps the tree's target mapping keys to the corresponding h_vocabulary keys, 
+        storing this mapping in target_mapping_temp.
+
+        Then, it goes through each item in vocabulary. If the key is also in h_vocabulary 
+        and its corresponding value is in target_mapping_temp, it maps the key from vocabulary 
+        to the value in target_mapping_temp.
+
+        Returns:
+            A dictionary mapping values of vocabulary to values from the tree's target mapping.
+        """
+        tree_target_mapping = self.tree.create_target_mapping()
+        torch.save(tree_target_mapping, 'tree_target_mapping.pt')
         target_mapping_temp = {
-            self.h_vocabulary[k]: v for k, v in self.tree.create_target_mapping().items()
+            self.h_vocabulary[k]: v for k, v in tree_target_mapping.items()
         }  
-        return {
-           self.vocabulary[k]:target_mapping_temp[self.h_vocabulary[k]] for k, v in self.vocabulary.items() if self.h_vocabulary[k] in target_mapping_temp
-        }
+        target_maping = {}
+        for vocab_key, vocab_value in self.vocabulary.items():
+            h_vocab_value = self.h_vocabulary.get(vocab_key, self.h_vocabulary['[UNK]'])
+            target_maping[vocab_value] = target_mapping_temp.get(h_vocab_value)
+            
+        return target_maping 
     def _hierarchical_target(self, target):
         target_levels = torch.tensor(
             [self.target_mapping[t.item()] for t in target]

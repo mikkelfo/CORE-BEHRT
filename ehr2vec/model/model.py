@@ -76,10 +76,9 @@ class HierarchicalBertForPretraining(BertEHRModel):
             assert tree is not None, "Either tree or tree_matrix must be provided"
             tree_matrix = tree.get_tree_matrix()
 
-        self.tree_matrix = tree_matrix
+        self.register_buffer('tree_matrix', tree_matrix) 
         self.tree_matrix_sparse = self.tree_matrix.to_sparse()
-        self.tree_mask = self.tree_matrix.any(2)
-
+        self.register_buffer('tree_mask', tree_matrix.any(2))
     def forward(
         self,
         input_ids=None,

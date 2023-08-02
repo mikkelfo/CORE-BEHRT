@@ -39,19 +39,21 @@ class TreeBuilder:
         codes = []
         for file in self.files:
             data_codes = self.get_codes_from_data(file)
+            database = pd.read_csv(file)
             
-            df = pd.read_csv(file)
-            # TODO: Function needs to be fixed
-            # df = self.augment_database(df, data_codes)
+            data_codes = self.select_codes_outside_database(database, data_codes)
+            data_codes = self.sort_data_codes(data_codes)
+            database = self.augment_database(database, data_codes)
+            
             level = -1
             prev_code = ''
-            for i, (code, text) in df.iterrows():
+            for i, (code, text) in database.iterrows():
                 if pd.isna(code):   # Only for diagnosis
                     # Manually set nan codes for Chapter and Topic (as they have ranges)
                     if text[:3].lower() == 'kap':
                         code = 'XX'             # Sets Chapter as level 2 (XX)
                     else:
-                        if pd.isna(df.iloc[i+1].Kode):  # Skip "subsub"-topics (double nans not started by chapter)
+                        if pd.isna(database.iloc[i+1].Kode):  # Skip "subsub"-topics (double nans not started by chapter)
                             continue
                         code = 'XXX'            # Sets Topic as level 3 (XXX)
 
@@ -128,25 +130,32 @@ class TreeBuilder:
             return {code: count for code, count in self.counts.items() if code.startswith('M')}
         else:
             raise NotImplementedError
-    # TODO: Fix function below. KeyError: 'Cannot get left slice bound for non-unique label': 765
     @staticmethod
-    def augment_database(df:pd.DataFrame, data_codes:dict)->pd.DataFrame:
+    def augment_database(database:pd.DataFrame, data_codes:dict)->pd.DataFrame:
         """Takes a DataFrame and a dictionary of codes and returns a DataFrame with the codes inserted in the correct position."""
-        df_data = pd.DataFrame(list(data_codes.items()), columns=['Kode', 'Tekst'])
-        # Iterate over the rows of the new DataFrame
-        for idx, row in df_data.iterrows():
+        
+        data_codes = pd.DataFrame(list(data_codes.items()), columns=['Kode', 'Tekst'])
+        database = database.reset_index(drop=True, inplace=False)
+        for idx, row in data_codes.iterrows():
             # Find the correct position in athe original DataFrame where the new row should be inserted
-            insert_position = df.index[df['Kode'] > row['Kode']].min()
+            insert_position = database.index[database['Kode'] > row['Kode']].min()
             # If there is no such position, append the row at the end
             if pd.isna(insert_position):
-                df = df.append(row)
+                database.loc[len(database)] = row
             else:
                 # Insert the new row at this position in the original DataFrame
-                df = pd.concat([df.loc[:insert_position - 1], pd.DataFrame(row).T, df.loc[insert_position:]]).reset_index(drop=True)
+                database = pd.concat([database.loc[:insert_position - 1], pd.DataFrame(row).T, database.loc[insert_position:]], ignore_index=True)
 
-        # Reset the index of the DataFrame
-        df = df.reset_index(drop=True, inplace=False)
-        return df
+        return database
+    @staticmethod
+    def select_codes_outside_database(database: pd.DataFrame, data_codes: dict):
+        return {k: v for k, v in data_codes.items() if k not in database['Kode'].to_list()}
+    @staticmethod
+    def sort_data_codes(data_codes: dict):
+        return dict(sorted(data_codes.items(), key=lambda x: x[0]))
+
+    
+
 
 def get_counts(cfg, logger)-> dict:
     """Takes a cfg and logger and returns a dictionary of counts for each code in the vocabulary."""

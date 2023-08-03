@@ -16,3 +16,6 @@ hydra:
 
 ignore_special_tokens: true
 info: true
+
+paths:
+  vocabulary: 'h_vocabulary.pt'

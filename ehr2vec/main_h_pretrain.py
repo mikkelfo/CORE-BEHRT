@@ -9,7 +9,7 @@ from common.setup import setup_run_folder
 from model.model import HierarchicalBertForPretraining
 from torch.optim import AdamW
 from trainer.trainer import EHRTrainer
-from transformers import BertConfig
+from transformers import BertConfig, get_linear_schedule_with_warmup
 
 config_path = 'configs/h_pretrain.yaml'
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
@@ -46,7 +46,8 @@ def main_train(config_path):
         weight_decay=cfg.optimizer.weight_decay,
         eps=cfg.optimizer.epsilon,
     )
-
+    if cfg.scheduler:
+        scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=cfg.scheduler.num_warmup_steps, num_training_steps=cfg.scheduler.num_training_steps)
     logger.info("Setup trainer")
     trainer = EHRTrainer( 
         model=model, 

@@ -85,11 +85,9 @@ class Splitter:
             )
         origin_point = datetime(**self.config.features.abspos)
         covid_abspos = (covid_date - origin_point).total_seconds() / 60 / 60
-        covid_outcomes = [
-            (timestamp - origin_point).total_seconds() / 60 / 60
-            for timestamp in outcomes["COVID"]
+        covid_split = [
+            i for i, val in enumerate(outcomes["COVID"]) if val < covid_abspos
         ]
-        covid_split = [i for i, val in enumerate(covid_outcomes) if val < covid_abspos]
         torch.save(
             covid_split, os.path.join(self.config.paths.extra_dir, "covid_split.pt")
         )

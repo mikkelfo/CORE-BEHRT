@@ -19,7 +19,12 @@ def main(cfg):
     )
 
     # Get the set of relevant patients
-    patient_set = torch.load(os.path.join(cfg.paths.extra_dir, "PIDs.pt"))
+    pids = torch.load(os.path.join(cfg.paths.extra_dir, "PIDs.pt"))
+    excluder_kept_indices = torch.load(
+        os.path.join(cfg.paths.extra_dir, "excluder_kept_indices.pt")
+    )
+    patient_set = [pids[i] for i in excluder_kept_indices]
+
     # Filter out irrelevant patients (due to _plus element)
     concepts_plus = concepts_plus[concepts_plus.PID.isin(patient_set)]
 
@@ -27,7 +32,7 @@ def main(cfg):
     concepts_plus = Inferrer()(concepts_plus)
 
     # Create outcomes
-    outcomes = OutcomeMaker(cfg)(concepts_plus, patients_info)
+    outcomes = OutcomeMaker(cfg)(concepts_plus, patients_info, patient_set=patient_set)
 
     # Save outcomes
     torch.save(outcomes, os.path.join(cfg.paths.data_dir, "outcomes.pt"))

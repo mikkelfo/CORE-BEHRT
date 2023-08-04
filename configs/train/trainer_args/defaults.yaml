@@ -3,3 +3,4 @@ effective_batch_size: 512
 epochs: 30
 info: false
 sampler: null
+run_name: null

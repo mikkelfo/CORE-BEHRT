@@ -3,6 +3,7 @@ extra_dir: 'data/extra'
 encoded_suffix: 'encoded'
 outcomes_suffix: 'outcomes'
 vocabulary: 'vocabulary.pt'
+checkpoint: null
 pretraining:
   dir: 'pretraining'
   model_file: 'final_model.pt'

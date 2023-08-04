@@ -1,6 +1,8 @@
 import os
 import torch
 import hydra
+import json
+from omegaconf import OmegaConf
 from transformers import BertConfig
 from torch.optim import AdamW
 from src.data.dataset import MLMDataset
@@ -10,6 +12,18 @@ from src.model.model import BertEHRModel
 
 @hydra.main(config_path="../../configs/train", config_name="pretrain")
 def main_train(cfg):
+    # Load in checkpoint if provided (cont. training)
+    if cfg.paths.checkpoint is not None:
+        checkpoint = torch.load(os.path.join("runs", cfg.paths.checkpoint))
+        run_name = (
+            cfg.paths.checkpoint.split("/")[0] + "_cont"
+        )  # Set runname to original + _cont
+        config_path = os.path.join(
+            "runs/", cfg.paths.checkpoint.split("/")[0], "config.json"
+        )
+        cfg = OmegaConf.create(json.load(open(config_path))["cfg"])
+        cfg.trainer_args.run_name = run_name
+
     # MLM specific
     train_encoded = torch.load(
         os.path.join(cfg.paths.data_dir, f"train_{cfg.paths.encoded_suffix}.pt")
@@ -42,6 +56,11 @@ def main_train(cfg):
         weight_decay=cfg.optimizer.weight_decay,
         eps=cfg.optimizer.epsilon,
     )
+
+    # Override state_dicts if checkpoint
+    if cfg.paths.checkpoint is not None:
+        model.load_state_dict(checkpoint["model_state_dict"])
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
 
     trainer = EHRTrainer(
         model=model,

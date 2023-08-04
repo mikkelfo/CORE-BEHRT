@@ -22,6 +22,7 @@ trainer_args:
   sampler: null
   gradient_clip: 
     clip_value: 1.0
+  mixed_precision: true
 
 model:
   max_position_embeddings: 512

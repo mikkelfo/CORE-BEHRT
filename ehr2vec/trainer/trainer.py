@@ -1,4 +1,3 @@
-import json
 import os
 
 import torch
@@ -6,6 +5,7 @@ import yaml
 from common.config import Config, get_function, instantiate
 from common.logger import TqdmToLogger
 from dataloader.collate_fn import dynamic_padding
+from torch.cuda.amp import GradScaler, autocast
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
@@ -45,6 +45,10 @@ class EHRTrainer():
         self.cfg = cfg
         self.logger = logger
         self.run = run
+        if self.cfg.trainer_args.get('mixed_precision', False):
+            self.scaler = GradScaler()
+        else:
+            self.scaler = None
         default_args = {
             'save_every_k_steps': float('inf'),
             'collate_fn': dynamic_padding
@@ -91,13 +95,34 @@ class EHRTrainer():
                 self.save_checkpoint(id=f'epoch{epoch}_step{(i+1) // self.accumulation_steps}', train_loss=step_loss / self.accumulation_steps)
         self.validate_and_log(epoch, epoch_loss, train_loop)
     def clip_gradients(self):
+        if self.scaler is not None:
+            self.scaler.unscale_(self.optimizer)
         if self.cfg.trainer_args.get('gradient_clip', False):
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.cfg.trainer_args.gradient_clip.get('max_norm', 1.0))
 
+    def train_step(self, batch: dict):
+        self.optimizer.zero_grad()
+        if self.scaler is not None:
+            with autocast():
+                outputs = self.forward_pass(batch)
+                loss = outputs.loss
+                loss = self.scaler.scale(loss)
+        else:
+            outputs = self.forward_pass(batch)
+            loss = outputs.loss
+
+        self.backward_pass(loss)
+
+        return loss
+
     def update_and_log(self, i, step_loss, train_loop, epoch_loss):
         """Updates the model and logs the loss"""
-        self.optimizer.step()
-        self.optimizer.zero_grad()
+        if self.scaler is not None:
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+        else:
+            self.optimizer.step()
+
         if self.scheduler is not None:
             self.scheduler.step()
         train_loop.set_postfix(loss=step_loss / self.accumulation_steps)
@@ -125,12 +150,6 @@ class EHRTrainer():
         self.save_pids()
         dataloader = DataLoader(self.train_dataset, batch_size=self.args['batch_size'], shuffle=False, collate_fn=self.args['collate_fn'])
         return dataloader
-
-    def train_step(self, batch: dict):
-        outputs = self.forward_pass(batch)
-        self.backward_pass(outputs.loss)
-
-        return outputs.loss
 
     def forward_pass(self, batch: dict):
         self.to_device(batch)

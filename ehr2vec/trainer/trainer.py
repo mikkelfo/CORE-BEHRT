@@ -45,7 +45,8 @@ class EHRTrainer():
         self.cfg = cfg
         self.logger = logger
         self.run = run
-        if self.cfg.trainer_args.get('mixed_precision', False):
+        if self.cfg.trainer_args.get('mixed_precision', False):#
+            raise ValueError("Mixed precision produces unstable results (nan loss). Please use full precision.")
             self.scaler = GradScaler()
         else:
             self.scaler = None
@@ -94,6 +95,7 @@ class EHRTrainer():
             if ((i+1) / self.accumulation_steps) % self.args['save_every_k_steps'] == 0:
                 self.save_checkpoint(id=f'epoch{epoch}_step{(i+1) // self.accumulation_steps}', train_loss=step_loss / self.accumulation_steps)
         self.validate_and_log(epoch, epoch_loss, train_loop)
+
     def clip_gradients(self):
         if self.scaler is not None:
             self.scaler.unscale_(self.optimizer)

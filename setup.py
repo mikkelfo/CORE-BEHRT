@@ -5,6 +5,7 @@ setup(
     description="A setup script for the ehr2vec repo",
     packages=[
         "src",
+        "src.common",
         "src.data",
         "src.data_fixes",
         "src.dataloader",

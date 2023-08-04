@@ -19,3 +19,5 @@ info: true
 
 paths:
   vocabulary: 'h_vocabulary.pt'
+
+metrics: null

@@ -89,6 +89,7 @@ class EHRTrainer():
         for i, batch in train_loop:
             step_loss += self.train_step(batch).item()
             if (i+1) % self.accumulation_steps == 0:
+                self.optimizer.zero_grad()
                 self.clip_gradients()
                 self.update_and_log(i, step_loss, train_loop, epoch_loss)
                 step_loss = 0
@@ -103,7 +104,6 @@ class EHRTrainer():
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.cfg.trainer_args.gradient_clip.get('max_norm', 1.0))
 
     def train_step(self, batch: dict):
-        self.optimizer.zero_grad()
         if self.scaler is not None:
             with autocast():
                 outputs = self.forward_pass(batch)

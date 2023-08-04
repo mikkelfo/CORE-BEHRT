@@ -70,14 +70,21 @@ class HierarchicalBertForPretraining(BertEHRModel):
         self.cls = HMLMHead(config)
 
         # TODO: Make this configurable
-        self.linear_combination = torch.arange(config.levels, 0, -1) / config.levels
+        self.levels = config.levels
+        self.linear_combination = torch.arange(self.levels, 0, -1) / config.levels
 
         if not isinstance(tree_matrix, torch.Tensor):
             assert tree is not None, "Either tree or tree_matrix must be provided"
             tree_matrix = tree.get_tree_matrix()
+        self.register_tree_matrix(tree_matrix) 
+        
 
-        self.register_buffer('tree_matrix', tree_matrix) 
-        self.register_buffer('tree_mask', tree_matrix.any(2))
+    def register_tree_matrix(self, tree_matrix):
+        tree_mask = tree_matrix.any(2)
+        for i in range(self.levels):
+            self.register_buffer(f'tree_matrix_{i}', tree_matrix[i, tree_mask[i]])
+        self.register_buffer('tree_mask', tree_mask)
+
     def forward(
         self,
         input_ids=None,
@@ -114,7 +121,7 @@ class HierarchicalBertForPretraining(BertEHRModel):
             if levels-1 == i:
                 level_predictions = logits
             else:
-                level_predictions = torch.matmul(self.tree_matrix[i, self.tree_mask[i]], logits)    # (leaves, leaves) @ (leaves, batch_size*seq_len) -> (leaves, batch_size*seq_len)
+                level_predictions = torch.matmul(getattr(self, f"tree_matrix_{i}"), logits)    # (leaves, leaves) @ (leaves, batch_size*seq_len) -> (leaves, batch_size*seq_len)
             level_predictions = level_predictions.transpose(1, 0)
             level_predictions = level_predictions[target_mask.view(-1)]
             level_labels = labels[:, i, self.tree_mask[i]]
@@ -124,3 +131,14 @@ class HierarchicalBertForPretraining(BertEHRModel):
         
         return acc_loss / levels
 
+    def state_dict(self, destination=None, prefix='', keep_vars=False):
+        """
+        Returns a dictionary containing a whole state of the module.
+        This is an override of the default state_dict function in nn.Module
+        It excludes the tree_matrix_buffer and tree_mask_buffer from the state_dict.
+        """
+        result = super().state_dict(destination=destination, prefix=prefix, keep_vars=keep_vars)
+        for i in range(self.levels):
+            result.pop(f'tree_matrix_{i}', None)
+        result.pop('tree_mask', None)
+        return result

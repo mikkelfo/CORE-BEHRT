@@ -52,6 +52,7 @@ def main_train(config_path):
     trainer = EHRTrainer( 
         model=model, 
         optimizer=optimizer,
+        scheduler=scheduler,
         train_dataset=train_dataset, 
         val_dataset=val_dataset, 
         args=cfg.trainer_args,

@@ -10,6 +10,11 @@ loader:
   batch_size: 50
   chunksize: 300
 outcomes:
-  COVID: 
+  TEST_OUTCOME: 
     type: [CONCEPT]
-    match: [[423315002, 424393004]]
+    match: [['431855005']]
+features:
+  abspos:
+    year: 2020
+    month: 1
+    day: 26

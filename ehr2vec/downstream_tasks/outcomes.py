@@ -6,10 +6,9 @@ import pandas as pd
 
 class OutcomeMaker:
     def __init__(self, config: dict):
-        self.outcomes = config.outcomes
-        self.config = config
+        self.outcomes = config
 
-    def __call__(self, concepts_plus: pd.DataFrame, patients_info: pd.DataFrame):
+    def __call__(self, concepts_plus: pd.DataFrame, patients_info: pd.DataFrame, patient_set: list=None):
         # Remove nan TIMESTAMPs and convert cols to str
         concepts_plus = concepts_plus[concepts_plus.TIMESTAMP.notna()]
 
@@ -17,7 +16,6 @@ class OutcomeMaker:
         patients_info_dict = patients_info.set_index("PID").to_dict()
 
         # Init outcome dataframe
-        patient_set = torch.load(os.path.join(self.config.paths.extra_dir, "PIDs.pt"))
         outcome_df = pd.DataFrame({"PID": patient_set})
 
         for outcome, attrs in self.outcomes.items():
@@ -48,6 +46,6 @@ class OutcomeMaker:
             outcome_df = outcome_df.merge(timestamps, on="PID", how="left")
 
         outcomes = outcome_df.to_dict("list")
-        del outcomes["PID"]
+        pids = outcomes.pop["PID"]
 
-        return outcomes
+        return outcomes, pids

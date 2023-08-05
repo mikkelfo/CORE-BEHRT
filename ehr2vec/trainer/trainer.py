@@ -88,6 +88,8 @@ class EHRTrainer():
         step_loss = 0
         for i, batch in train_loop:
             step_loss += self.train_step(batch).item()
+            if i<3:
+                self.run_log_gpu()
             if (i+1) % self.accumulation_steps == 0:
                 self.optimizer.zero_grad()
                 self.clip_gradients()
@@ -132,15 +134,14 @@ class EHRTrainer():
 
         if self.args['info']:
             self.log(f'Train loss {(i+1) // self.accumulation_steps}: {step_loss / self.accumulation_steps}')
-        if self.run is not None:
-            self.run.log_metric(name='Train loss', value=(step_loss/self.accumulation_steps))
+        self.run_log('Train loss', step_loss / self.accumulation_steps, i)
+        
 
     def validate_and_log(self, epoch, epoch_loss, train_loop):
         val_loss, metrics = self.validate()
-        if self.run is not None:
-            self.run.log_metric(name='Val loss', value=val_loss)
-            for k, v in metrics.items():
-                self.run.log_metric(name = k, value = v)
+        self.run_log(name='Val loss', value=val_loss)
+        for k, v in metrics.items():
+            self.run_log(name = k, value = v)
         self.save_checkpoint(id=f'epoch{epoch}_end', train_loss=epoch_loss, val_loss=val_loss, metrics=metrics, final_step_loss=epoch_loss[-1])
         self.log(f'Epoch {epoch} train loss: {sum(epoch_loss) / (len(train_loop) / self.accumulation_steps)}')
         self.log(f'Epoch {epoch} val loss: {val_loss}')
@@ -206,6 +207,19 @@ class EHRTrainer():
             self.logger.info(message)
         else:
             print(message)
+    def run_log_gpu(self):
+        """Logs the GPU memory usage to the run"""
+        # Log the GPU memory usage
+        if self.run is not None:
+            memory_allocated = torch.cuda.memory_allocated(device=self.device)
+            self.run.log_metric("GPU Memory Allocated", memory_allocated)
+
+            memory_cached = torch.cuda.memory_cached(device=self.device)
+            self.run.log_metric("GPU Memory Cached", memory_cached)
+
+    def run_log(self, name, value):
+        if self.run is not None:
+            self.run.log_metric(name=name, value=value)
 
     def save_setup(self):
         """Saves the config and model config"""

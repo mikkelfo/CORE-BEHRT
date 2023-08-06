@@ -1,4 +1,5 @@
 import torch
+from sklearn.metrics import accuracy_score, recall_score, precision_score, roc_auc_score
 
 """Computes the precision@k for the specified value of k"""
 class PrecisionAtK:
@@ -36,3 +37,46 @@ def binary_hit(outputs, batch, threshold=0.5, average=True):
     else:
         return (predictions == target).float().mean().item()
 
+class Accuracy():
+    def __init__(self) -> None:
+        pass
+    def __call__(self, outputs, batch) -> Any:
+        logits = outputs.get('prediction_logits', outputs.get('logits', None)) 
+        probas = torch.nn.functional.softmax(logits, dim=-1)
+        _, predictions = torch.max(probas, dim=-1)
+        try:
+            score = accuracy_score(batch['target'], predictions)
+            return score
+        except Warning("Accuracy score could not be computed"):
+            return None
+
+class Precision():
+    def __init__(self) -> None:
+        pass
+    def __call__(self, outputs, batch) -> Any:
+        logits = outputs.get('prediction_logits', outputs.get('logits', None)) 
+        probas = torch.nn.functional.softmax(logits, dim=-1)
+        _, predictions = torch.max(probas, dim=-1)
+        return precision_score(batch['target'], predictions, zero_division=0)
+    
+class Recall():
+    def __init__(self) -> None:
+        pass
+    def __call__(self, outputs, batch) -> Any:
+        logits = outputs.get('prediction_logits', outputs.get('logits', None)) 
+        probas = torch.nn.functional.softmax(logits, dim=-1)
+        _, predictions = torch.max(probas, dim=-1)
+        return recall_score(batch['target'], predictions, zero_division=0)
+
+class ROC_AUC():
+    def __init__(self) -> None:
+        pass
+    def __call__(self, outputs, batch) -> Any:
+        logits = outputs.get('prediction_logits', outputs.get('logits', None)) 
+        probas = torch.nn.functional.softmax(logits, dim=-1).detach().cpu().numpy()
+        try:
+            score = roc_auc_score(batch['target'], probas[:,-1])
+            return score
+        except:
+            print("ROC AUC score could not be computed")
+            return 0

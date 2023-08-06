@@ -1,9 +1,40 @@
 import glob
 import os
 from os.path import join
+import torch
+from data.dataset import HierarchicalMLMDataset, MLMDataset, CensorDataset
 
-from data.dataset import HierarchicalMLMDataset, MLMDataset
+def create_binary_outcome_datasets(cfg):
+    """
+    This function is used to create outcome datasets based on the configuration provided.
+    """
+    outcomes, censor_outcomes, pids = load_outcomes(cfg)
+    train_dataset = CensorDataset(cfg.paths.data_path, 'train', outcomes, 
+                                    censor_outcomes=censor_outcomes, 
+                                    outcome_pids=pids,
+                                    n_hours=cfg.outcome.n_hours,
+                                    **cfg.dataset, **cfg.train_data)
+    val_dataset = CensorDataset(cfg.paths.data_path, 'val',  outcomes, 
+                                    censor_outcomes=censor_outcomes, 
+                                    outcome_pids=pids,
+                                    n_hours=cfg.outcome.n_hours,
+                                    **cfg.dataset, **cfg.val_data)
+    return train_dataset, val_dataset, outcomes
 
+def load_outcomes(cfg):
+    """From the configuration, load the outcomes and censor outcomes.
+    Access pids, the outcome of interest and the censoring outcome."""
+    data_path = cfg.paths.data_path
+    outcomes_path = join(data_path, 'outcomes')
+    all_outcomes = torch.load(join(outcomes_path, cfg.paths.outcome_file))
+    if cfg.censor_file!=cfg.outcome_file:
+        all_censor_outcomes = torch.load(join(data_path, 'outcomes', cfg.censor_file))
+    else:
+        all_censor_outcomes = all_outcomes
+    outcomes = all_outcomes[cfg.outcome.type]
+    censor_outcomes = all_censor_outcomes[cfg.outcome.censor_type]
+    pids = outcomes['PID']
+    return outcomes, censor_outcomes, pids
 
 def create_datasets(cfg, hierarchical:bool=False):
     """

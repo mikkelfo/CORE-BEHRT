@@ -88,8 +88,8 @@ class EHRTrainer():
         step_loss = 0
         for i, batch in train_loop:
             step_loss += self.train_step(batch).item()
-            if i<50:
-                self.run_log_gpu()
+            #if i<50:
+             #   self.run_log_gpu()
             if (i+1) % self.accumulation_steps == 0:
                 self.optimizer.zero_grad()
                 self.clip_gradients()
@@ -134,6 +134,10 @@ class EHRTrainer():
 
         if self.args['info']:
             self.log(f'Train loss {(i+1) // self.accumulation_steps}: {step_loss / self.accumulation_steps}')
+            for param_group in self.optimizer.param_groups:
+                current_lr = param_group['lr']
+                self.run_log('Learning Rate', current_lr)
+                break
         self.run_log('Train loss', step_loss / self.accumulation_steps)
         
 

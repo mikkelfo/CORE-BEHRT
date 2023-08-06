@@ -123,7 +123,6 @@ class MLMDataset(BaseEHRDataset):
             self.n_special_tokens = len([token for token in vocabulary if token.startswith('[')])
         else:
             self.n_special_tokens = 0
-        self.pids = torch.load(join(data_dir, f'{mode}_pids.pt'))
 
     def get_patient(self, file_name: str):
         """Loads a single patient from a file"""
@@ -307,7 +306,7 @@ class CensorDataset():
             # censor the last n_hours
             dont_censor = (pos - event_timestamp - self.n_hours) <= 0
 
-            # TODO: This removes padding as well - is this ok?
+            # TODO: This removes padding as well - is this ok?  
             for key, value in patient.items():
                 patient[key] = value[dont_censor]
 

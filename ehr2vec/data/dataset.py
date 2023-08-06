@@ -1,5 +1,5 @@
 import random
-from os.path import join, split
+from os.path import join
 from glob import glob
 
 import numpy as np
@@ -20,7 +20,7 @@ class BaseEHRDataset(IterableDataset):
         self.pid_files = self.get_pid_files()
         self.pids = self.set_pids(pids)
         self.num_patients = len(self.pids)
-        self.patient_integer_ids = self.set_patient_integer_ids() # file_id: integer_id. Needed to access the correct patient in the file
+        self.patient_integer_ids = self.set_patient_integer_ids() 
         self.tokenized_files = self.update_tokenized_files()
 
     def __iter__(self):
@@ -71,11 +71,14 @@ class BaseEHRDataset(IterableDataset):
                 self.file_ids.append(self.get_file_id(file))
     
     def set_patient_integer_ids(self)->dict:
+        """
+        Returns a dictionary file_id:{patient_index:pid}
+        """
         patient_integer_ids = {}
         for pid_file in self.pid_files:
             file_id = self.get_file_id(pid_file)
             pids = torch.load(pid_file)
-            patient_integer_ids[file_id] = [i for i, pid in enumerate(pids) if pid in self.pids]
+            patient_integer_ids[file_id] = {i:pid for i, pid in enumerate(pids) if pid in self.pids}
         return patient_integer_ids
     
     def get_all_tokenized_files(self):
@@ -271,16 +274,17 @@ class HierarchicalMLMDataset(MLMDataset):
         probabilities[~mask] = unknown_probabilities
         return probabilities
     
-class CensorDataset():
+class CensorDataset(BaseEHRDataset):
     """
         n_hours can be both negative and positive (indicating before/after censor token)
         outcomes is a list of the outcome timestamps to predict
         censor_outcomes is a list of the censor timestamps to use
     """
-    def __init__(self, features: dict, outcomes: list, censor_outcomes: list, n_hours: int):
-        super().__init__(features)
+    def __init__(self, data_dir, outcome_path, mode, censor_outcomes: list, n_hours: int,  tree=None, tree_matrix=None, num_patients=None, seed=None, ):
+        super().__init__(data_dir, mode, num_patients=num_patients, seed=seed)
 
-        self.outcomes = outcomes
+
+        self.outcomes = torch.load(outcome_path)
         self.censor_outcomes = censor_outcomes
         self.n_hours = n_hours
 

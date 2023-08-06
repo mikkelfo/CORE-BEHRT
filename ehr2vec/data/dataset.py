@@ -280,21 +280,23 @@ class CensorDataset(BaseEHRDataset):
         outcomes is a list of the outcome timestamps to predict
         censor_outcomes is a list of the censor timestamps to use
     """
-    def __init__(self, data_dir, outcome_path, mode, censor_outcomes: list, n_hours: int,  tree=None, tree_matrix=None, num_patients=None, seed=None, ):
+    def __init__(self, data_dir:str, mode:str, outcomes:list, censor_outcomes: list, n_hours: int, outcome_pids: list, num_patients=None, seed=None, ):
         super().__init__(data_dir, mode, num_patients=num_patients, seed=seed)
-
-
-        self.outcomes = torch.load(outcome_path)
+        self.outcomes = outcomes
         self.censor_outcomes = censor_outcomes
         self.n_hours = n_hours
+        self.outcome_pids = outcome_pids
 
-    def __getitem__(self, index: int) -> dict:
-        patient = super().__getitem__(index)
-        censor_timestamp = self.censor_outcomes[index]
-        patient = self._censor(patient, censor_timestamp)
-        patient['target'] = float(pd.notna(self.outcomes[index]))
-
-        return patient
+    def get_patient(self, file_name: str):
+        """Loads a single patient from a file"""
+        features = torch.load(file_name)
+        for patient_index, pid in self.patient_integer_ids[self.get_file_id(file_name)].items():
+            patient = self.get_patient_dic(features, patient_index)
+            outcome_patient_index = self.outcome_pids.index(pid)
+            censor_timestamp = self.censor_outcomes[outcome_patient_index]
+            patient = self._censor(patient, censor_timestamp)
+            patient['target'] = float(pd.notna(self.outcomes[outcome_patient_index]))
+            yield patient
 
     def _censor(self, patient: dict, event_timestamp: float) -> dict:
         if pd.isna(event_timestamp):

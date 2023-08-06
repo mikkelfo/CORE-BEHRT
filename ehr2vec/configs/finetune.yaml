@@ -1,24 +1,49 @@
-defaults:
-  - metrics: classification
-  - model: defaults
-  - optimizer: defaults
-  - paths: defaults
-  - trainer_args: defaults
+env: local
+paths:
+  data_path: "../outputs/data_icd10_l"
+  outcome: "outcomes_test.yaml"
+  censor: "outcomes_test.yaml"
+  output_path: "outputs/finetuning"
+  run_name: "finetune"
 
-  - override hydra/hydra_logging: disabled  
-  - override hydra/job_logging: disabled  
-  - _self_
-  
-hydra:  
-  output_subdir: null
-  run:  
-    dir: .
+train_data:
+  num_patients: 400
+val_data:
+  num_patients: 80
 
 outcome: 
   type: DEATH
-  n_hours: 12
+  n_hours: 12 # censor time
   censor_type: HOSPITAL_ADMISSION
 
 trainer_args:
   sampler: null
   pos_weight: null
+  batch_size: 64
+  effective_batch_size: 256
+  epochs: 2
+  info: true
+  gradient_clip: 
+    clip_value: 1.0
+  mixed_precision: false
+
+optimizer:
+  lr: 5e-4
+  weight_decay: 0
+  epsilon: 1e-6
+
+scheduler:
+  num_warmup_steps: 10
+  num_training_steps: 100
+
+metrics:
+  accuracy:
+    _target_: evaluation.metrics.Accuracy
+  precision:
+    _target_: evaluation.metrics.Precision
+  recall:
+    _target_: evaluation.metrics.Recall
+  roc_auc:
+    _target_: evaluation.metrics.ROC_AUC
+  
+ 

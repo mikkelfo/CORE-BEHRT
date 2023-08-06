@@ -1,28 +1,46 @@
-import torch
-import hydra
-from torch.optim import AdamW
-from data.dataset import CensorDataset
-from trainer.trainer import EHRTrainer
-from model.model import BertForFineTuning
-from transformers import BertConfig
+import os
+from os.path import join
+
 import pandas as pd
+import torch
+from common.config import load_config
+from common import azure
+from common.setup import setup_run_folder
+from common.loader import create_binary_outcome_datasets
+
+from data.dataset import CensorDataset
+from model.model import BertForFineTuning
+from torch.optim import AdamW
 from torch.utils.data import WeightedRandomSampler
+from trainer.trainer import EHRTrainer
+from transformers import BertConfig
+
+config_path = join("configs", "pretrain.yaml")
+config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
+
+run_name = "finetune"
 
 
-@hydra.main(config_path="configs/train", config_name="finetune")
 def main_finetune(cfg):
+    cfg = load_config(config_path)
+    run = None
+
+    if cfg.env=='azure':
+        run, mount_context = azure.setup_azure(cfg.paths.run_name)
+        cfg.paths.data_path = join(mount_context.mount_point, cfg.paths.data_path)
+        cfg.paths.model_path = join(mount_context.mount_point, cfg.paths.model_path)
     # Finetune specific
-    train_encoded = torch.load(cfg.paths.train_encoded)
-    train_outcomes = torch.load(cfg.paths.train_outcomes)
-    val_encoded = torch.load(cfg.paths.val_encoded)
-    val_outcomes = torch.load(cfg.paths.val_outcomes)
-    n_hours, outcome_type, censor_type = cfg.outcome.n_hours, cfg.outcome.type, cfg.outcome.censor_type
-    train_dataset = CensorDataset(train_encoded, n_hours=n_hours, outcomes=train_outcomes[outcome_type], censor_outcomes=train_outcomes[censor_type])
-    val_dataset = CensorDataset(val_encoded, n_hours=n_hours, outcomes=val_outcomes[outcome_type], censor_outcomes=val_outcomes[censor_type])
+    logger = setup_run_folder(cfg)
+    logger.info(f"Access data from {cfg.paths.data_path}")
+    logger.info(f'Outcome file: {cfg.paths.outcome}, Outcome name: {cfg.outcome.type}')
+    logger.info(f'Censor file: {cfg.paths.censor}, Censor name: {cfg.outcome.censor_type}')
+    logger.info(f"Censoring {cfg.outcome.n_hours} hours after censor_outcome")
+    train_dataset, val_dataset, outcomes = create_binary_outcome_datasets(cfg)
+    
     
     sampler, pos_weight = None, None
     if cfg.trainer_args['sampler']:
-        labels = pd.Series(train_outcomes[outcome_type]).notna().astype(int)
+        labels = pd.Series(outcomes).notna().astype(int)
         label_weight = 1 / labels.value_counts()
         weights = labels.map(label_weight).values
         sampler = WeightedRandomSampler(
@@ -31,18 +49,10 @@ def main_finetune(cfg):
             replacement=True
         )
     elif cfg.trainer_args['pos_weight']:
-        pos_weight = sum(pd.isna(train_outcomes[outcome_type])) / sum(pd.notna(train_outcomes[outcome_type]))
+        pos_weight = sum(pd.isna(outcomes)) / sum(pd.notna(outcomes))
 
-    print(f'Setting up finetune task on [{outcome_type}] with [{n_hours}] hours censoring at [{censor_type}] using pos_weight [{pos_weight}] and sampler [{cfg.trainer_args["sampler"]}]')
-
-    model = BertForFineTuning(
-        BertConfig(
-            **cfg.model,
-            pos_weight=pos_weight
-        )
-    )
-    model.load_state_dict(torch.load(cfg.paths.pretrained_model)['model_state_dict'], strict=False)
-
+    logger.info('Initializing model')
+    # !Continue here.
     optimizer = AdamW(
         model.parameters(),
         lr=cfg.optimizer.lr,

@@ -6,8 +6,9 @@ from datetime import datetime
 
 
 class OutcomeMaker:
-    def __init__(self, config: dict):
+    def __init__(self, config: dict, features_cfg: dict):
         self.outcomes = config.outcomes
+        self.features_cfg = features_cfg
         self.config = config
 
     def __call__(
@@ -21,8 +22,7 @@ class OutcomeMaker:
             patient_set = self.load_patient_set()
         outcome_df = pd.DataFrame({"PID": patient_set})
 
-        # TODO: should be taken from features config
-        origin_point = datetime(**self.config.features.abspos)
+        origin_point = datetime(**self.features_cfg.features.abspos)
 
         for outcome, attrs in self.outcomes.items():
             types = attrs["type"]

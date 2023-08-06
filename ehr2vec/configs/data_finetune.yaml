@@ -1,6 +1,6 @@
 env: local
-run_name: "test_outcomes"
-features_path: ../outputs/data_icd10
+outcomes_name: "TEST"
+features_dir: ../outputs/data_icd10
 loader:
   data_dir: ../data/formatted/synthea500_icd10 
   patients_info: patients_info.csv
@@ -12,9 +12,4 @@ loader:
 outcomes:
   TEST_OUTCOME: 
     type: [CONCEPT]
-    match: [['431855005']]
-features:
-  abspos:
-    year: 2020
-    month: 1
-    day: 26
+    match: [['431855005', '271737000']]

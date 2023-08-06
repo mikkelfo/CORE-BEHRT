@@ -1,25 +1,31 @@
 """Create tokenized features from formatted data. config template: data.yaml"""
 import os
+from collections import defaultdict
 from os.path import join
 
 import torch
 from common import azure
 from common.config import load_config
+from common.logger import TqdmToLogger
 from common.setup import prepare_directory_outcomes
 from common.utils import check_patient_counts
-from data.concept_loader import ConceptLoader
+from data.concept_loader import ConceptLoaderLarge
 from downstream_tasks.outcomes import OutcomeMaker
+from tqdm import tqdm
 
 config_path = join('configs', 'data_finetune.yaml')
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
 
             
 def process_data(loader, cfg, features_cfg, logger):
-    concepts, patients_info = loader()
-    check_patient_counts(concepts, patients_info, logger)
-    pids = concepts.PID.unique()
-    outcomes = OutcomeMaker(cfg, features_cfg)(concepts, patients_info, pids)
-    return outcomes
+    all_outcomes = defaultdict(list)
+    for (concept_batch, patient_batch) in tqdm(loader(), desc='Batch Process Data', file=TqdmToLogger(logger)):
+        check_patient_counts(concept_batch, patient_batch, logger)
+        pids = concept_batch.PID.unique()
+        outcomes = OutcomeMaker(cfg, features_cfg)(concept_batch, patient_batch, pids)
+        for key, value in outcomes.items():
+            all_outcomes[key].extend(value)
+    return all_outcomes
 
 def main_data(config_path):
     cfg = load_config(config_path)
@@ -35,7 +41,7 @@ def main_data(config_path):
     logger = prepare_directory_outcomes(config_path, outcome_dir, cfg.outcomes_name)
     logger.info('Mount Dataset')
     logger.info('Starting outcomes creation')
-    outcomes = process_data(ConceptLoader(**cfg.loader), cfg, features_cfg, logger)
+    outcomes = process_data(ConceptLoaderLarge(**cfg.loader), cfg, features_cfg, logger)
     
     torch.save(outcomes, join(outcome_dir, f'{cfg.outcomes_name}.pt'))
     

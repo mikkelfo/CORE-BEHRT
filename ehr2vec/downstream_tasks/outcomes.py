@@ -37,11 +37,10 @@ class OutcomeMaker:
             timestamps = self.get_relative_timestamps_in_hours(timestamps, origin_point)
 
             outcome_df = outcome_df.merge(timestamps, on="PID", how="left")
-
         outcomes = outcome_df.to_dict("list")
-        pids = outcomes.pop("PID")
+        # pids = outcomes.pop("PID")
 
-        return outcomes, pids
+        return outcomes
     
     @staticmethod
     def remove_missing_timestamps(concepts_plus):

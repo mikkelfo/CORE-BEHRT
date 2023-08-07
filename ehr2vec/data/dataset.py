@@ -280,8 +280,8 @@ class CensorDataset(BaseEHRDataset):
         outcomes is a list of the outcome timestamps to predict
         censor_outcomes is a list of the censor timestamps to use
     """
-    def __init__(self, data_dir:str, mode:str, outcomes:list, censor_outcomes: list, n_hours: int, outcome_pids: list, num_patients=None, seed=None, ):
-        super().__init__(data_dir, mode, num_patients=num_patients, seed=seed)
+    def __init__(self, data_dir:str, mode:str, outcomes:list, censor_outcomes: list, n_hours: int, outcome_pids: list, num_patients=None, pids=None, seed=None, ):
+        super().__init__(data_dir, mode, num_patients=num_patients, pids=pids, seed=seed)
         self.outcomes = outcomes
         self.censor_outcomes = censor_outcomes
         self.n_hours = n_hours

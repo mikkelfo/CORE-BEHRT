@@ -8,7 +8,7 @@ import torch
 from torch.utils.data import IterableDataset
 
 class BaseEHRDataset(IterableDataset):
-    def __init__(self, data_dir, mode, pids=None, num_patients=None, seed=None,):
+    def __init__(self, data_dir, mode, pids=None, num_patients=None, seed=None, vocabulary:dict=None):
         self.data_dir = data_dir
         self.mode = mode
         self.num_patients = num_patients
@@ -22,6 +22,10 @@ class BaseEHRDataset(IterableDataset):
         self.num_patients = len(self.pids)
         self.patient_integer_ids = self.set_patient_integer_ids() 
         self.tokenized_files = self.update_tokenized_files()
+
+        if isinstance(vocabulary, type(None)):
+            vocabulary = torch.load(join(data_dir, 'vocabulary.pt'))
+        self.vocabulary = vocabulary
 
     def __iter__(self):
         for file_name in self.tokenized_files:
@@ -113,14 +117,18 @@ class BaseEHRDataset(IterableDataset):
             random.seed(self.seed)
             np.random.seed(self.seed)
             torch.manual_seed(self.seed)
+    
+    def save_vocabulary(self, run_folder: str):
+        torch.save(self.vocabulary, join(run_folder, 'vocabulary.pt'))
+        if "h_vocabulary" in self:
+            torch.save(self.h_vocabulary, join(run_folder, 'h_vocabulary.pt'))
+        if "target_mapping" in self:
+            torch.save(self.target_mapping, join(run_folder, 'target_mapping.pt'))
 
 class MLMDataset(BaseEHRDataset):
     def __init__(self, data_dir: str, mode: str, vocabulary: dict=None, masked_ratio=0.3, ignore_special_tokens=True, num_patients=None, seed=None):
-        super().__init__(data_dir, mode, num_patients=num_patients, seed=seed)
+        super().__init__(data_dir, mode, num_patients=num_patients, seed=seed, vocabulary=vocabulary)
         
-        if isinstance(vocabulary, type(None)):
-            vocabulary = torch.load(join(data_dir, 'vocabulary.pt'))
-        self.vocabulary = vocabulary
         self.masked_ratio = masked_ratio
         if ignore_special_tokens:
             self.n_special_tokens = len([token for token in vocabulary if token.startswith('[')])
@@ -170,12 +178,6 @@ class MLMDataset(BaseEHRDataset):
 
         return masked_concepts, target
 
-    def save_vocabulary(self, run_folder: str):
-        torch.save(self.vocabulary, join(run_folder, 'vocabulary.pt'))
-        if "h_vocabulary" in self:
-            torch.save(self.h_vocabulary, join(run_folder, 'h_vocabulary.pt'))
-        if "target_mapping" in self:
-            torch.save(self.target_mapping, join(run_folder, 'target_mapping.pt'))
 
 class HierarchicalMLMDataset(MLMDataset):
     """Hierarchical MLM Dataset"""

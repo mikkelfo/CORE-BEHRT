@@ -1,5 +1,5 @@
 import os
-from os.path import join
+from os.path import join, split
 
 import pandas as pd
 import torch
@@ -52,7 +52,13 @@ def main_finetune(cfg):
         pos_weight = sum(pd.isna(outcomes)) / sum(pd.notna(outcomes))
 
     logger.info('Initializing model')
-    # !Continue here.
+    model_dir = split(cfg.paths.model_path)[0]
+    # Load the config from file
+    config = BertConfig.from_pretrained(model_dir) 
+    model = BertForFineTuning(config)
+    load_result = model.load_state_dict(torch.load(cfg.paths.model_path)['model_state_dict'], strict=False)
+    print("missing keys", load_result.missing_keys)
+
     optimizer = AdamW(
         model.parameters(),
         lr=cfg.optimizer.lr,

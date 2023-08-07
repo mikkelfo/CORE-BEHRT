@@ -1,8 +1,10 @@
 env: local
 paths:
   data_path: "../outputs/data_icd10_l"
-  outcome: "outcomes_test.yaml"
-  censor: "outcomes_test.yaml"
+  model_path: "outputs/pretraining/test/checkpoints"
+  checkpoint_epoch: 2
+  outcome: "TEST.pt"
+  censor: "TEST.pt"
   output_path: "outputs/finetuning"
   run_name: "finetune"
 
@@ -14,9 +16,9 @@ test_data:
   split: 0.2 # % of the val data used for testing
 
 outcome: 
-  type: DEATH
+  type: TEST_OUTCOME
   n_hours: 12 # censor time
-  censor_type: HOSPITAL_ADMISSION
+  censor_type: TEST_OUTCOME
 
 trainer_args:
   sampler: null

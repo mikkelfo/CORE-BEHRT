@@ -52,7 +52,7 @@ class FineTuneHead(torch.nn.Module):
         return x.mean(dim=1)
 
     def pool_sum(self, x):
-        return x.syn(dim=1)
+        return x.sum(dim=1)
 
 
 class HMLMHead(MLMHead):

@@ -1,6 +1,6 @@
 env: local
 outcomes_name: "TEST"
-features_dir: ../outputs/data_icd10
+features_dir: ../outputs/data_icd10_l
 loader:
   data_dir: ../data/formatted/synthea500_icd10 
   patients_info: patients_info.csv
@@ -12,4 +12,4 @@ loader:
 outcomes:
   TEST_OUTCOME: 
     type: [CONCEPT]
-    match: [['431855005', '271737000']]
+    match: [['DJ329', 'DN186']]

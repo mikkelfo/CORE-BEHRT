@@ -10,25 +10,33 @@ from trainer.trainer import EHRTrainer
 # TODO: fix accumulation methods!
 
 class Forwarder(EHRTrainer):
-    def __init__(self, model, dataset, batch_size=50, acc_method=torch.mean, test=False, layers='last'):
+    def __init__(self, model, dataset, batch_size=50, stop_iter=None, acc_method="mean", test=False, layers='last'):
         self.model = model
         self.model.eval()
         self.dataset = dataset
         self.batch_size = batch_size
-        self.acc_method = acc_method
+        self.stop_iter = stop_iter
         self.test = test
         self.layers = layers
+        self.acc_method = acc_method
         self.validate_parameters()
+        self.set_acc_method()
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.dataloader = DataLoader(self.dataset, batch_size=self.batch_size, shuffle=False, collate_fn=dynamic_padding)
-    
+
+    def set_acc_method(self):
+        if self.acc_method=='mean':
+            self.acc_method = torch.mean
+        else:
+            pass
+        
     def forward_patients(self)->dict:
         hidden_all = []
         with torch.no_grad():
             for i, batch in enumerate(tqdm(self.dataloader, desc='Batch Forward')):
                 mask = batch['attention_mask']
                 self.to_device(batch)
-                output = self.forward(self.model, batch)
+                output = self.forward_pass(batch)
                 hidden = output.hidden_states[-1].detach()
                 hidden_vec = self.get_hidden_vec(hidden, mask, output)
                 hidden_all.append(hidden_vec)
@@ -90,7 +98,7 @@ class Forwarder(EHRTrainer):
                 for length in tqdm(range(start_code_id, batch['concept'].shape[1]), desc='Truncation'): 
                     trunc_batch = self.censor(batch, length)
                     self.to_device(trunc_batch)
-                    output = self.forward(self.model, trunc_batch)
+                    output = self.forward_pass(trunc_batch)
                     mask = trunc_batch['attention_mask'][:,-1].detach().numpy().flatten().astype(bool)
                     masks.append(mask)
                     
@@ -119,20 +127,20 @@ class Forwarder(EHRTrainer):
         data['concept_enc'] = np.concatenate(hidden_all)
         return data
 
-    def produce_concept_embeddings(self, model, dataset: Dataset, batch_size:int=50, stop_iter:int=None)->dict:
-        data = {k:[] for k in dataset.features.keys() if k in ['concept', 'age', 'abspos']}
+    def produce_concept_embeddings(self)->dict:
+        data = {k:[] for k in ['concept', 'age', 'abspos']}
         concepts_hidden, pat_counts = [], []
         with torch.no_grad():
             for i, batch in enumerate(tqdm(self.dataloader, desc='Batch forward')):
                 mask = batch['attention_mask'].detach().numpy().flatten().astype(bool)
                 
                 seq_len = batch['concept'].shape[1]
-                pat_counts.append(np.repeat(np.arange(i*batch_size, (i+1)*batch_size), seq_len)[mask])
+                pat_counts.append(np.repeat(np.arange(i*self.batch_size, (i+1)*self.batch_size), seq_len)[mask])
                 if i==len(self.dataloader):
                     pat_counts.append(
-                        np.repeat(np.arange(i*batch_size, i*batch_size+len(batch['concept'])), seq_len)[mask])
-                self.to_device(batch, self.device)
-                output = self.forward(model, batch)
+                        np.repeat(np.arange(i*self.batch_size, i*self.batch_size+len(batch['concept'])), seq_len)[mask])
+                self.to_device(batch)
+                output = self.forward_pass(batch)
                 hidden_states = torch.flatten(output.hidden_states[-1], end_dim=1).detach().numpy()
                 concepts_hidden.append(hidden_states[mask])
                 
@@ -140,8 +148,8 @@ class Forwarder(EHRTrainer):
                     feat_arr = batch[feat].detach().numpy().flatten()
                     data[feat].append(feat_arr[mask])
             
-                if stop_iter:
-                    if i>=(stop_iter-1):
+                if self.stop_iter:
+                    if i>=(self.stop_iter-1):
                         break
         data = {k:np.concatenate(v) for k,v in data.items()}      
         data['concept_enc'] = np.concatenate(concepts_hidden)

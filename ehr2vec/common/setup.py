@@ -25,7 +25,7 @@ def prepare_directory(config_path: str, cfg: Config):
 
 def prepare_directory_outcomes(config_path: str, outcome_dir: str, outcomes_name: str):
     os.makedirs(outcome_dir, exist_ok=True)
-    copyfile(config_path, join(outcome_dir, f'outcome_config_{outcomes_name}.yaml'))
+    copyfile(config_path, join(outcome_dir, f'outcome_{outcomes_name}_config.yaml'))
     
     return setup_logger(outcome_dir)  
 
@@ -35,6 +35,12 @@ def prepare_directory_hierarchical(config_path: str, out_dir: str):
     os.makedirs(hierarchical_dir, exist_ok=True)
     copyfile(config_path, join(hierarchical_dir, 'h_setup.yaml'))
     return setup_logger(hierarchical_dir)
+
+def prepare_embedding_directory(config_path: str, cfg: Config):
+    """Creates output directory and copies config file"""
+    os.makedirs(cfg.output_dir, exist_ok=True)
+    copyfile(config_path, join(cfg.output_dir, 'emb_config.yaml'))
+    return setup_logger(cfg.output_dir)
 
 def setup_run_folder(cfg):
     """Creates a run folder"""

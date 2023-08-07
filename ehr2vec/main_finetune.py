@@ -8,20 +8,18 @@ from common import azure
 from common.setup import setup_run_folder
 from common.loader import create_binary_outcome_datasets
 
-from data.dataset import CensorDataset
 from model.model import BertForFineTuning
 from torch.optim import AdamW
 from torch.utils.data import WeightedRandomSampler
 from trainer.trainer import EHRTrainer
 from transformers import BertConfig
 
-config_path = join("configs", "pretrain.yaml")
+config_path = join("configs", "finetune_test.yaml")
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
 
 run_name = "finetune"
 
-
-def main_finetune(cfg):
+def main_finetune():
     cfg = load_config(config_path)
     run = None
 
@@ -53,10 +51,12 @@ def main_finetune(cfg):
 
     logger.info('Initializing model')
     model_dir = split(cfg.paths.model_path)[0]
+    checkpoint_path = join(cfg.paths.model_path, f'checkpoint_epoch{cfg.paths.checkpoint_epoch}_end.pt')
     # Load the config from file
     config = BertConfig.from_pretrained(model_dir) 
+    config.pos_weight = pos_weight
     model = BertForFineTuning(config)
-    load_result = model.load_state_dict(torch.load(cfg.paths.model_path)['model_state_dict'], strict=False)
+    load_result = model.load_state_dict(torch.load(checkpoint_path)['model_state_dict'], strict=False)
     print("missing keys", load_result.missing_keys)
 
     optimizer = AdamW(
@@ -74,7 +74,8 @@ def main_finetune(cfg):
         args=cfg.trainer_args,
         metrics=cfg.metrics,
         sampler=sampler,
-        cfg=cfg
+        cfg=cfg,
+        run=run,
     )
     trainer.train()
 

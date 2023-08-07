@@ -91,7 +91,6 @@ class EHRTrainer():
             #if i<50:
              #   self.run_log_gpu()
             if (i+1) % self.accumulation_steps == 0:
-                self.optimizer.zero_grad()
                 self.clip_gradients()
                 self.update_and_log(i, step_loss, train_loop, epoch_loss)
                 step_loss = 0
@@ -106,6 +105,7 @@ class EHRTrainer():
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.cfg.trainer_args.gradient_clip.get('max_norm', 1.0))
 
     def train_step(self, batch: dict):
+        self.optimizer.zero_grad()
         if self.scaler is not None:
             with autocast():
                 outputs = self.forward_pass(batch)
@@ -235,15 +235,6 @@ class EHRTrainer():
         self.train_dataset.save_vocabulary(self.run_folder)
         self.log(f'Saved vocabulary to {self.run_folder}')
        
-        try:
-            self.train_dataset.save_pids(os.path.join(self.run_folder, 'train_pids.pt'))
-            self.val_dataset.save_pids(os.path.join(self.run_folder, 'val_pids.pt'))
-            if self.test_dataset is not None:
-                self.test_dataset.save_pids(os.path.join(self.run_folder, 'test_pids.pt'))
-            self.log(f'Copied pids to {self.run_folder}')
-        except AttributeError:
-            self.log("Failed to save pids")
-       
     def save_pids(self):
         """Saves the pids of the train, val and test datasets"""
         try:
@@ -252,7 +243,7 @@ class EHRTrainer():
             torch.save(self.train_dataset.file_ids, os.path.join(self.run_folder, 'train_file_ids.pt'))
             torch.save(self.val_dataset.file_ids, os.path.join(self.run_folder, 'val_file_ids.pt'))            
             if self.test_dataset:
-                torch.save(self.test_dataset.pid, os.path.join(self.run_folder, 'test_pids.pt'))
+                torch.save(self.test_dataset.pids, os.path.join(self.run_folder, 'test_pids.pt'))
             self.log(f'Copied pids to {self.run_folder}')
         except AttributeError:
             self.log("Failed to save pids")

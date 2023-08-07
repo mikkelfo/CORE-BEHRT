@@ -235,15 +235,6 @@ class EHRTrainer():
         self.train_dataset.save_vocabulary(self.run_folder)
         self.log(f'Saved vocabulary to {self.run_folder}')
        
-        try:
-            self.train_dataset.save_pids(os.path.join(self.run_folder, 'train_pids.pt'))
-            self.val_dataset.save_pids(os.path.join(self.run_folder, 'val_pids.pt'))
-            if self.test_dataset is not None:
-                self.test_dataset.save_pids(os.path.join(self.run_folder, 'test_pids.pt'))
-            self.log(f'Copied pids to {self.run_folder}')
-        except AttributeError:
-            self.log("Failed to save pids")
-       
     def save_pids(self):
         """Saves the pids of the train, val and test datasets"""
         try:

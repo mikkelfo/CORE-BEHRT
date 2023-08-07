@@ -14,12 +14,28 @@ def create_binary_outcome_datasets(cfg):
                                     outcome_pids=pids,
                                     n_hours=cfg.outcome.n_hours,
                                     **cfg.dataset, **cfg.train_data)
+    val_pids, test_pids = get_val_test_pids(cfg)
     val_dataset = CensorDataset(cfg.paths.data_path, 'val',  outcomes, 
                                     censor_outcomes=censor_outcomes, 
                                     outcome_pids=pids,
+                                    pids=val_pids,
                                     n_hours=cfg.outcome.n_hours,
-                                    **cfg.dataset, **cfg.val_data)
-    return train_dataset, val_dataset, outcomes
+                                    **cfg.dataset)
+    test_dataset = CensorDataset(cfg.paths.data_path, 'val',  outcomes, 
+                                    censor_outcomes=censor_outcomes, 
+                                    outcome_pids=pids,
+                                    pids=test_pids,
+                                    n_hours=cfg.outcome.n_hours,
+                                    **cfg.dataset)
+    return train_dataset, val_dataset, test_dataset, outcomes
+
+def get_val_test_pids(cfg):
+    """Gets the pretrain validation pids and splits into train and test pids for finetuning."""
+    val_pids = torch.load(join(cfg.paths.data_path, 'val_pids.pt'))
+    val_pids = val_pids[:cfg.val_data.num_patients]
+    test_pids = val_pids[:len(val_pids)*cfg.test_data.split]
+    val_pids = val_pids[len(val_pids)*cfg.test_data.split:]
+    return val_pids, test_pids
 
 def load_outcomes(cfg):
     """From the configuration, load the outcomes and censor outcomes.

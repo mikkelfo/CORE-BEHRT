@@ -13,7 +13,7 @@ from data.concept_loader import ConceptLoaderLarge
 from downstream_tasks.outcomes import OutcomeMaker
 from tqdm import tqdm
 
-config_path = join('configs', 'data_finetune.yaml')
+config_path = join('configs', 'data_finetune_test.yaml')
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
 
             

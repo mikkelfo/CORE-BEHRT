@@ -88,8 +88,8 @@ class EHRTrainer():
         step_loss = 0
         for i, batch in train_loop:
             step_loss += self.train_step(batch).item()
-            if i<3:
-                self.run_log_gpu()
+            #if i<50:
+             #   self.run_log_gpu()
             if (i+1) % self.accumulation_steps == 0:
                 self.optimizer.zero_grad()
                 self.clip_gradients()
@@ -134,7 +134,11 @@ class EHRTrainer():
 
         if self.args['info']:
             self.log(f'Train loss {(i+1) // self.accumulation_steps}: {step_loss / self.accumulation_steps}')
-        self.run_log('Train loss', step_loss / self.accumulation_steps, i)
+            for param_group in self.optimizer.param_groups:
+                current_lr = param_group['lr']
+                self.run_log('Learning Rate', current_lr)
+                break
+        self.run_log('Train loss', step_loss / self.accumulation_steps)
         
 
     def validate_and_log(self, epoch, epoch_loss, train_loop):
@@ -211,10 +215,10 @@ class EHRTrainer():
         """Logs the GPU memory usage to the run"""
         # Log the GPU memory usage
         if self.run is not None:
-            memory_allocated = torch.cuda.memory_allocated(device=self.device)
+            memory_allocated = torch.cuda.memory_allocated(device=self.device)/1e9
             self.run.log_metric("GPU Memory Allocated", memory_allocated)
 
-            memory_cached = torch.cuda.memory_cached(device=self.device)
+            memory_cached = torch.cuda.memory_cached(device=self.device)/1e9
             self.run.log_metric("GPU Memory Cached", memory_cached)
 
     def run_log(self, name, value):

@@ -7,10 +7,6 @@ from shutil import copyfile
 from common.config import Config
 
 
-def create_directory(path: str):
-    """Creates a directory if it doesn't exist."""
-    if not os.path.exists(path):
-        os.makedirs(path)
 
 def setup_logger(dir: str, log_file: str = 'info.log'):
     """Sets up the logger."""
@@ -20,17 +16,23 @@ def setup_logger(dir: str, log_file: str = 'info.log'):
 
 def prepare_directory(config_path: str, cfg: Config):
     """Creates output directory and copies config file"""
-    create_directory(cfg.output_dir)
-    create_directory(join(cfg.output_dir, 'features'))
-    create_directory(join(cfg.output_dir, 'tokenized'))
+    os.makedirs(cfg.output_dir, exist_ok=True)
+    os.makedirs(join(cfg.output_dir, 'features'), exist_ok=True)
+    os.makedirs(join(cfg.output_dir, 'tokenized'), exist_ok=True)
     copyfile(config_path, join(cfg.output_dir, 'data_config.yaml'))
     
     return setup_logger(cfg.output_dir)
 
+def prepare_directory_outcomes(config_path: str, outcome_dir: str, outcomes_name: str):
+    os.makedirs(outcome_dir, exist_ok=True)
+    copyfile(config_path, join(outcome_dir, f'outcome_config_{outcomes_name}.yaml'))
+    
+    return setup_logger(outcome_dir)  
+
 def prepare_directory_hierarchical(config_path: str, out_dir: str):
     """Creates hierarchical directory and copies config file"""
     hierarchical_dir = join(out_dir, "hierarchical")
-    create_directory(hierarchical_dir)
+    os.makedirs(hierarchical_dir, exist_ok=True)
     copyfile(config_path, join(hierarchical_dir, 'h_setup.yaml'))
     return setup_logger(hierarchical_dir)
 

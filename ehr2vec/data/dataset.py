@@ -1,5 +1,5 @@
 import random
-from os.path import join, split
+from os.path import join
 from glob import glob
 
 import numpy as np
@@ -20,7 +20,7 @@ class BaseEHRDataset(IterableDataset):
         self.pid_files = self.get_pid_files()
         self.pids = self.set_pids(pids)
         self.num_patients = len(self.pids)
-        self.patient_integer_ids = self.set_patient_integer_ids() # file_id: integer_id. Needed to access the correct patient in the file
+        self.patient_integer_ids = self.set_patient_integer_ids() 
         self.tokenized_files = self.update_tokenized_files()
 
     def __iter__(self):
@@ -71,11 +71,14 @@ class BaseEHRDataset(IterableDataset):
                 self.file_ids.append(self.get_file_id(file))
     
     def set_patient_integer_ids(self)->dict:
+        """
+        Returns a dictionary file_id:{patient_index:pid}
+        """
         patient_integer_ids = {}
         for pid_file in self.pid_files:
             file_id = self.get_file_id(pid_file)
             pids = torch.load(pid_file)
-            patient_integer_ids[file_id] = [i for i, pid in enumerate(pids) if pid in self.pids]
+            patient_integer_ids[file_id] = {i:pid for i, pid in enumerate(pids) if pid in self.pids}
         return patient_integer_ids
     
     def get_all_tokenized_files(self):
@@ -123,7 +126,6 @@ class MLMDataset(BaseEHRDataset):
             self.n_special_tokens = len([token for token in vocabulary if token.startswith('[')])
         else:
             self.n_special_tokens = 0
-        self.pids = torch.load(join(data_dir, f'{mode}_pids.pt'))
 
     def get_patient(self, file_name: str):
         """Loads a single patient from a file"""
@@ -272,26 +274,29 @@ class HierarchicalMLMDataset(MLMDataset):
         probabilities[~mask] = unknown_probabilities
         return probabilities
     
-class CensorDataset():
+class CensorDataset(BaseEHRDataset):
     """
         n_hours can be both negative and positive (indicating before/after censor token)
         outcomes is a list of the outcome timestamps to predict
         censor_outcomes is a list of the censor timestamps to use
     """
-    def __init__(self, features: dict, outcomes: list, censor_outcomes: list, n_hours: int):
-        super().__init__(features)
-
+    def __init__(self, data_dir:str, mode:str, outcomes:list, censor_outcomes: list, n_hours: int, outcome_pids: list, num_patients=None, pids=None, seed=None, ):
+        super().__init__(data_dir, mode, num_patients=num_patients, pids=pids, seed=seed)
         self.outcomes = outcomes
         self.censor_outcomes = censor_outcomes
         self.n_hours = n_hours
+        self.outcome_pids = outcome_pids
 
-    def __getitem__(self, index: int) -> dict:
-        patient = super().__getitem__(index)
-        censor_timestamp = self.censor_outcomes[index]
-        patient = self._censor(patient, censor_timestamp)
-        patient['target'] = float(pd.notna(self.outcomes[index]))
-
-        return patient
+    def get_patient(self, file_name: str):
+        """Loads a single patient from a file"""
+        features = torch.load(file_name)
+        for patient_index, pid in self.patient_integer_ids[self.get_file_id(file_name)].items():
+            patient = self.get_patient_dic(features, patient_index)
+            outcome_patient_index = self.outcome_pids.index(pid)
+            censor_timestamp = self.censor_outcomes[outcome_patient_index]
+            patient = self._censor(patient, censor_timestamp)
+            patient['target'] = float(pd.notna(self.outcomes[outcome_patient_index]))
+            yield patient
 
     def _censor(self, patient: dict, event_timestamp: float) -> dict:
         if pd.isna(event_timestamp):
@@ -307,7 +312,7 @@ class CensorDataset():
             # censor the last n_hours
             dont_censor = (pos - event_timestamp - self.n_hours) <= 0
 
-            # TODO: This removes padding as well - is this ok?
+            # TODO: This removes padding as well - is this ok?  
             for key, value in patient.items():
                 patient[key] = value[dont_censor]
 

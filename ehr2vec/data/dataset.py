@@ -131,7 +131,7 @@ class MLMDataset(BaseEHRDataset):
         
         self.masked_ratio = masked_ratio
         if ignore_special_tokens:
-            self.n_special_tokens = len([token for token in vocabulary if token.startswith('[')])
+            self.n_special_tokens = len([token for token in self.vocabulary if token.startswith('[')])
         else:
             self.n_special_tokens = 0
 

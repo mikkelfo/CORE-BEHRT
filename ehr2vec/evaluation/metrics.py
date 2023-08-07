@@ -41,7 +41,7 @@ class Accuracy():
     def __init__(self) -> None:
         pass
     def __call__(self, outputs, batch):
-        logits = outputs.get('prediction_logits', outputs.get('logits', None)) 
+        logits = outputs.logits
         probas = torch.nn.functional.softmax(logits, dim=-1)
         _, predictions = torch.max(probas, dim=-1)
         try:
@@ -54,7 +54,7 @@ class Precision():
     def __init__(self) -> None:
         pass
     def __call__(self, outputs, batch):
-        logits = outputs.get('prediction_logits', outputs.get('logits', None)) 
+        logits = outputs.logits
         probas = torch.nn.functional.softmax(logits, dim=-1)
         _, predictions = torch.max(probas, dim=-1)
         return precision_score(batch['target'], predictions, zero_division=0)
@@ -63,7 +63,7 @@ class Recall():
     def __init__(self) -> None:
         pass
     def __call__(self, outputs, batch):
-        logits = outputs.get('prediction_logits', outputs.get('logits', None)) 
+        logits = outputs.logits
         probas = torch.nn.functional.softmax(logits, dim=-1)
         _, predictions = torch.max(probas, dim=-1)
         return recall_score(batch['target'], predictions, zero_division=0)
@@ -72,7 +72,7 @@ class ROC_AUC():
     def __init__(self) -> None:
         pass
     def __call__(self, outputs, batch):
-        logits = outputs.get('prediction_logits', outputs.get('logits', None)) 
+        logits = outputs.logits
         probas = torch.nn.functional.softmax(logits, dim=-1).detach().cpu().numpy()
         try:
             score = roc_auc_score(batch['target'], probas[:,-1])

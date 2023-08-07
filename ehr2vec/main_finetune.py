@@ -1,23 +1,37 @@
 import os
-from os.path import join, split
+from os.path import join, 
 
 import pandas as pd
-import torch
 from common.config import load_config
 from common import azure
 from common.setup import setup_run_folder
-from common.loader import create_binary_outcome_datasets
+from common.loader import create_binary_outcome_datasets, load_model
 
 from model.model import BertForFineTuning
 from torch.optim import AdamW
 from torch.utils.data import WeightedRandomSampler
 from trainer.trainer import EHRTrainer
-from transformers import BertConfig
 
 config_path = join("configs", "finetune_test.yaml")
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
 
 run_name = "finetune"
+
+def get_sampler_and_pos_weight(train_dataset, outcomes,cfg):
+    sampler = None
+    pos_weight = None
+    if cfg.trainer_args['sampler']:
+        labels = pd.Series(outcomes).notna().astype(int)
+        label_weight = 1 / labels.value_counts()
+        weights = labels.map(label_weight).values
+        sampler = WeightedRandomSampler(
+            weights=weights,
+            num_samples=len(train_dataset),
+            replacement=True
+        )
+    elif cfg.trainer_args['pos_weight']:
+        pos_weight = sum(pd.isna(outcomes)) / sum(pd.notna(outcomes))
+    return sampler, pos_weight
 
 def main_finetune():
     cfg = load_config(config_path)
@@ -35,30 +49,10 @@ def main_finetune():
     logger.info(f"Censoring {cfg.outcome.n_hours} hours after censor_outcome")
     train_dataset, val_dataset, outcomes = create_binary_outcome_datasets(cfg)
     
-    
-    sampler, pos_weight = None, None
-    if cfg.trainer_args['sampler']:
-        labels = pd.Series(outcomes).notna().astype(int)
-        label_weight = 1 / labels.value_counts()
-        weights = labels.map(label_weight).values
-        sampler = WeightedRandomSampler(
-            weights=weights,
-            num_samples=len(train_dataset),
-            replacement=True
-        )
-    elif cfg.trainer_args['pos_weight']:
-        pos_weight = sum(pd.isna(outcomes)) / sum(pd.notna(outcomes))
+    sampler, pos_weight = get_sampler_and_pos_weight(train_dataset, outcomes, cfg)
 
     logger.info('Initializing model')
-    model_dir = split(cfg.paths.model_path)[0]
-    checkpoint_path = join(cfg.paths.model_path, f'checkpoint_epoch{cfg.paths.checkpoint_epoch}_end.pt')
-    # Load the config from file
-    config = BertConfig.from_pretrained(model_dir) 
-    config.pos_weight = pos_weight
-    model = BertForFineTuning(config)
-    load_result = model.load_state_dict(torch.load(checkpoint_path)['model_state_dict'], strict=False)
-    print("missing keys", load_result.missing_keys)
-
+    model = load_model(BertForFineTuning, cfg, pos_weight=pos_weight)
     optimizer = AdamW(
         model.parameters(),
         lr=cfg.optimizer.lr,

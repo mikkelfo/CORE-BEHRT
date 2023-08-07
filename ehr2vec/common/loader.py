@@ -1,8 +1,21 @@
 import glob
 import os
-from os.path import join
+from os.path import join, split
 import torch
 from data.dataset import HierarchicalMLMDataset, MLMDataset, CensorDataset
+from transformers import BertConfig
+
+def load_model(model_class, cfg, pos_weight=None):
+    model_dir = split(cfg.paths.model_path)[0]
+    checkpoint_path = join(cfg.paths.model_path, f'checkpoint_epoch{cfg.paths.checkpoint_epoch}_end.pt')
+    # Load the config from file
+    config = BertConfig.from_pretrained(model_dir) 
+    if pos_weight is not None:
+        config.pos_weight = pos_weight
+    model = model_class(config)
+    load_result = model.load_state_dict(torch.load(checkpoint_path)['model_state_dict'], strict=False)
+    print("missing keys", load_result.missing_keys)
+    return model
 
 def create_binary_outcome_datasets(cfg):
     """

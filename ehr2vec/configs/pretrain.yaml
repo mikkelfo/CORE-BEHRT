@@ -1,7 +1,7 @@
 env: local
 paths:
   # data_path: 'pretrain_datasets/diagnosis_medication/070623/outputs/data' # inside mounted datastore
-  data_path: "..\\outputs\\data_icd10"
+  data_path: "..\\outputs\\data_icd10_l"
   output_path: 'outputs/pretraining'
   run_name: test
   
@@ -16,12 +16,12 @@ val_data:
 trainer_args:
   batch_size: 64
   effective_batch_size: 256
-  epochs: 5
+  epochs: 2
   info: true
   sampler: null
   gradient_clip: 
     clip_value: 1.0
-  mixed_precision: true
+  mixed_precision: false
 
 model:
   max_position_embeddings: 512
@@ -30,7 +30,7 @@ model:
   num_hidden_layers: 3
   num_attention_heads: 3
   intermediate_size: 64
-  type_vocab_size: 1000
+  type_vocab_size: 600
   pool_type: mean
   
 

@@ -14,11 +14,10 @@ from torch.utils.data import WeightedRandomSampler
 from trainer.trainer import EHRTrainer
 from transformers import BertConfig
 
-config_path = join("configs", "finetune.yaml")
+config_path = join("configs", "finetune_test.yaml")
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
 
 run_name = "finetune"
-
 
 def main_finetune():
     cfg = load_config(config_path)
@@ -75,7 +74,8 @@ def main_finetune():
         args=cfg.trainer_args,
         metrics=cfg.metrics,
         sampler=sampler,
-        cfg=cfg
+        cfg=cfg,
+        run=run,
     )
     trainer.train()
 

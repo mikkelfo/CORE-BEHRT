@@ -25,6 +25,7 @@ def create_binary_outcome_datasets(cfg):
 
 def get_val_test_pids(cfg):
     """Gets the pretrain validation pids and splits into train and test pids for finetuning."""
+    # !Currently unused
     val_pids = torch.load(join(cfg.paths.data_path, 'val_pids.pt'))
     val_pids = val_pids[:cfg.val_data.num_patients]
     test_cutoff = int(len(val_pids)*cfg.test_data.split)
@@ -37,13 +38,13 @@ def load_outcomes(cfg):
     Access pids, the outcome of interest and the censoring outcome."""
     data_path = cfg.paths.data_path
     outcomes_path = join(data_path, 'outcomes')
-    all_outcomes = torch.load(join(outcomes_path, cfg.paths.outcome ))
+    all_outcomes = torch.load(join(outcomes_path, cfg.paths.outcome))
     if cfg.paths.censor!=cfg.paths.outcome:
         all_censor_outcomes = torch.load(join(data_path, 'outcomes', cfg.paths.censor))
     else:
         all_censor_outcomes = all_outcomes
-    outcomes = all_outcomes[cfg.outcome.type]
-    censor_outcomes = all_censor_outcomes[cfg.outcome.censor_type]
+    outcomes = all_outcomes.get(cfg.outcome.type, None)
+    censor_outcomes = all_censor_outcomes.get(cfg.outcome.censor_type, None)
     pids = all_outcomes['PID']
     return outcomes, censor_outcomes, pids
 

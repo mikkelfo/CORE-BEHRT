@@ -8,8 +8,8 @@ def check_patient_counts(concepts, patients_info, logger):
 class ConcatIterableDataset(IterableDataset):
     def __init__(self, datasets):
         self.datasets = datasets
-        self.pids = [dataset.pids for dataset in datasets]
-        self.file_ids = [dataset.file_ids for dataset in datasets]
+        self.pids = [pid for dataset in datasets for pid in dataset.pids]
+        self.file_ids = [file_id for dataset in datasets for file_id in dataset.file_ids]
     def __iter__(self):
         for dataset in self.datasets:
             yield from dataset

@@ -12,3 +12,5 @@ class ConcatIterableDataset(IterableDataset):
     def __iter__(self):
         for dataset in self.datasets:
             yield from dataset
+    def __len__(self):
+        return sum([len(dataset) for dataset in self.datasets])

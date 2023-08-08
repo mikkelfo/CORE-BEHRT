@@ -1,5 +1,5 @@
 import os
-from os.path import join, 
+from os.path import join
 
 import pandas as pd
 from common.config import load_config
@@ -17,9 +17,7 @@ config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_pa
 
 run_name = "finetune"
 
-def get_sampler_and_pos_weight(train_dataset, outcomes,cfg):
-    sampler = None
-    pos_weight = None
+def get_sampler(cfg, train_dataset, outcomes):
     if cfg.trainer_args['sampler']:
         labels = pd.Series(outcomes).notna().astype(int)
         label_weight = 1 / labels.value_counts()
@@ -29,9 +27,15 @@ def get_sampler_and_pos_weight(train_dataset, outcomes,cfg):
             num_samples=len(train_dataset),
             replacement=True
         )
-    elif cfg.trainer_args['pos_weight']:
-        pos_weight = sum(pd.isna(outcomes)) / sum(pd.notna(outcomes))
-    return sampler, pos_weight
+        return sampler
+    else:
+        return None
+
+def get_pos_weight(cfg, outcomes):
+    if cfg.trainer_args['pos_weight']:
+        return sum(pd.isna(outcomes)) / sum(pd.notna(outcomes))
+    else:
+        return None
 
 def main_finetune():
     cfg = load_config(config_path)
@@ -48,11 +52,9 @@ def main_finetune():
     logger.info(f'Censor file: {cfg.paths.censor}, Censor name: {cfg.outcome.censor_type}')
     logger.info(f"Censoring {cfg.outcome.n_hours} hours after censor_outcome")
     train_dataset, val_dataset, outcomes = create_binary_outcome_datasets(cfg)
-    
-    sampler, pos_weight = get_sampler_and_pos_weight(train_dataset, outcomes, cfg)
 
     logger.info('Initializing model')
-    model = load_model(BertForFineTuning, cfg, pos_weight=pos_weight)
+    model = load_model(BertForFineTuning, cfg, {'pos_weight':get_pos_weight(cfg, outcomes)})
     optimizer = AdamW(
         model.parameters(),
         lr=cfg.optimizer.lr,
@@ -67,7 +69,7 @@ def main_finetune():
         val_dataset=val_dataset, 
         args=cfg.trainer_args,
         metrics=cfg.metrics,
-        sampler=sampler,
+        sampler=get_sampler(cfg, train_dataset, outcomes),
         cfg=cfg,
         run=run,
     )

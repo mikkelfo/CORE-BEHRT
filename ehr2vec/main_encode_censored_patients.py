@@ -1,15 +1,14 @@
 import os
-from os.path import join, split
+from os.path import join
 
-import pandas as pd
-import torch
 from common.config import load_config
 from common import azure
 from common.setup import setup_run_folder
 from common.loader import create_binary_outcome_datasets, load_model
 
 from model.model import BertEHRModel
-from trainer.trainer import Forwarder
+from evaluation.encodings import Forwarder
+from common.utils import ConcatIterableDataset
 
 config_path = join("configs", "encode_censored_test.yaml")
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
@@ -30,7 +29,9 @@ def main_encode():
     logger.info(f'Outcome file: {cfg.paths.outcome}, Outcome name: {cfg.outcome.type}')
     logger.info(f'Censor file: {cfg.paths.censor}, Censor name: {cfg.outcome.censor_type}')
     logger.info(f"Censoring {cfg.outcome.n_hours} hours after censor_outcome")
-    dataset, outcomes = create_censor_dataset(cfg)
+    train_dataset, val_dataset, outcomes = create_binary_outcome_datasets(cfg)
+
+    dataset = ConcatIterableDataset([train_dataset, val_dataset])
 
     logger.info('Initializing model')
     model = load_model(BertEHRModel, cfg)
@@ -38,13 +39,12 @@ def main_encode():
 
     forwarder = Forwarder( 
         model=model, 
-        train_dataset=dataset, 
-        args=cfg.forwarder_args,
-        cfg=cfg,
+        dataset=dataset, 
         run=run,
+        **cfg.forwarder_args,
     )
-    output_ = forwarder.forward()
-
+    output_ = forwarder.forward_patients()
+    print(output_.shape)
 
 if __name__ == '__main__':
     main_encode()

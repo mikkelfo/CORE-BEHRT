@@ -4,13 +4,14 @@ import numpy as np
 import pandas as pd
 import torch
 from dataloader.collate_fn import dynamic_padding
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 from trainer.trainer import EHRTrainer
+from common.logger import TqdmToLogger
 # TODO: fix accumulation methods!
 
 class Forwarder(EHRTrainer):
-    def __init__(self, model, dataset, batch_size=50, stop_iter=None, acc_method="mean", test=False, layers='last'):
+    def __init__(self, model, dataset, batch_size=50, stop_iter=None, acc_method="mean", test=False, layers='last', run=None):
         self.model = model
         self.model.eval()
         self.dataset = dataset
@@ -19,6 +20,7 @@ class Forwarder(EHRTrainer):
         self.test = test
         self.layers = layers
         self.acc_method = acc_method
+        self.run = run
         self.validate_parameters()
         self.set_acc_method()
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -34,6 +36,7 @@ class Forwarder(EHRTrainer):
         hidden_all = []
         with torch.no_grad():
             for i, batch in enumerate(tqdm(self.dataloader, desc='Batch Forward')):
+                batch.pop('target', None)
                 mask = batch['attention_mask']
                 self.to_device(batch)
                 output = self.forward_pass(batch)

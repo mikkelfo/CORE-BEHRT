@@ -2,7 +2,7 @@ env: local
 paths:
   data_path: "../outputs/data_icd10_l"
   model_path: "outputs/pretraining/test/checkpoints"
-  checkpoint_epoch: 2
+  checkpoint_epoch: 1
   outcome: "TEST.pt"
   censor: "TEST.pt"
   output_path: "outputs/finetuning"
@@ -20,6 +20,8 @@ outcome:
 
 forwarder_args:
   batch_size: 64
-  info: true
-  
+  test: False
+  pooler:
+    _target_: evaluation.poolings.MeanPooling
+    
  

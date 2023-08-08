@@ -34,13 +34,14 @@ def main_encode():
     dataset = ConcatIterableDataset([train_dataset, val_dataset])
 
     logger.info('Initializing model')
-    model = load_model(BertEHRModel, cfg)
+    model = load_model(BertEHRModel, cfg, add_config = {'output_hidden_states':True})
 
 
     forwarder = Forwarder( 
         model=model, 
         dataset=dataset, 
         run=run,
+        logger=logger,
         **cfg.forwarder_args,
     )
     output_ = forwarder.forward_patients()

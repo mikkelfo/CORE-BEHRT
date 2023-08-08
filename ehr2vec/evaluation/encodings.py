@@ -11,59 +11,59 @@ from common.logger import TqdmToLogger
 # TODO: fix accumulation methods!
 
 class Forwarder(EHRTrainer):
-    def __init__(self, model, dataset, batch_size=50, stop_iter=None, acc_method="mean", test=False, layers='last', run=None):
+    def __init__(self, model, dataset, batch_size=50, stop_iter=None, pool_method="mean", logger=None, test=False, layers='last', run=None):
         self.model = model
+        self.logger = logger
         self.model.eval()
         self.dataset = dataset
         self.batch_size = batch_size
         self.stop_iter = stop_iter
         self.test = test
         self.layers = layers
-        self.acc_method = acc_method
+        self.pool_method = pool_method
         self.run = run
         self.validate_parameters()
-        self.set_acc_method()
+        self.set_pool_method()
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.dataloader = DataLoader(self.dataset, batch_size=self.batch_size, shuffle=False, collate_fn=dynamic_padding)
 
-    def set_acc_method(self):
-        if self.acc_method=='mean':
-            self.acc_method = torch.mean
+    def set_pool_method(self):
+        if self.pool_method=='mean':
+            self.pool_method = torch.mean
         else:
             pass
         
     def forward_patients(self)->dict:
-        hidden_all = []
+        encodings = []
         with torch.no_grad():
-            for i, batch in enumerate(tqdm(self.dataloader, desc='Batch Forward')):
+            for i, batch in enumerate(tqdm(self.dataloader, desc='Batch Forward',  file=TqdmToLogger(self.logger) if self.logger else None)):
                 batch.pop('target', None)
                 mask = batch['attention_mask']
                 self.to_device(batch)
                 output = self.forward_pass(batch)
-                hidden = output.hidden_states[-1].detach()
-                hidden_vec = self.get_hidden_vec(hidden, mask, output)
-                hidden_all.append(hidden_vec)
+                hidden = output.last_hidden_state.detach()
+                pooled_vec = self.pool(hidden, mask, output)
+                encodings.append(pooled_vec)
                 if self.test:
                     if i>1:
                         break
-        return torch.cat(hidden_all)
+        return torch.cat(encodings)
     
-    @staticmethod
-    def get_hidden_vec(self, hidden, mask , output):
-        if self.acc_method=='mean':
-            hidden_vec = torch.mean(mask.unsqueeze(-1) * hidden, dim=1)
-        elif self.acc_method=='weighted_sum':
-            hidden_vec = self.attention_weighted_sum(output, hidden, mask, self.layers)
+    def pool(self, hidden, mask, output):
+        if self.pool_method=='mean':
+            pooled_vec = torch.mean(mask.unsqueeze(-1) * hidden, dim=1)
+        elif self.pool_method=='weighted_sum':
+            pooled_vec = self.attention_weighted_sum(output, hidden, mask, self.layers)
         else:
-            hidden_vec = output.hidden_states[-1][0]
+            pooled_vec = hidden[0] # CLS token
         
-        return hidden_vec
+        return pooled_vec
     
     def validate_parameters(self):
         valid_methods = ['mean', 'weighted_sum', 'CLS']
         valid_layers = ['last', 'all']
-        if self.acc_method not in valid_methods:
-            raise ValueError(f"Method {self.acc_method} not implemented yet.")
+        if self.pool_method not in valid_methods:
+            raise ValueError(f"Method {self.pool_method} not implemented yet.")
         if self.layers not in valid_layers:
             raise ValueError(f"Layers {self.layers} not implemented yet.")
 
@@ -94,7 +94,7 @@ class Forwarder(EHRTrainer):
         data = {k:[] for k in self.dataset.features.keys() if k in ['concept', 'age', 'abspos']}
         
         with torch.no_grad():
-            for i, batch in enumerate(tqdm(self.dataloader, desc='Batch Forward')):
+            for i, batch in enumerate(tqdm(self.dataloader, desc='Batch Forward', file=TqdmToLogger(self.logger) if self.logger else None)):
                 pat_counts = [j for j in range(i*self.batch_size, (i+1)*self.batch_size)]
                 if i==len(self.dataloader):
                     pat_counts = [j for j in range(i*self.batch_size, i*self.batch_size+len(batch['concept']))]
@@ -112,10 +112,10 @@ class Forwarder(EHRTrainer):
                         feat_arr = (trunc_batch[feat][:,-1]).detach().numpy().flatten()[mask]
                         data[feat].append(feat_arr)
                     
-                    if self.acc_method=='CLS':
-                        hidden_vec = output.hidden_states[-1][0]
+                    if self.pool_method=='CLS':
+                        hidden_vec = output.last_hidden_state[0]
                     else:
-                        hidden_vec = self.acc_method(output.hidden_states[-1], dim=1)
+                        hidden_vec = self.pool_method(output.last_hidden_state, dim=1)
                     
                     hidden_all.append(hidden_vec.detach().numpy()[mask])
             
@@ -134,7 +134,7 @@ class Forwarder(EHRTrainer):
         data = {k:[] for k in ['concept', 'age', 'abspos']}
         concepts_hidden, pat_counts = [], []
         with torch.no_grad():
-            for i, batch in enumerate(tqdm(self.dataloader, desc='Batch forward')):
+            for i, batch in enumerate(tqdm(self.dataloader, desc='Batch forward',  file=TqdmToLogger(self.logger) if self.logger else None)):
                 mask = batch['attention_mask'].detach().numpy().flatten().astype(bool)
                 
                 seq_len = batch['concept'].shape[1]

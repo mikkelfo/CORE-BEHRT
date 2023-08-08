@@ -3,8 +3,9 @@ from os.path import join, split
 import numpy as np
 import pandas as pd
 import torch
-from common.logger import TqdmToLogger
 from common.config import instantiate
+from common.io import PatientHDF5Writer
+from common.logger import TqdmToLogger
 from dataloader.collate_fn import dynamic_padding
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -12,7 +13,7 @@ from trainer.trainer import EHRTrainer
 
 
 class Forwarder(EHRTrainer):
-    def __init__(self, model, dataset, batch_size=50, output_path=None, pooler=None, logger=None, run=None):
+    def __init__(self, model, dataset, batch_size=64, output_path=None, pooler=None, logger=None, run=None):
         self.model = model
         self.model.eval()
         self.dataset = dataset
@@ -25,19 +26,35 @@ class Forwarder(EHRTrainer):
         
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.dataloader = DataLoader(self.dataset, batch_size=self.batch_size, shuffle=False, collate_fn=dynamic_padding)
+        if self.output_path:
+            self.writer = PatientHDF5Writer(self.output_path)
 
-    def forward_patients(self)->dict:
-        encodings = []
+    def forward_patients(self)->None:
+        if not self.writer:
+            encodings = []
+            pids = []
+
         with torch.no_grad():
             for i, batch in enumerate(tqdm(self.dataloader, desc='Batch Forward',  file=TqdmToLogger(self.logger) if self.logger else None)):
+                batch_pids = self.dataset.pids[i*self.batch_size:(i+1)*self.batch_size]
                 batch.pop('target', None)
                 mask = batch['attention_mask']
                 self.to_device(batch)
                 output = self.forward_pass(batch)
                 hidden = output.last_hidden_state.detach()
                 pooled_vec = self.pooler.pool(hidden, mask, output)
-                encodings.append(pooled_vec)
-        return torch.cat(encodings)
+                
+                if self.writer:
+                    self.writer.write(pooled_vec, batch_pids)
+                else:
+                    encodings.append(pooled_vec)
+                    pids.extend()
+
+        if self.writer:
+            self.logger.info(f"Saved encodings to {self.output_path}")
+        else:
+            return torch.cat(encodings), pids
+        
 
     def produce_patient_trajectory_embeddings(self, start_code_id=4)->dict:
         """Produce embedding for each patient. Showing an increasing number of codes to the model,

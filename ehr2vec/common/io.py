@@ -7,14 +7,16 @@ import torch
 
 class PatientHDF5Writer:
     """Class to write patient encodings (bsxhidden_dim) to HDF5 file in batches."""
-    def __init__(self, output_path, tensor_dataset_name="tensors", pid_dataset_name="pids"):
+    def __init__(self, output_path, tensor_dataset_name="tensors", pid_dataset_name="pids",
+                 targets_dataset_name="targets"):
         self.output_path = output_path
         self.tensor_dataset_name = tensor_dataset_name
         self.pid_dataset_name = pid_dataset_name
+        self.targets_dataset_name = targets_dataset_name
         self.hidden_dim = None
         self.initialized = False
 
-    def write(self, tensor, pids):
+    def write(self, tensor, pids, targets=None):
         """Save tensor and pids to HDF5."""
         if not self.initialized or self.hidden_dim != tensor.shape[1]:
             self.initialize(tensor.shape[1])
@@ -27,6 +29,10 @@ class PatientHDF5Writer:
             # Append the pids to the HDF5 pid dataset
             self.write_pids(pids, pid_dset)
 
+            if targets is not None:
+                targets_dset = f[self.targets_dataset_name]
+                self.write_targets(targets, targets_dset)
+
     def write_tensor(self, tensor, tensor_dset):
          # Resize the tensor dataset to fit new data
         tensor_dset, start, stop = self.resize_tensor_dataset(tensor_dset, tensor)
@@ -37,6 +43,16 @@ class PatientHDF5Writer:
         new_tensor_len = current_tensor_len + tensor.shape[0]
         tensor_dset.resize((new_tensor_len, self.hidden_dim))
         return tensor_dset, current_tensor_len, new_tensor_len
+
+    def write_targets(self, targets, targets_dset):
+        targets_dset, start, stop = self.resize_target_dataset(targets_dset, targets)
+        targets_dset[start:stop] = targets.numpy()
+
+    def resize_target_dataset(self, targets_dset, targets):
+        current_targets_len = targets_dset.shape[0]
+        new_targets_len = current_targets_len + len(targets)
+        targets_dset.resize((new_targets_len,)) 
+        return targets_dset, current_targets_len, new_targets_len
 
     def write_pids(self, pids, pid_dset):
         pid_dset, start, stop = self.resize_pid_dataset(pid_dset, pids)
@@ -60,6 +76,9 @@ class PatientHDF5Writer:
             if self.pid_dataset_name not in f:
                 dt = h5py.special_dtype(vlen=str)
                 f.create_dataset(self.pid_dataset_name, shape=(0,), maxshape=(None,), dtype=dt)
+            
+            if self.targets_dataset_name not in f:
+                f.create_dataset(self.targets_dataset_name, shape=(0,), maxshape=(None,), dtype=float)
         
         self.initialized = True
         self.hidden_dim = hidden_dim

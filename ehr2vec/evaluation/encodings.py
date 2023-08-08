@@ -37,7 +37,7 @@ class Forwarder(EHRTrainer):
         with torch.no_grad():
             for i, batch in enumerate(tqdm(self.dataloader, desc='Batch Forward',  file=TqdmToLogger(self.logger) if self.logger else None)):
                 batch_pids = self.dataset.pids[i*self.batch_size:(i+1)*self.batch_size]
-                batch.pop('target', None)
+                target = batch.pop('target', None)
                 mask = batch['attention_mask']
                 self.to_device(batch)
                 output = self.forward_pass(batch)
@@ -45,7 +45,7 @@ class Forwarder(EHRTrainer):
                 pooled_vec = self.pooler.pool(hidden, mask, output)
                 
                 if self.writer:
-                    self.writer.write(pooled_vec, batch_pids)
+                    self.writer.write(pooled_vec, batch_pids, target)
                 else:
                     encodings.append(pooled_vec)
                     pids.extend()

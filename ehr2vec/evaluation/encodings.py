@@ -8,7 +8,6 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from trainer.trainer import EHRTrainer
 from common.logger import TqdmToLogger
-# TODO: fix accumulation methods!
 
 class Forwarder(EHRTrainer):
     def __init__(self, model, dataset, batch_size=50, stop_iter=None, pool_method="mean", logger=None, test=False, layers='last', run=None):
@@ -23,15 +22,8 @@ class Forwarder(EHRTrainer):
         self.pool_method = pool_method
         self.run = run
         self.validate_parameters()
-        self.set_pool_method()
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.dataloader = DataLoader(self.dataset, batch_size=self.batch_size, shuffle=False, collate_fn=dynamic_padding)
-
-    def set_pool_method(self):
-        if self.pool_method=='mean':
-            self.pool_method = torch.mean
-        else:
-            pass
         
     def forward_patients(self)->dict:
         encodings = []
@@ -51,13 +43,14 @@ class Forwarder(EHRTrainer):
     
     def pool(self, hidden, mask, output):
         if self.pool_method=='mean':
-            pooled_vec = torch.mean(mask.unsqueeze(-1) * hidden, dim=1)
+            return torch.mean(mask.unsqueeze(-1) * hidden, dim=1)
         elif self.pool_method=='weighted_sum':
-            pooled_vec = self.attention_weighted_sum(output, hidden, mask, self.layers)
+            return self.attention_weighted_sum(output, hidden, mask, self.layers)
+        elif self.pool_method=='CLS':
+            return hidden[:,0,:] # CLS token
         else:
-            pooled_vec = hidden[0] # CLS token
+            raise ValueError(f"Method {self.pool_method} not implemented yet.")
         
-        return pooled_vec
     
     def validate_parameters(self):
         valid_methods = ['mean', 'weighted_sum', 'CLS']

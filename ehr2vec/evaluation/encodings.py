@@ -12,21 +12,20 @@ from trainer.trainer import EHRTrainer
 
 
 class Forwarder(EHRTrainer):
-    def __init__(self, model, dataset, batch_size=50, stop_iter=None, pool_method="mean", pooler=None, logger=None, test=False, layers='last', run=None):
+    def __init__(self, model, dataset, batch_size=50, output_path=None, pooler=None, logger=None, run=None):
         self.model = model
-        self.logger = logger
         self.model.eval()
         self.dataset = dataset
         self.batch_size = batch_size
-        self.stop_iter = stop_iter
-        self.test = test
-        self.layers = layers
-        self.pool_method = pool_method
+        self.output_path = output_path
+        self.pooler =  instantiate(pooler)
+
+        self.logger = logger
         self.run = run
-        self.validate_parameters()
+        
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.dataloader = DataLoader(self.dataset, batch_size=self.batch_size, shuffle=False, collate_fn=dynamic_padding)
-        self.pooler =  instantiate(pooler)
+
     def forward_patients(self)->dict:
         encodings = []
         with torch.no_grad():
@@ -38,19 +37,7 @@ class Forwarder(EHRTrainer):
                 hidden = output.last_hidden_state.detach()
                 pooled_vec = self.pooler.pool(hidden, mask, output)
                 encodings.append(pooled_vec)
-                if self.test:
-                    if i>1:
-                        break
         return torch.cat(encodings)
-    
-    
-    def validate_parameters(self):
-        valid_methods = ['mean', 'weighted_sum', 'CLS']
-        valid_layers = ['last', 'all']
-        if self.pool_method not in valid_methods:
-            raise ValueError(f"Method {self.pool_method} not implemented yet.")
-        if self.layers not in valid_layers:
-            raise ValueError(f"Layers {self.layers} not implemented yet.")
 
     def produce_patient_trajectory_embeddings(self, start_code_id=4)->dict:
         """Produce embedding for each patient. Showing an increasing number of codes to the model,
@@ -89,10 +76,6 @@ class Forwarder(EHRTrainer):
                     
                     hidden_all.append(hidden_vec.detach().numpy()[mask])
             
-                if self.stop_iter:
-                    if i>=(self.stop_iter-1):
-                        break
-    
         data = {k:np.concatenate(v) for k,v in data.items()}
         masks = np.concatenate(masks)
         data['seq_len'] = np.array(seqs_len_all)[masks]
@@ -120,15 +103,12 @@ class Forwarder(EHRTrainer):
                 for feat in data:
                     feat_arr = batch[feat].detach().numpy().flatten()
                     data[feat].append(feat_arr[mask])
-            
-                if self.stop_iter:
-                    if i>=(self.stop_iter-1):
-                        break
+                
         data = {k:np.concatenate(v) for k,v in data.items()}      
         data['concept_enc'] = np.concatenate(concepts_hidden)
         data['patient'] = np.concatenate(pat_counts)
         return data
-
+    
     @staticmethod
     def store_to_df(data: dict, data_path: str)->pd.DataFrame:
         """Store data in dataframe, get concept names and change dtype to reduce memory use."""

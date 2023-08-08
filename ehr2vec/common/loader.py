@@ -5,13 +5,12 @@ import torch
 from data.dataset import HierarchicalMLMDataset, MLMDataset, CensorDataset
 from transformers import BertConfig
 
-def load_model(model_class, cfg, pos_weight=None):
+def load_model(model_class, cfg, add_config={}):
     model_dir = split(cfg.paths.model_path)[0]
     checkpoint_path = join(cfg.paths.model_path, f'checkpoint_epoch{cfg.paths.checkpoint_epoch}_end.pt')
     # Load the config from file
     config = BertConfig.from_pretrained(model_dir) 
-    if pos_weight is not None:
-        config.pos_weight = pos_weight
+    config.update(add_config)
     model = model_class(config)
     load_result = model.load_state_dict(torch.load(checkpoint_path)['model_state_dict'], strict=False)
     print("missing keys", load_result.missing_keys)

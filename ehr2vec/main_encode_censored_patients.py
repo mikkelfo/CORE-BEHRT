@@ -26,16 +26,18 @@ def main_encode():
     # Finetune specific
     logger = setup_run_folder(cfg)
     logger.info(f"Access data from {cfg.paths.data_path}")
-    logger.info(f'Outcome file: {cfg.paths.outcome}, Outcome name: {cfg.outcome.type}')
-    logger.info(f'Censor file: {cfg.paths.censor}, Censor name: {cfg.outcome.censor_type}')
+    logger.info(f"Access outcomes from {cfg.paths.outcomes_path}")
+    logger.info(f'Outcome name: {cfg.outcome.type}')
+    logger.info(f'Censor name: {cfg.outcome.censor_type}')
     logger.info(f"Censoring {cfg.outcome.n_hours} hours after censor_outcome")
-    train_dataset, val_dataset, outcomes = create_binary_outcome_datasets(cfg)
-
+    logger.info("Create Datasets")
+    train_dataset, val_dataset, _ = create_binary_outcome_datasets(cfg)
+    
+    #binary_outcomes = pd.notna(outcome)
     dataset = ConcatIterableDataset([train_dataset, val_dataset])
 
     logger.info('Initializing model')
-    model = load_model(BertEHRModel, cfg, add_config = {'output_hidden_states':True})
-
+    model = load_model(BertEHRModel, cfg)
 
     forwarder = Forwarder( 
         model=model, 
@@ -44,8 +46,17 @@ def main_encode():
         logger=logger,
         **cfg.forwarder_args,
     )
-    output_ = forwarder.forward_patients()
-    print(output_.shape)
+    forwarder.forward_patients()
 
+    if cfg.env=='azure':
+        from azure_run import file_dataset_save
+        from pathlib import Path
+        path = Path(cfg.paths.model_path)
+        model_path = Path(*path.parts[1:])
+        file_dataset_save(local_path=f'outputs/{cfg.paths.run_name}', datastore_name = "workspaceblobstore",
+                    remote_path = join("PHAIR", model_path, 'encodings', 'censored_patients'))
+        mount_context.stop()
+
+        
 if __name__ == '__main__':
     main_encode()

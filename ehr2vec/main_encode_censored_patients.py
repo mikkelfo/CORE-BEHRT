@@ -34,6 +34,7 @@ def main_encode():
     logger.info("Create Datasets")
     train_dataset, val_dataset, _ = create_binary_outcome_datasets(cfg)
     
+    #binary_outcomes = pd.notna(outcome)
     dataset = ConcatIterableDataset([train_dataset, val_dataset])
 
     logger.info('Initializing model')

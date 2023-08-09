@@ -23,6 +23,7 @@ def main_encode():
         run, mount_context = azure.setup_azure(cfg.paths.run_name)
         cfg.paths.data_path = join(mount_context.mount_point, cfg.paths.data_path)
         cfg.paths.model_path = join(mount_context.mount_point, cfg.paths.model_path)
+        cfg.paths.outcomes_path = join(mount_context.mount_point, cfg.paths.outcomes_path)
     # Finetune specific
     logger = prepare_encodings_directory(config_path, cfg)
     logger.info(f"Access data from {cfg.paths.data_path}")

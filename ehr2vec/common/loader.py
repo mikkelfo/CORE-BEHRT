@@ -6,12 +6,13 @@ from data.dataset import HierarchicalMLMDataset, MLMDataset, CensorDataset
 from transformers import BertConfig
 
 def load_model(model_class, cfg, add_config={}):
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     checkpoint_path = join(cfg.paths.model_path, 'checkpoints' ,f'checkpoint_epoch{cfg.paths.checkpoint_epoch}_end.pt')
     # Load the config from file
     config = BertConfig.from_pretrained(cfg.paths.model_path) 
     config.update(add_config)
     model = model_class(config)
-    load_result = model.load_state_dict(torch.load(checkpoint_path)['model_state_dict'], strict=False)
+    load_result = model.load_state_dict(torch.load(checkpoint_path, map_location=device)['model_state_dict'], strict=False)
     print("missing state dict keys", load_result.missing_keys)
     return model
 

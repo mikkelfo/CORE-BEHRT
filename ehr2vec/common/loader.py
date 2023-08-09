@@ -1,19 +1,18 @@
 import glob
 import os
-from os.path import join, split
+from os.path import join
 import torch
 from data.dataset import HierarchicalMLMDataset, MLMDataset, CensorDataset
 from transformers import BertConfig
 
 def load_model(model_class, cfg, add_config={}):
-    model_dir = split(cfg.paths.model_path)[0]
-    checkpoint_path = join(cfg.paths.model_path, f'checkpoint_epoch{cfg.paths.checkpoint_epoch}_end.pt')
+    checkpoint_path = join(cfg.paths.model_path, 'checkpoints' ,f'checkpoint_epoch{cfg.paths.checkpoint_epoch}_end.pt')
     # Load the config from file
-    config = BertConfig.from_pretrained(model_dir) 
+    config = BertConfig.from_pretrained(cfg.paths.model_path) 
     config.update(add_config)
     model = model_class(config)
     load_result = model.load_state_dict(torch.load(checkpoint_path)['model_state_dict'], strict=False)
-    print("missing keys", load_result.missing_keys)
+    print("missing state dict keys", load_result.missing_keys)
     return model
 
 def create_binary_outcome_datasets(cfg):
@@ -48,15 +47,9 @@ def get_val_test_pids(cfg):
 def load_outcomes(cfg):
     """From the configuration, load the outcomes and censor outcomes.
     Access pids, the outcome of interest and the censoring outcome."""
-    data_path = cfg.paths.data_path
-    outcomes_path = join(data_path, 'outcomes')
-    all_outcomes = torch.load(join(outcomes_path, cfg.paths.outcome))
-    if cfg.paths.censor!=cfg.paths.outcome:
-        all_censor_outcomes = torch.load(join(data_path, 'outcomes', cfg.paths.censor))
-    else:
-        all_censor_outcomes = all_outcomes
+    all_outcomes = torch.load(cfg.paths.outcomes_path)
     outcomes = all_outcomes.get(cfg.outcome.type, None)
-    censor_outcomes = all_censor_outcomes.get(cfg.outcome.censor_type, None)
+    censor_outcomes = all_outcomes.get(cfg.outcome.censor_type, None)
     pids = all_outcomes['PID']
     return outcomes, censor_outcomes, pids
 

@@ -1,5 +1,5 @@
 import os
-from os.path import join
+from os.path import join, split
 
 import h5py
 import torch
@@ -69,6 +69,7 @@ class PatientHDF5Writer:
         if os.path.exists(self.output_path):
             # Handle the existing file. Here, I'm raising an error, but you can choose to do something else
             raise ValueError(f"File {self.output_path} already exists!")
+        os.makedirs(split(self.output_path)[0], exist_ok=True)
         with h5py.File(self.output_path, 'a') as f:
             if self.tensor_dataset_name not in f:
                 f.create_dataset(self.tensor_dataset_name, shape=(0, hidden_dim), maxshape=(None, hidden_dim), dtype=float)

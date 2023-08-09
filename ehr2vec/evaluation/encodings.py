@@ -18,7 +18,6 @@ class Forwarder(EHRTrainer):
         self.model.eval()
         self.dataset = dataset
         self.batch_size = batch_size
-        self.output_path = output_path
         self.pooler =  instantiate(pooler)
 
         self.logger = logger
@@ -26,8 +25,10 @@ class Forwarder(EHRTrainer):
         
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.dataloader = DataLoader(self.dataset, batch_size=self.batch_size, shuffle=False, collate_fn=dynamic_padding)
-        if self.output_path:
-            self.writer = PatientHDF5Writer(self.output_path)
+        if output_path:
+            self.writer = PatientHDF5Writer(output_path)
+        if self.writer:
+            self.logger.info(f"Writing encodings to {self.writer.output_path}")
 
     def forward_patients(self)->None:
         if not self.writer:
@@ -49,11 +50,10 @@ class Forwarder(EHRTrainer):
                 else:
                     encodings.append(pooled_vec)
                     pids.extend()
-
-        if self.writer:
-            self.logger.info(f"Saved encodings to {self.output_path}")
-        else:
+        if not self.writer:
             return torch.cat(encodings), pids
+        else:
+            return None
         
 
     def produce_patient_trajectory_embeddings(self, start_code_id=4)->dict:

@@ -3,7 +3,7 @@ from os.path import join
 
 from common.config import load_config
 from common import azure
-from common.setup import setup_run_folder
+from common.setup import prepare_encodings_directory
 from common.loader import create_binary_outcome_datasets, load_model
 
 from model.model import BertEHRModel
@@ -24,7 +24,7 @@ def main_encode():
         cfg.paths.data_path = join(mount_context.mount_point, cfg.paths.data_path)
         cfg.paths.model_path = join(mount_context.mount_point, cfg.paths.model_path)
     # Finetune specific
-    logger = setup_run_folder(cfg)
+    logger = prepare_encodings_directory(config_path, cfg)
     logger.info(f"Access data from {cfg.paths.data_path}")
     logger.info(f"Access outcomes from {cfg.paths.outcomes_path}")
     logger.info(f'Outcome name: {cfg.outcome.type}')
@@ -43,6 +43,7 @@ def main_encode():
         dataset=dataset, 
         run=run,
         logger=logger,
+        output_path=cfg.output_dir,
         **cfg.forwarder_args,
     )
     forwarder.forward_patients()

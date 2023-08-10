@@ -51,8 +51,11 @@ class Forwarder(EHRTrainer):
                 if self.writer:
                     self.writer.write(pooled_vec, batch_pids, target)
                 else:
-                    encodings.append(pooled_vec)
+                    encodings.append(pooled_vec.cpu())
                     pids.extend()
+                if self.writer:
+                    del output, hidden
+                    torch.cuda.empty_cache()
         if not self.writer:
             return torch.cat(encodings), pids
         else:

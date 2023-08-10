@@ -36,7 +36,7 @@ class PatientHDF5Writer:
     def write_tensor(self, tensor, tensor_dset):
          # Resize the tensor dataset to fit new data
         tensor_dset, start, stop = self.resize_tensor_dataset(tensor_dset, tensor)
-        tensor_dset[start:stop, :] = tensor.numpy()
+        tensor_dset[start:stop, :] = tensor.cpu().numpy()
 
     def resize_tensor_dataset(self, tensor_dset, tensor):
         current_tensor_len = tensor_dset.shape[0]
@@ -46,7 +46,7 @@ class PatientHDF5Writer:
 
     def write_targets(self, targets, targets_dset):
         targets_dset, start, stop = self.resize_target_dataset(targets_dset, targets)
-        targets_dset[start:stop] = targets.numpy()
+        targets_dset[start:stop] = targets.cpu().numpy()
 
     def resize_target_dataset(self, targets_dset, targets):
         current_targets_len = targets_dset.shape[0]

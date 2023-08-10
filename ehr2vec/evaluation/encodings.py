@@ -40,10 +40,10 @@ class Forwarder(EHRTrainer):
 
         with torch.no_grad():
             for i, batch in enumerate(tqdm(self.dataloader, desc='Batch Forward',  file=TqdmToLogger(self.logger) if self.logger else None)):
+                self.to_device(batch)
                 batch_pids = self.dataset.pids[i*self.batch_size:(i+1)*self.batch_size]
                 target = batch.pop('target', None)
                 mask = batch['attention_mask']
-                self.to_device(batch)
                 output = self.forward_pass(batch)
                 hidden = output.last_hidden_state.detach()
                 pooled_vec = self.pooler.pool(hidden, mask, output)

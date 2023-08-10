@@ -1,28 +1,54 @@
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import roc_auc_score, average_precision_score, accuracy_score, precision_score, recall_score
+from sklearn.model_selection import StratifiedKFold
 from common.io import PatientHDF5Reader
+from sklearn.metrics import roc_auc_score, average_precision_score, accuracy_score, precision_score, recall_score
+from tqdm import tqdm
 
-reader = PatientHDF5Reader('outputs/pretraining/test/encodings/censored_patients2/encodings.h5')
-# Train the random forest classifier with OOB scoring enabled
-X, y = reader.read_arrays()
+from itertools import product
 
-clf = RandomForestClassifier(n_estimators=100, oob_score=True, random_state=42)
-clf.fit(X, y)
+# Define a custom iterator
+def get_all_combinations(param_grid):
+    return [dict(zip(param_grid.keys(), values)) for values in product(*param_grid.values())]
 
-# Use OOB predictions as a form of "validation"
-oob_decision_function = clf.oob_decision_function_
-oob_predictions = oob_decision_function.argmax(axis=1)
-oob_probabilities = oob_decision_function[:, 1]
+def find_best_params(X, y, param_grid):
+    all_params = get_all_combinations(param_grid)
+    best_score = float('-inf')
+    best_params = None
+    for params in tqdm(all_params, desc='Grid Search'):
+        clf = RandomForestClassifier(oob_score=True, random_state=42, **params)
+        clf.fit(X, y)
+        oob_score = clf.oob_score_
+        if oob_score > best_score:
+            best_score = oob_score
+            best_params = params
 
-# Calculate metrics
-roc_auc = roc_auc_score(y, oob_probabilities)
-pr_auc = average_precision_score(y, oob_probabilities)
-accuracy = accuracy_score(y, oob_predictions)
-precision = precision_score(y, oob_predictions)
-recall = recall_score(y, oob_predictions)
+    return best_params
 
-print(f'OOB ROC-AUC: {roc_auc}')
-print(f'OOB PR-AUC: {pr_auc}')
-print(f'OOB Accuracy: {accuracy}')
-print(f'OOB Precision: {precision}')
-print(f'OOB Recall: {recall}')
+
+tasks = ['censored_patients', 'censored_patients2']
+metrics = [roc_auc_score, average_precision_score, accuracy_score, precision_score, recall_score]
+n_folds = 2
+# param_grid = {'n_estimators':[1000],'max_depth':[5,10, None], 'min_samples_split':[2,5 ,10]}
+param_grid = {'n_estimators':[1000],'max_depth':[5, None], 'min_samples_split':[2]}
+
+for task in tasks:
+    reader = PatientHDF5Reader(f'outputs/pretraining/test/encodings/{task}/encodings.h5')
+    X, y = reader.read_arrays()
+    skf = StratifiedKFold(n_folds)
+
+    for i, fold in tqdm(enumerate(skf.split(X,y)), desc='CV'):
+        train_ids, val_ids = fold
+        X_train, X_val, y_train, y_val = X[train_ids], X[val_ids], y[train_ids], y[val_ids]
+        best_params = find_best_params(X_train, y_train, param_grid)
+
+        clf = RandomForestClassifier(**best_params, random_state=42)
+        clf.fit(X_train, y_train)
+
+        pred = clf.predict(X_val)
+        pred_probas = clf.predict_proba(X_val)[:, 1]
+
+        for metric in metrics:
+            if metric.__name__.endswith('auc'):
+                print(f'Val {metric.__name__}: {metric(y_val, pred_probas)}')
+            else:
+                print(f'Val {metric.__name__}: {metric(y_val, pred)}')

@@ -7,10 +7,10 @@ import torch
 
 class PatientHDF5Writer:
     """Class to write patient encodings (bsxhidden_dim) to HDF5 file in batches."""
-    def __init__(self, output_path, tensor_dataset_name="tensors", pid_dataset_name="pids",
-                 targets_dataset_name="targets"):
+    def __init__(self, output_path, encodings_dataset_name="X", pid_dataset_name="pids",
+                 targets_dataset_name="y"):
         self.output_path = output_path
-        self.tensor_dataset_name = tensor_dataset_name
+        self.encodings_dataset_name = encodings_dataset_name
         self.pid_dataset_name = pid_dataset_name
         self.targets_dataset_name = targets_dataset_name
         self.hidden_dim = None
@@ -22,7 +22,7 @@ class PatientHDF5Writer:
             self.initialize(tensor.shape[1])
 
         with h5py.File(self.output_path, 'a') as f:
-            tensor_dset = f[self.tensor_dataset_name]
+            tensor_dset = f[self.encodings_dataset_name]
             pid_dset = f[self.pid_dataset_name]
            
             self.write_tensor(tensor, tensor_dset)
@@ -71,8 +71,8 @@ class PatientHDF5Writer:
             raise ValueError(f"File {self.output_path} already exists!")
         os.makedirs(split(self.output_path)[0], exist_ok=True)
         with h5py.File(self.output_path, 'a') as f:
-            if self.tensor_dataset_name not in f:
-                f.create_dataset(self.tensor_dataset_name, shape=(0, hidden_dim), maxshape=(None, hidden_dim), dtype=float)
+            if self.encodings_dataset_name not in f:
+                f.create_dataset(self.encodings_dataset_name, shape=(0, hidden_dim), maxshape=(None, hidden_dim), dtype=float)
             
             if self.pid_dataset_name not in f:
                 dt = h5py.special_dtype(vlen=str)
@@ -86,22 +86,25 @@ class PatientHDF5Writer:
 
 class PatientHDF5Reader:
     """Reads a encoded patients (pids and tensor of bsxhiddden_dim) from HDF5 file."""
-    def __init__(self, input_path, tensor_dataset_name="tensors", pid_dataset_name="pids"):
+    def __init__(self, input_path, encodings_dataset_name="X", pid_dataset_name="pids", target_ds_name="y"):
         self.input_path = input_path
-        self.tensor_dataset_name = tensor_dataset_name
+        self.encodings_dataset_name = encodings_dataset_name
         self.pid_dataset_name = pid_dataset_name
+        self.target_dataset_name = target_ds_name
 
-    def read_tensors(self, start_idx=None, end_idx=None):
-        """Read a slice of the tensor dataset."""
+    def read_arrays(self, start_idx=None, end_idx=None):
         with h5py.File(self.input_path, 'r') as f:
-            tensor_dset = f[self.tensor_dataset_name]
-            return tensor_dset[start_idx:end_idx]
+            Xds = f[self.encodings_dataset_name]
+            yds = f[self.target_dataset_name]                
+            return Xds[start_idx:end_idx], yds[start_idx:end_idx] 
 
     def read_pids(self, start_idx=None, end_idx=None):
         """Read a slice of the patient IDs dataset."""
         with h5py.File(self.input_path, 'r') as f:
             pid_dset = f[self.pid_dataset_name]
             return [pid.decode('utf-8') for pid in pid_dset[start_idx:end_idx]]
+        
+   
         
 def save_hdf5(dic, path):
     """Simple method to save a dictionary to hdf5"""

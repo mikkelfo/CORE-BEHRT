@@ -1,0 +1,22 @@
+env: local
+run_name: AE_0
+model_dir: "outputs/pretraining/test"
+n_folds:
+  3
+tasks:
+  [censored_patients, censored_patients2]
+metrics:
+  roc_auc_score:
+    _target_: sklearn.metrics.roc_auc_score
+  pr_auc_score:
+    _target_: sklearn.metrics.average_precision_score
+  accuracy_score:
+    _target_: sklearn.metrics.accuracy_score
+  precision_score:
+    _target_: sklearn.metrics.precision_score
+  recall_score:
+    _target_: sklearn.metrics.recall_score
+param_grid:
+  n_estimators: [100]
+  max_depth: [5]
+  min_samples_split: [2, 5]

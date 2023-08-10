@@ -21,12 +21,18 @@ def create_binary_outcome_datasets(cfg):
     This function is used to create outcome datasets based on the configuration provided.
     """
     outcomes, censor_outcomes, pids = load_outcomes(cfg)
-    train_dataset = CensorDataset(cfg.paths.data_path, 'train', outcomes, 
+    if cfg.train_data.num_patients == 0:
+        train_dataset = None
+    else:
+        train_dataset = CensorDataset(cfg.paths.data_path, 'train', outcomes, 
                                     censor_outcomes=censor_outcomes, 
                                     outcome_pids=pids,
                                     num_patients=cfg.train_data.num_patients,
                                     n_hours=cfg.outcome.n_hours,)
-    val_dataset = CensorDataset(cfg.paths.data_path, 'val',  outcomes, 
+    if cfg.val_data.num_patients == 0:
+        val_dataset = None
+    else:
+        val_dataset = CensorDataset(cfg.paths.data_path, 'val',  outcomes, 
                                     censor_outcomes=censor_outcomes, 
                                     outcome_pids=pids,
                                     num_patients=cfg.val_data.num_patients,

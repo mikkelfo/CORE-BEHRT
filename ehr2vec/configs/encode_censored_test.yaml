@@ -4,9 +4,10 @@ paths:
   model_path: "outputs/pretraining/test"
   outcomes_path: "../outputs/outcomes/TEST.pt"
   checkpoint_epoch: 2
-  run_name: "test"
+  run_name: "test2"
 
-output_dir: "outputs/pretraining/test/encodings/censored_patients/"
+output_dir: "outputs/pretraining/test/encodings/censored_patients2"
+file_name: "encodings.h5"
 
 train_data:
   num_patients: 400

@@ -45,7 +45,7 @@ def main_encode():
         dataset=dataset, 
         run=run,
         logger=logger,
-        output_path=cfg.output_dir,
+        output_path=join(cfg.output_dir, cfg.file_name),
         **cfg.forwarder_args,
     )
     forwarder.forward_patients()
@@ -55,7 +55,7 @@ def main_encode():
         from pathlib import Path
         path = Path(cfg.paths.model_path)
         model_path = Path(*path.parts[2:]) # first two paths are mount point 
-        file_dataset_save(local_path=f'outputs/{cfg.paths.run_name}', datastore_name = "workspaceblobstore",
+        file_dataset_save(local_path=cfg.output_dir, datastore_name = "workspaceblobstore",
                     remote_path = join("PHAIR", model_path, 'encodings', 'censored_patients'))
         mount_context.stop()
 

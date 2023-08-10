@@ -26,7 +26,7 @@ class Forwarder(EHRTrainer):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.dataloader = DataLoader(self.dataset, batch_size=self.batch_size, shuffle=False, collate_fn=dynamic_padding)
         if output_path:
-            self.writer = PatientHDF5Writer(join(output_path, 'encodings.h5'))
+            self.writer = PatientHDF5Writer(output_path)
         if self.writer:
             self.logger.info(f"Writing encodings to {self.writer.output_path}")
 

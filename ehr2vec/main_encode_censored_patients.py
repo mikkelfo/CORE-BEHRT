@@ -31,11 +31,14 @@ def main_encode():
     logger.info(f'Outcome name: {cfg.outcome.type}')
     logger.info(f'Censor name: {cfg.outcome.censor_type}')
     logger.info(f"Censoring {cfg.outcome.n_hours} hours after censor_outcome")
+    
     logger.info("Create Datasets")
     train_dataset, val_dataset, _ = create_binary_outcome_datasets(cfg)
     
-    #binary_outcomes = pd.notna(outcome)
-    dataset = ConcatIterableDataset([train_dataset, val_dataset])
+    if isinstance(train_dataset, type(None)) or isinstance(val_dataset, type(None)):
+        dataset = train_dataset if train_dataset is not None else val_dataset
+    else:
+        dataset = ConcatIterableDataset([train_dataset, val_dataset])
 
     logger.info('Initializing model')
     model = load_model(BertEHRModel, cfg)

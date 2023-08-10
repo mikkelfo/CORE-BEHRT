@@ -12,7 +12,7 @@ file_name: "encodings.h5"
 train_data:
   num_patients: 400
 val_data:
-  num_patients: 80
+  num_patients: 0
 
 outcome: 
   type: TEST_OUTCOME

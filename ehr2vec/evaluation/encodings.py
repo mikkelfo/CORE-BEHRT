@@ -14,8 +14,10 @@ from trainer.trainer import EHRTrainer
 
 class Forwarder(EHRTrainer):
     def __init__(self, model, dataset, batch_size=64, output_path=None, pooler=None, logger=None, run=None):
+        
         self.model = model
         self.model.eval()
+        
         self.dataset = dataset
         self.batch_size = batch_size
         self.pooler =  instantiate(pooler)
@@ -24,6 +26,7 @@ class Forwarder(EHRTrainer):
         self.run = run
         
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.model = model.to(self.device)
         self.dataloader = DataLoader(self.dataset, batch_size=self.batch_size, shuffle=False, collate_fn=dynamic_padding)
         if output_path:
             self.writer = PatientHDF5Writer(output_path)

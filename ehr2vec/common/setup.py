@@ -6,8 +6,6 @@ from shutil import copyfile
 
 from common.config import Config
 
-
-
 def setup_logger(dir: str, log_file: str = 'info.log'):
     """Sets up the logger."""
     logging.basicConfig(filename=join(dir, log_file), level=logging.INFO, 
@@ -42,6 +40,12 @@ def prepare_embedding_directory(config_path: str, cfg: Config):
     copyfile(config_path, join(cfg.output_dir, 'emb_config.yaml'))
     return setup_logger(cfg.output_dir)
 
+def prepare_encodings_directory(config_path: str, cfg: Config):
+    """Creates output directory and copies config file"""
+    os.makedirs(cfg.output_dir, exist_ok=True)
+    copyfile(config_path, join(cfg.output_dir, 'encodings_config.yaml'))
+    return setup_logger(cfg.output_dir)
+
 def setup_run_folder(cfg):
     """Creates a run folder"""
     # Generate unique run_name if not provided
@@ -57,9 +61,6 @@ def setup_run_folder(cfg):
     if not os.path.exists(join(run_folder,'checkpoints')):
         os.makedirs(join(run_folder,'checkpoints')) 
     copyfile(join(cfg.paths.data_path, 'data_config.yaml'), join(run_folder, 'data_config.yaml'))
-  
-    logging.basicConfig(filename=join(run_folder, 'info.log'), level=logging.INFO, 
-                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    logger = logging.getLogger(__name__)
+    logger = setup_logger(run_folder)
     logger.info(f'Run folder: {run_folder}')
     return logger

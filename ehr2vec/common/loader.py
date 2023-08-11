@@ -3,18 +3,36 @@ import os
 from os.path import join
 import torch
 from data.dataset import HierarchicalMLMDataset, MLMDataset, CensorDataset
+from transformers import BertConfig
+
+def load_model(model_class, cfg, add_config={}):
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    checkpoint_path = join(cfg.paths.model_path, 'checkpoints' ,f'checkpoint_epoch{cfg.paths.checkpoint_epoch}_end.pt')
+    # Load the config from file
+    config = BertConfig.from_pretrained(cfg.paths.model_path) 
+    config.update(add_config)
+    model = model_class(config)
+    load_result = model.load_state_dict(torch.load(checkpoint_path, map_location=device)['model_state_dict'], strict=False)
+    print("missing state dict keys", load_result.missing_keys)
+    return model
 
 def create_binary_outcome_datasets(cfg):
     """
     This function is used to create outcome datasets based on the configuration provided.
     """
     outcomes, censor_outcomes, pids = load_outcomes(cfg)
-    train_dataset = CensorDataset(cfg.paths.data_path, 'train', outcomes, 
+    if cfg.train_data.num_patients == 0:
+        train_dataset = None
+    else:
+        train_dataset = CensorDataset(cfg.paths.data_path, 'train', outcomes, 
                                     censor_outcomes=censor_outcomes, 
                                     outcome_pids=pids,
                                     num_patients=cfg.train_data.num_patients,
                                     n_hours=cfg.outcome.n_hours,)
-    val_dataset = CensorDataset(cfg.paths.data_path, 'val',  outcomes, 
+    if cfg.val_data.num_patients == 0:
+        val_dataset = None
+    else:
+        val_dataset = CensorDataset(cfg.paths.data_path, 'val',  outcomes, 
                                     censor_outcomes=censor_outcomes, 
                                     outcome_pids=pids,
                                     num_patients=cfg.val_data.num_patients,
@@ -36,15 +54,9 @@ def get_val_test_pids(cfg):
 def load_outcomes(cfg):
     """From the configuration, load the outcomes and censor outcomes.
     Access pids, the outcome of interest and the censoring outcome."""
-    data_path = cfg.paths.data_path
-    outcomes_path = join(data_path, 'outcomes')
-    all_outcomes = torch.load(join(outcomes_path, cfg.paths.outcome))
-    if cfg.paths.censor!=cfg.paths.outcome:
-        all_censor_outcomes = torch.load(join(data_path, 'outcomes', cfg.paths.censor))
-    else:
-        all_censor_outcomes = all_outcomes
+    all_outcomes = torch.load(cfg.paths.outcomes_path)
     outcomes = all_outcomes.get(cfg.outcome.type, None)
-    censor_outcomes = all_censor_outcomes.get(cfg.outcome.censor_type, None)
+    censor_outcomes = all_outcomes.get(cfg.outcome.censor_type, None)
     pids = all_outcomes['PID']
     return outcomes, censor_outcomes, pids
 

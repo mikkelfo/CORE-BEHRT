@@ -3,81 +3,64 @@ from os.path import join, split
 import numpy as np
 import pandas as pd
 import torch
+from common.config import instantiate
+from common.io import PatientHDF5Writer
+from common.logger import TqdmToLogger
 from dataloader.collate_fn import dynamic_padding
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 from trainer.trainer import EHRTrainer
-# TODO: fix accumulation methods!
+
 
 class Forwarder(EHRTrainer):
-    def __init__(self, model, dataset, batch_size=50, stop_iter=None, acc_method="mean", test=False, layers='last'):
+    def __init__(self, model, dataset, batch_size=64, output_path=None, pooler=None, logger=None, run=None):
+        
         self.model = model
         self.model.eval()
+        
         self.dataset = dataset
         self.batch_size = batch_size
-        self.stop_iter = stop_iter
-        self.test = test
-        self.layers = layers
-        self.acc_method = acc_method
-        self.validate_parameters()
-        self.set_acc_method()
+        self.pooler =  instantiate(pooler)
+
+        self.logger = logger
+        self.run = run
+        
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.model = model.to(self.device)
         self.dataloader = DataLoader(self.dataset, batch_size=self.batch_size, shuffle=False, collate_fn=dynamic_padding)
+        if output_path:
+            self.writer = PatientHDF5Writer(output_path)
+        if self.writer:
+            self.logger.info(f"Writing encodings to {self.writer.output_path}")
 
-    def set_acc_method(self):
-        if self.acc_method=='mean':
-            self.acc_method = torch.mean
-        else:
-            pass
-        
-    def forward_patients(self)->dict:
-        hidden_all = []
+    def forward_patients(self)->None:
+        if not self.writer:
+            encodings = []
+            pids = []
+
         with torch.no_grad():
-            for i, batch in enumerate(tqdm(self.dataloader, desc='Batch Forward')):
-                mask = batch['attention_mask']
+            for i, batch in enumerate(tqdm(self.dataloader, desc='Batch Forward',  file=TqdmToLogger(self.logger) if self.logger else None)):
                 self.to_device(batch)
+                batch_pids = self.dataset.pids[i*self.batch_size:(i+1)*self.batch_size]
+                target = batch.pop('target', None)
+                mask = batch['attention_mask']
                 output = self.forward_pass(batch)
-                hidden = output.hidden_states[-1].detach()
-                hidden_vec = self.get_hidden_vec(hidden, mask, output)
-                hidden_all.append(hidden_vec)
-                if self.test:
-                    if i>1:
-                        break
-        return torch.cat(hidden_all)
-    
-    @staticmethod
-    def get_hidden_vec(self, hidden, mask , output):
-        if self.acc_method=='mean':
-            hidden_vec = torch.mean(mask.unsqueeze(-1) * hidden, dim=1)
-        elif self.acc_method=='weighted_sum':
-            hidden_vec = self.attention_weighted_sum(output, hidden, mask, self.layers)
+                hidden = output.last_hidden_state.detach()
+                pooled_vec = self.pooler.pool(hidden, mask, output)
+                
+                if self.writer:
+                    self.writer.write(pooled_vec, batch_pids, target)
+                else:
+                    encodings.append(pooled_vec.cpu())
+                    pids.extend()
+                if self.writer:
+                    del output, hidden
+                    torch.cuda.empty_cache()
+        if not self.writer:
+            return torch.cat(encodings), pids
         else:
-            hidden_vec = output.hidden_states[-1][0]
+            return None
         
-        return hidden_vec
-    
-    def validate_parameters(self):
-        valid_methods = ['mean', 'weighted_sum', 'CLS']
-        valid_layers = ['last', 'all']
-        if self.acc_method not in valid_methods:
-            raise ValueError(f"Method {self.acc_method} not implemented yet.")
-        if self.layers not in valid_layers:
-            raise ValueError(f"Layers {self.layers} not implemented yet.")
-
-    @staticmethod
-    def attention_weighted_sum(outputs, hidden, mask, layers='all'):
-        """Compute embedding using attention weights"""
-        attention = outputs['attentions'] # tuple num layers (batch_size, num_heads, sequence_length, sequence_length)
-        if layers=='all':
-            attention = torch.stack(attention).mean(dim=0).mean(dim=1) # average over all layers and heads
-        elif layers=='last':
-            attention = attention[-1].mean(dim=1) # average over all layers and heads
-        else:
-            raise ValueError(f"Layers {layers} not implemented yet.")
-        weights = torch.mean(attention, dim=1) # (batch_size, sequence_length, sequence_length)
-        weights = weights / torch.sum(weights, dim=1, keepdim=True) # normalize, potentially uise softmax
-        hidden_vec = torch.sum(mask.unsqueeze(-1) * hidden * weights.unsqueeze(-1), dim=1)
-        return hidden_vec
 
     def produce_patient_trajectory_embeddings(self, start_code_id=4)->dict:
         """Produce embedding for each patient. Showing an increasing number of codes to the model,
@@ -91,7 +74,7 @@ class Forwarder(EHRTrainer):
         data = {k:[] for k in self.dataset.features.keys() if k in ['concept', 'age', 'abspos']}
         
         with torch.no_grad():
-            for i, batch in enumerate(tqdm(self.dataloader, desc='Batch Forward')):
+            for i, batch in enumerate(tqdm(self.dataloader, desc='Batch Forward', file=TqdmToLogger(self.logger) if self.logger else None)):
                 pat_counts = [j for j in range(i*self.batch_size, (i+1)*self.batch_size)]
                 if i==len(self.dataloader):
                     pat_counts = [j for j in range(i*self.batch_size, i*self.batch_size+len(batch['concept']))]
@@ -109,17 +92,13 @@ class Forwarder(EHRTrainer):
                         feat_arr = (trunc_batch[feat][:,-1]).detach().numpy().flatten()[mask]
                         data[feat].append(feat_arr)
                     
-                    if self.acc_method=='CLS':
-                        hidden_vec = output.hidden_states[-1][0]
+                    if self.pool_method=='CLS':
+                        hidden_vec = output.last_hidden_state[0]
                     else:
-                        hidden_vec = self.acc_method(output.hidden_states[-1], dim=1)
+                        hidden_vec = self.pool_method(output.last_hidden_state, dim=1)
                     
                     hidden_all.append(hidden_vec.detach().numpy()[mask])
             
-                if self.stop_iter:
-                    if i>=(self.stop_iter-1):
-                        break
-    
         data = {k:np.concatenate(v) for k,v in data.items()}
         masks = np.concatenate(masks)
         data['seq_len'] = np.array(seqs_len_all)[masks]
@@ -131,7 +110,7 @@ class Forwarder(EHRTrainer):
         data = {k:[] for k in ['concept', 'age', 'abspos']}
         concepts_hidden, pat_counts = [], []
         with torch.no_grad():
-            for i, batch in enumerate(tqdm(self.dataloader, desc='Batch forward')):
+            for i, batch in enumerate(tqdm(self.dataloader, desc='Batch forward',  file=TqdmToLogger(self.logger) if self.logger else None)):
                 mask = batch['attention_mask'].detach().numpy().flatten().astype(bool)
                 
                 seq_len = batch['concept'].shape[1]
@@ -147,15 +126,12 @@ class Forwarder(EHRTrainer):
                 for feat in data:
                     feat_arr = batch[feat].detach().numpy().flatten()
                     data[feat].append(feat_arr[mask])
-            
-                if self.stop_iter:
-                    if i>=(self.stop_iter-1):
-                        break
+                
         data = {k:np.concatenate(v) for k,v in data.items()}      
         data['concept_enc'] = np.concatenate(concepts_hidden)
         data['patient'] = np.concatenate(pat_counts)
         return data
-
+    
     @staticmethod
     def store_to_df(data: dict, data_path: str)->pd.DataFrame:
         """Store data in dataframe, get concept names and change dtype to reduce memory use."""

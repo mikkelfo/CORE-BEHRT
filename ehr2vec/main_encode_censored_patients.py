@@ -6,7 +6,7 @@ from common import azure
 from common.setup import prepare_encodings_directory
 from common.loader import create_binary_outcome_datasets, load_model
 
-from model.model import BertEHRModel
+from model.model import BertEHREncoder
 from evaluation.encodings import Forwarder
 from common.utils import ConcatIterableDataset
 
@@ -41,7 +41,7 @@ def main_encode():
         dataset = ConcatIterableDataset([train_dataset, val_dataset])
 
     logger.info('Initializing model')
-    model = load_model(BertEHRModel, cfg)
+    model = load_model(BertEHREncoder, cfg)
 
     forwarder = Forwarder( 
         model=model, 

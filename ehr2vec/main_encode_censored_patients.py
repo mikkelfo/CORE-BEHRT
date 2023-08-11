@@ -16,11 +16,8 @@ config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_pa
 
 run_name = "encode_censored_patients"
 
-def get_output_path_name(cfg):
-    try:
-        num_patients = str(int((cfg.train_data.num_patients+cfg.val_data.num_patients)/1000))+'k'
-    except:
-        num_patients = 'all' # TODO check also condition if only one of the datasets has null num_patients
+def get_output_path_name(dataset, cfg):
+    num_patients = str(int((len(dataset))/1000))+'k'
     days = True if abs(cfg.outcome.n_hours)>48 else False
     window = int(abs(cfg.outcome.n_hours/24)) if days else abs(cfg.outcome.n_hours)
     days_hours = 'days' if days else 'hours'
@@ -46,23 +43,22 @@ def main_encode():
 
     for outcome in cfg.outcomes:
         cfg.outcome = cfg.outcomes[outcome]
-        cfg.output_dir = join(output_dir, get_output_path_name(cfg))
         
-        # Finetune specific
-        logger = prepare_encodings_directory(config_path, cfg)
-        logger.info(f"Access data from {cfg.paths.data_path}")
-        logger.info(f"Access outcomes from {cfg.paths.outcomes_path}")
-        logger.info(f'Outcome name: {cfg.outcome.type}')
-        logger.info(f'Censor name: {cfg.outcome.censor_type}')
-        logger.info(f"Censoring {cfg.outcome.n_hours} hours after censor_outcome")
-        logger.info(f"Store in directory with name: {get_output_path_name(cfg)}")
-        logger.info("Create Datasets")
         train_dataset, val_dataset, _ = create_binary_outcome_datasets(cfg)
         
         if isinstance(train_dataset, type(None)) or isinstance(val_dataset, type(None)):
             dataset = train_dataset if train_dataset is not None else val_dataset
         else:
             dataset = ConcatIterableDataset([train_dataset, val_dataset])
+        output_path_name = get_output_path_name(dataset, cfg)
+        cfg.output_dir = join(output_dir, output_path_name)
+        logger = prepare_encodings_directory(config_path, cfg)
+        logger.info(f"Access data from {cfg.paths.data_path}")
+        logger.info(f"Access outcomes from {cfg.paths.outcomes_path}")
+        logger.info(f'Outcome name: {cfg.outcome.type}')
+        logger.info(f'Censor name: {cfg.outcome.censor_type}')
+        logger.info(f"Censoring {cfg.outcome.n_hours} hours after censor_outcome")
+        logger.info(f"Store in directory with name: {get_output_path_name(dataset, cfg)}")
 
         logger.info('Initializing model')
         model = load_model(BertEHREncoder, cfg)

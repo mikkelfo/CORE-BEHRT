@@ -19,11 +19,11 @@ def load_model(model_class, cfg, add_config={}):
     print("missing state dict keys", load_result.missing_keys)
     return model
 
-def create_binary_outcome_datasets(cfg):
+def create_binary_outcome_datasets(all_outcomes, cfg):
     """
     This function is used to create outcome datasets based on the configuration provided.
     """
-    outcomes, censor_outcomes, pids = load_outcomes(cfg)
+    outcomes, censor_outcomes, pids = retrieve_outcomes(all_outcomes, cfg)
     if cfg.get("encode_pos_only", False):
         outcomes, censor_outcomes, pids = select_positives(outcomes, censor_outcomes, pids)
         cfg.train_data.num_patients = None
@@ -70,10 +70,10 @@ def get_val_test_pids(cfg):
     val_pids = val_pids[test_cutoff:]
     return val_pids, test_pids
 
-def load_outcomes(cfg):
+def retrieve_outcomes(all_outcomes, cfg):
     """From the configuration, load the outcomes and censor outcomes.
     Access pids, the outcome of interest and the censoring outcome."""
-    all_outcomes = torch.load(cfg.paths.outcomes_path)
+    
     outcomes = all_outcomes.get(cfg.outcome.type, [None]*len(all_outcomes['PID']))
     censor_outcomes = all_outcomes.get(cfg.outcome.censor_type, [None]*len(outcomes))
     pids = all_outcomes['PID']

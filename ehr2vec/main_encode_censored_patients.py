@@ -1,25 +1,26 @@
+import argparse
 import os
+import shutil
 from os.path import join
 
+import torch
+from common.azure import setup_azure
 from common.config import load_config
-from common import azure
+from common.loader import create_binary_outcome_datasets, load_model
 from common.logger import close_handlers
 from common.setup import prepare_encodings_directory, setup_logger
-from common.loader import create_binary_outcome_datasets, load_model
-
-from model.model import BertEHREncoder
-from evaluation.encodings import Forwarder
 from common.utils import ConcatIterableDataset
-import shutil
-import logging
+from evaluation.encodings import Forwarder
+from model.model import BertEHREncoder
 
 
-config_path = join("configs", "encode_censored.yaml")
-config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
+def _get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config_path', type=str, default=join('configs', 'encode_censored.yaml'))
+    parser.add_argument('--run_name', type=str, default='encode_censored_patients')
+    return parser.parse_args()
 
-run_name = "encode_censored_patients"
-
-def get_output_path_name(dataset, cfg):
+def _get_output_path_name(dataset, cfg):
     num_patients = str(int((len(dataset))/1000))+'k'
     if cfg.outcome.censor_type:
         days = True if abs(cfg.outcome.n_hours)>48 else False
@@ -32,6 +33,20 @@ def get_output_path_name(dataset, cfg):
             return f"{cfg.outcome.type}_Patients_{num_patients}_Uncensored"
         else:
             return f"Patients_{num_patients}_Uncensored"
+
+def _validate_outcomes(all_outcomes, cfg):
+    for outcome in cfg.outcomes:
+        cfg.outcome = cfg.outcomes[outcome]
+        if cfg.outcome.type:
+            assert cfg.outcome.type in all_outcomes, f"Outcome {cfg.outcome.type} not found in outcomes file"
+        if cfg.outcome.censor_type:
+            assert cfg.censor_type in all_outcomes, f"Censor type {cfg.censor_type} not found in outcomes file for outcome {cfg.outcome.type}"
+
+args = _get_args()
+config_path = args.config_path
+config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
+
+run_name = args.run_name
 
 def main_encode():
     os.makedirs('tmp', exist_ok=True)
@@ -47,14 +62,15 @@ def main_encode():
     
     cfg.output_dir = censored_patients_path
     if cfg.env=='azure':
-        run, mount_context = azure.setup_azure(cfg.paths.run_name)
+        run, mount_context = setup_azure(cfg.paths.run_name)
         cfg.paths.data_path = join(mount_context.mount_point, cfg.paths.data_path)
         cfg.paths.model_path = join(mount_context.mount_point, cfg.paths.model_path)
         cfg.paths.outcomes_path = join(mount_context.mount_point, cfg.paths.outcomes_path)
         cfg.output_dir = 'outputs'
     
     output_dir = cfg.output_dir # we will modify cfg. output_dir
-
+    all_outcomes = torch.load(cfg.paths.outcomes_path)
+    _validate_outcomes(all_outcomes, cfg)
     for i, outcome in enumerate(cfg.outcomes):
         cfg.outcome = cfg.outcomes[outcome]
 
@@ -62,13 +78,13 @@ def main_encode():
         logger.info(f'Censor name: {cfg.outcome.censor_type}')
         logger.info(f"Censoring {cfg.outcome.n_hours} hours after censor_outcome")
         logger.info("Creating datasets")
-        train_dataset, val_dataset, _ = create_binary_outcome_datasets(cfg)
+        train_dataset, val_dataset, _ = create_binary_outcome_datasets(all_outcomes, cfg)
         
         if isinstance(train_dataset, type(None)) or isinstance(val_dataset, type(None)):
             dataset = train_dataset if train_dataset is not None else val_dataset
         else:
             dataset = ConcatIterableDataset([train_dataset, val_dataset])
-        output_path_name = get_output_path_name(dataset, cfg)
+        output_path_name = _get_output_path_name(dataset, cfg)
         cfg.output_dir = join(output_dir, output_path_name)
         
         if i==0:
@@ -79,7 +95,7 @@ def main_encode():
             shutil.rmtree('tmp')
             
             
-        logger.info(f"Store in directory with name: {get_output_path_name(dataset, cfg)}")
+        logger.info(f"Store in directory with name: {_get_output_path_name(dataset, cfg)}")
         logger.info('Initializing model')
         model = load_model(BertEHREncoder, cfg)
 

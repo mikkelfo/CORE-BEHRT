@@ -40,8 +40,8 @@ config_path = args.config_path
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
 
 def main_encode():
-    os.makedirs('tmp', exist_ok=True)
-    logger = setup_logger('tmp')
+    os.makedirs(join('outputs','tmp'), exist_ok=True)
+    logger = setup_logger(join('outputs', 'tmp'))
     encodings_file_name = 'encodings.h5'
     logger.info('Loading config')
     cfg = load_config(config_path)
@@ -66,8 +66,7 @@ def main_encode():
         cfg.outcome = cfg.outcomes[outcome]
 
         logger.info(f'Outcome name: {cfg.outcome.type}')
-        logger.info(f'Censor name: {cfg.outcome.censor_type}')
-        logger.info(f"Censoring {cfg.outcome.n_hours} hours after censor_outcome")
+        logger.info(f"Censoring {cfg.outcome.n_hours} hours after {cfg.outcome.censor_type}")
         logger.info("Creating datasets")
         train_dataset, val_dataset, _ = create_binary_outcome_datasets(all_outcomes, cfg)
         
@@ -81,9 +80,9 @@ def main_encode():
         if i==0:
             close_handlers()
             logger = prepare_encodings_directory(config_path, cfg)
-            shutil.copy(join('tmp', 'info.log'), join(cfg.output_dir, 'info.log'))
+            shutil.copy(join('outputs','tmp', 'info.log'), join(cfg.output_dir, 'info.log'))
             logger.info('Deleting tmp directory')
-            shutil.rmtree('tmp')
+            shutil.rmtree(join('outputs', 'tmp'))
             
             
         logger.info(f"Store in directory with name: {_get_output_path_name(dataset, cfg)}")

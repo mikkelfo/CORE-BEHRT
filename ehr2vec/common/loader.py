@@ -24,7 +24,7 @@ def create_binary_outcome_datasets(cfg):
     This function is used to create outcome datasets based on the configuration provided.
     """
     outcomes, censor_outcomes, pids = load_outcomes(cfg)
-    if cfg.encode_pos_only:
+    if cfg.get("encode_pos_only", False):
         outcomes, censor_outcomes, pids = select_positives(outcomes, censor_outcomes, pids)
         cfg.train_data.num_patients = None
         cfg.val_data.num_patients = None

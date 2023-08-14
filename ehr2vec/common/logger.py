@@ -1,3 +1,5 @@
+import logging
+
 class TqdmToLogger(object):
     """File-like object to redirect tqdm to logger"""
     def __init__(self, logger):
@@ -12,3 +14,8 @@ class TqdmToLogger(object):
 
     def flush(self):
        pass
+
+def close_handlers():
+    for handler in logging.root.handlers[:]:
+        handler.close()
+    logging.root.handlers = []

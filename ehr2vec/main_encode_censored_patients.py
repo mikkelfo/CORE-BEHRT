@@ -1,14 +1,17 @@
 import os
 from os.path import join
 
-from common.config import load_config, Config
+from common.config import load_config
 from common import azure
-from common.setup import prepare_encodings_directory
+from common.logger import close_handlers
+from common.setup import prepare_encodings_directory, setup_logger
 from common.loader import create_binary_outcome_datasets, load_model
 
 from model.model import BertEHREncoder
 from evaluation.encodings import Forwarder
 from common.utils import ConcatIterableDataset
+import shutil
+import logging
 
 
 config_path = join("configs", "encode_censored.yaml")
@@ -31,12 +34,17 @@ def get_output_path_name(dataset, cfg):
             return f"Patients_{num_patients}_Uncensored"
 
 def main_encode():
+    os.makedirs('tmp', exist_ok=True)
+    logger = setup_logger('tmp')
     encodings_file_name = 'encodings.h5'
+    logger.info('Loading config')
     cfg = load_config(config_path)
     run = None
     model_path = cfg.paths.model_path
     censored_patients_path = join(model_path, 'encodings', 'censored_patients')
-
+    logger.info(f"Access data from {cfg.paths.data_path}")
+    logger.info(f"Access outcomes from {cfg.paths.outcomes_path}")
+    
     cfg.output_dir = censored_patients_path
     if cfg.env=='azure':
         run, mount_context = azure.setup_azure(cfg.paths.run_name)
@@ -47,9 +55,13 @@ def main_encode():
     
     output_dir = cfg.output_dir # we will modify cfg. output_dir
 
-    for outcome in cfg.outcomes:
+    for i, outcome in enumerate(cfg.outcomes):
         cfg.outcome = cfg.outcomes[outcome]
-        
+
+        logger.info(f'Outcome name: {cfg.outcome.type}')
+        logger.info(f'Censor name: {cfg.outcome.censor_type}')
+        logger.info(f"Censoring {cfg.outcome.n_hours} hours after censor_outcome")
+        logger.info("Creating datasets")
         train_dataset, val_dataset, _ = create_binary_outcome_datasets(cfg)
         
         if isinstance(train_dataset, type(None)) or isinstance(val_dataset, type(None)):
@@ -58,14 +70,16 @@ def main_encode():
             dataset = ConcatIterableDataset([train_dataset, val_dataset])
         output_path_name = get_output_path_name(dataset, cfg)
         cfg.output_dir = join(output_dir, output_path_name)
-        logger = prepare_encodings_directory(config_path, cfg)
-        logger.info(f"Access data from {cfg.paths.data_path}")
-        logger.info(f"Access outcomes from {cfg.paths.outcomes_path}")
-        logger.info(f'Outcome name: {cfg.outcome.type}')
-        logger.info(f'Censor name: {cfg.outcome.censor_type}')
-        logger.info(f"Censoring {cfg.outcome.n_hours} hours after censor_outcome")
+        
+        if i==0:
+            close_handlers()
+            logger = prepare_encodings_directory(config_path, cfg)
+            shutil.copy(join('tmp', 'info.log'), join(cfg.output_dir, 'info.log'))
+            logger.info('Deleting tmp directory')
+            shutil.rmtree('tmp')
+            
+            
         logger.info(f"Store in directory with name: {get_output_path_name(dataset, cfg)}")
-
         logger.info('Initializing model')
         model = load_model(BertEHREncoder, cfg)
 
@@ -83,6 +97,9 @@ def main_encode():
             from azure_run import file_dataset_save
             file_dataset_save(local_path='outputs', datastore_name = "workspaceblobstore",
                         remote_path = join("PHAIR", censored_patients_path), name="censored_patients")
+        logger.info('Done')
+        
+        
     if cfg.env=='azure':
         mount_context.stop()
 

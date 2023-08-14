@@ -28,6 +28,7 @@ def create_binary_outcome_datasets(cfg):
         outcomes, censor_outcomes, pids = select_positives(outcomes, censor_outcomes, pids)
         cfg.train_data.num_patients = None
         cfg.val_data.num_patients = None
+
     if cfg.train_data.num_patients == 0:
         train_dataset = None
     else:
@@ -37,6 +38,7 @@ def create_binary_outcome_datasets(cfg):
                                     num_patients=cfg.train_data.num_patients,
                                     pids=pids,
                                     n_hours=cfg.outcome.n_hours,)
+        
     if cfg.val_data.num_patients == 0:
         val_dataset = None
     else:
@@ -72,8 +74,8 @@ def load_outcomes(cfg):
     """From the configuration, load the outcomes and censor outcomes.
     Access pids, the outcome of interest and the censoring outcome."""
     all_outcomes = torch.load(cfg.paths.outcomes_path)
-    outcomes = all_outcomes.get(cfg.outcome.type, None)
-    censor_outcomes = all_outcomes.get(cfg.outcome.censor_type, None)
+    outcomes = all_outcomes.get(cfg.outcome.type, [None]*len(all_outcomes['PID']))
+    censor_outcomes = all_outcomes.get(cfg.outcome.censor_type, [None]*len(outcomes))
     pids = all_outcomes['PID']
     return outcomes, censor_outcomes, pids
 

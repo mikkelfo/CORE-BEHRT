@@ -18,11 +18,17 @@ run_name = "encode_censored_patients"
 
 def get_output_path_name(dataset, cfg):
     num_patients = str(int((len(dataset))/1000))+'k'
-    days = True if abs(cfg.outcome.n_hours)>48 else False
-    window = int(abs(cfg.outcome.n_hours/24)) if days else abs(cfg.outcome.n_hours)
-    days_hours = 'days' if days else 'hours'
-    pre_post = 'pre' if cfg.outcome.n_hours<0 else 'post'
-    return f"{cfg.outcome.type}_Patients_{num_patients}_Censor_{window}{days_hours}_{pre_post}_{cfg.outcome.censor_type}"
+    if cfg.outcome.censor_type:
+        days = True if abs(cfg.outcome.n_hours)>48 else False
+        window = int(abs(cfg.outcome.n_hours/24)) if days else abs(cfg.outcome.n_hours)
+        days_hours = 'days' if days else 'hours'
+        pre_post = 'pre' if cfg.outcome.n_hours<0 else 'post'
+        return f"{cfg.outcome.type}_Patients_{num_patients}_Censor_{window}{days_hours}_{pre_post}_{cfg.outcome.censor_type}"
+    else:
+        if cfg.outcome.type:
+            return f"{cfg.outcome.type}_Patients_{num_patients}_Uncensored"
+        else:
+            return f"Patients_{num_patients}_Uncensored"
 
 def main_encode():
     encodings_file_name = 'encodings.h5'

@@ -3,8 +3,8 @@ from os.path import join
 
 import pandas as pd
 from common.config import load_config
-from common import azure
-from common.setup import setup_run_folder
+from common.azure import setup_azure
+from common.setup import setup_run_folder, get_args
 from common.loader import create_binary_outcome_datasets, load_model
 
 from model.model import BertForFineTuning
@@ -12,10 +12,9 @@ from torch.optim import AdamW
 from torch.utils.data import WeightedRandomSampler
 from trainer.trainer import EHRTrainer
 
-config_path = join("configs", "finetune_test.yaml")
-config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
+args = get_args('finetune.yaml')
 
-run_name = "finetune"
+config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
 
 def get_sampler(cfg, train_dataset, outcomes):
     if cfg.trainer_args['sampler']:
@@ -42,7 +41,7 @@ def main_finetune():
     run = None
 
     if cfg.env=='azure':
-        run, mount_context = azure.setup_azure(cfg.paths.run_name)
+        run, mount_context = setup_azure(cfg.paths.run_name)
         cfg.paths.data_path = join(mount_context.mount_point, cfg.paths.data_path)
         cfg.paths.model_path = join(mount_context.mount_point, cfg.paths.model_path)
     # Finetune specific

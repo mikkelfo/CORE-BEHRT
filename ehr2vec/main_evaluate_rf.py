@@ -3,23 +3,24 @@ from os.path import join, split
 from shutil import copyfile
 
 import pandas as pd
-from common import azure
+from common.azure import setup_azure
 from common.config import get_function, load_config
 from common.io import PatientHDF5Reader
 from common.logger import TqdmToLogger
-from common.setup import setup_logger
+from common.setup import setup_logger, get_args
 from evaluation.utils import get_mean_std
 from evaluation.optimize import find_best_params
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import StratifiedKFold
 from tqdm import tqdm
 from common.config import Config
-config_path = join('configs', 'evaluate_rf.yaml')
-config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
+
+args = get_args("evaluate_rf.yaml")
+config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
 
 def azure_mount(cfg):
     if cfg.env=='azure':
-        _, mount_context = azure.setup_azure(cfg.run_name)
+        _, mount_context = setup_azure(cfg.run_name)
         mount_dir = mount_context.mount_point
         cfg.model_dir = join(mount_dir, cfg.model_dir) # specify paths here
         cfg.output_dir = join('outputs', cfg.run_name)

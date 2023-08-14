@@ -1,4 +1,3 @@
-import argparse
 import os
 import shutil
 from os.path import join
@@ -8,17 +7,11 @@ from common.azure import setup_azure
 from common.config import load_config
 from common.loader import create_binary_outcome_datasets, load_model
 from common.logger import close_handlers
-from common.setup import prepare_encodings_directory, setup_logger
+from common.setup import prepare_encodings_directory, setup_logger, get_args
 from common.utils import ConcatIterableDataset
 from evaluation.encodings import Forwarder
 from model.model import BertEHREncoder
 
-
-def _get_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', type=str, default=join('configs', 'encode_censored.yaml'))
-    parser.add_argument('--run_name', type=str, default='encode_censored_patients')
-    return parser.parse_args()
 
 def _get_output_path_name(dataset, cfg):
     num_patients = str(int((len(dataset))/1000))+'k'
@@ -42,7 +35,7 @@ def _validate_outcomes(all_outcomes, cfg):
         if cfg.outcome.censor_type:
             assert cfg.censor_type in all_outcomes, f"Censor type {cfg.censor_type} not found in outcomes file for outcome {cfg.outcome.type}"
 
-args = _get_args()
+args = get_args("encode_censored.yaml", "encode_censored")
 config_path = args.config_path
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
 

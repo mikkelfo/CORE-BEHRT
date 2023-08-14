@@ -2,26 +2,24 @@
 import os
 from os.path import join
 
-from common import azure
+from common.azure import setup_azure
 from common.config import load_config
 from common.loader import create_datasets
-from common.setup import setup_run_folder
+from common.setup import setup_run_folder, get_args
 from model.model import HierarchicalBertForPretraining
 from torch.optim import AdamW
 from trainer.trainer import EHRTrainer
 from transformers import BertConfig, get_linear_schedule_with_warmup
 
-config_path = 'configs/h_pretrain.yaml'
-config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
-run_name = "h_pretrain"
-
+args = get_args("h_pretrain.yaml")
+config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
 
 
 def main_train(config_path):
     cfg = load_config(config_path)
     run = None
     if cfg.env=='azure':
-        run, mount_context = azure.setup_azure(run_name)
+        run, mount_context = setup_azure(cfg.paths.run_name)
         cfg.paths.data_path = join(mount_context.mount_point, cfg.paths.data_path)
     
     logger = setup_run_folder(cfg)

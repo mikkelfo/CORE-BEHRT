@@ -1,3 +1,4 @@
+import argparse
 import logging
 import os
 import uuid
@@ -5,6 +6,13 @@ from os.path import join
 from shutil import copyfile
 
 from common.config import Config
+
+
+def get_args(default_config_name, default_run_name=None):
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config_path', type=str, default=join('configs', default_config_name))
+    parser.add_argument('--run_name', type=str, default=default_run_name if default_run_name else default_config_name.split('.')[0])
+    return parser.parse_args()
 
 def setup_logger(dir: str, log_file: str = 'info.log'):
     """Sets up the logger."""

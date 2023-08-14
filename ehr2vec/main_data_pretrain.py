@@ -4,10 +4,10 @@ from os.path import join
 
 import torch
 
-from common import azure
+from common.azure import setup_azure
 from common.utils import check_patient_counts
 from common.config import load_config
-from common.setup import prepare_directory
+from common.setup import prepare_directory, get_args
 from data.concept_loader import ConceptLoader
 from data.featuremaker import FeatureMaker
 from data.split import Splitter
@@ -15,8 +15,8 @@ from data.tokenizer import EHRTokenizer
 from data_fixes.exclude import Excluder
 from data_fixes.handle import Handler
 
-config_path = join('configs', 'data_pretrain.yaml')#
-config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
+args = get_args('data_pretrain.yaml', 'data_pretrain')
+config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
             
 def process_data(loader, handler, excluder, cfg, logger):
     concepts, patients_info = loader()
@@ -39,7 +39,7 @@ def main_data(config_path):
     """
     cfg = load_config(config_path)
     if cfg.env=='azure':
-        _, mount_context = azure.setup_azure(cfg.run_name)
+        _, mount_context = setup_azure(cfg.run_name)
         mount_dir = mount_context.mount_point
         cfg.loader.data_dir = join(mount_dir, cfg.loader.data_dir) # specify paths here
 

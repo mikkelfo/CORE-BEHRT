@@ -3,19 +3,19 @@ import os
 from os.path import join
 
 import torch
-from common import azure
+from common.azure import setup_azure
 from common.config import load_config
-from common.setup import prepare_directory_hierarchical
+from common.setup import prepare_directory_hierarchical, get_args
 from tree.tree import TreeBuilder, get_counts
 
-config_path = join('configs', 'h_setup.yaml')
-config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
+args = get_args("h_setup.yaml")
+config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
 
 def setup_hierarchical(config_path=config_path):
     cfg = load_config(config_path)
     data_dir = cfg.paths.features
     if cfg.env=='azure':
-        _, mount_context = azure.setup_azure(cfg.run_name)
+        _, mount_context = setup_azure(cfg.run_name)
         mount_dir = mount_context.mount_point
         cfg.paths.features = join(mount_dir, cfg.paths.features)
         data_dir = "outputs/data"

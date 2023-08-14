@@ -7,7 +7,7 @@ from common import azure
 from common.config import load_config
 from common.loader import check_directory_for_features
 from common.logger import TqdmToLogger
-from common.setup import prepare_directory
+from common.setup import prepare_directory, get_args
 from data.batch import Batches, BatchTokenize
 from data.concept_loader import ConceptLoaderLarge
 from data.featuremaker import FeatureMaker
@@ -16,8 +16,8 @@ from data_fixes.exclude import Excluder
 from data_fixes.handle import Handler
 from tqdm import tqdm
 
-config_path = join('configs', 'data_pretrain.yaml')
-config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
+args = get_args('data_pretrain.yaml', 'data_pretrain')
+config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
 
 
 def check_and_clear_directory(cfg, logger):

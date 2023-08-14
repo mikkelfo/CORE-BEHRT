@@ -1,9 +1,12 @@
 import glob
 import os
 from os.path import join
+
+import pandas as pd
 import torch
-from data.dataset import HierarchicalMLMDataset, MLMDataset, CensorDataset
+from data.dataset import CensorDataset, HierarchicalMLMDataset, MLMDataset
 from transformers import BertConfig
+
 
 def load_model(model_class, cfg, add_config={}):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -21,6 +24,10 @@ def create_binary_outcome_datasets(cfg):
     This function is used to create outcome datasets based on the configuration provided.
     """
     outcomes, censor_outcomes, pids = load_outcomes(cfg)
+    if cfg.encode_pos_only:
+        outcomes, censor_outcomes, pids = select_positives(outcomes, censor_outcomes, pids)
+        cfg.train_data.num_patients = None
+        cfg.val_data.num_patients = None
     if cfg.train_data.num_patients == 0:
         train_dataset = None
     else:
@@ -28,6 +35,7 @@ def create_binary_outcome_datasets(cfg):
                                     censor_outcomes=censor_outcomes, 
                                     outcome_pids=pids,
                                     num_patients=cfg.train_data.num_patients,
+                                    pids=pids,
                                     n_hours=cfg.outcome.n_hours,)
     if cfg.val_data.num_patients == 0:
         val_dataset = None
@@ -36,10 +44,19 @@ def create_binary_outcome_datasets(cfg):
                                     censor_outcomes=censor_outcomes, 
                                     outcome_pids=pids,
                                     num_patients=cfg.val_data.num_patients,
+                                    pids=pids,  
                                     n_hours=cfg.outcome.n_hours,
                                     )
     
     return train_dataset, val_dataset, outcomes
+
+def select_positives(outcomes, censor_outcomes, pids):
+    """Select only positive outcomes."""
+    select_indices = [i for i, outcome in enumerate(outcomes) if pd.notna(outcome)]
+    outcomes = [outcomes[i] for i in select_indices]
+    censor_outcomes = [censor_outcomes[i] for i in select_indices]
+    pids = [pids[i] for i in select_indices]
+    return outcomes, censor_outcomes, pids
 
 def get_val_test_pids(cfg):
     """Gets the pretrain validation pids and splits into train and test pids for finetuning."""

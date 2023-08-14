@@ -1,11 +1,12 @@
 env: local
 paths:
-  data_path: "../outputs/data_icd10_l"
+  data_path: "../outputs/data_icd10_l" 
   model_path: "outputs/pretraining/test"
   outcomes_path: "../outputs/outcomes/TEST.pt"
   checkpoint_epoch: 2
   run_name: "test2"
 
+encode_pos_only: true
 train_data:
   num_patients: null
 val_data:
@@ -14,11 +15,11 @@ val_data:
 outcomes: 
   outcome1:
     type: TEST_OUTCOME
-    n_hours: 12 # censor time
+    n_hours: 3 # censor time
     censor_type: TEST_OUTCOME
   outcome2:
     type: TEST_OUTCOME
-    n_hours: 24 # censor time
+    n_hours: 1 # censor time
     censor_type: TEST_OUTCOME
 
 

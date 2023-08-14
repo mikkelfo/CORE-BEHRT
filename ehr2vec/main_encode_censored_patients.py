@@ -11,7 +11,7 @@ from evaluation.encodings import Forwarder
 from common.utils import ConcatIterableDataset
 
 
-config_path = join("configs", "encode_censored_test.yaml")
+config_path = join("configs", "encode_censored.yaml")
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
 
 run_name = "encode_censored_patients"

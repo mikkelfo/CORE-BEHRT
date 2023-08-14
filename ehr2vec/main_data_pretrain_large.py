@@ -94,9 +94,13 @@ def main_data(config_path):
     torch.save(batches.train.file_ids, join(cfg.output_dir, 'train_file_ids.pt'))
     torch.save(batches.val.file_ids, join(cfg.output_dir, 'val_file_ids.pt'))
     torch.save(batches.test.file_ids, join(cfg.output_dir, 'test_file_ids.pt'))
-    logger.info('Finished')
+    
     if cfg.env=='azure':
+        from azure_run import file_dataset_save
+        file_dataset_save(local_path=join('outputs', 'data'), datastore_name = "workspaceblobstore",
+                    remote_path = join("PHAIR", "pretrain_dataset", cfg.run_name), name="create features")
         mount_context.stop()
+    logger.info('Finished')
 
 if __name__ == '__main__':
     main_data(config_path)

@@ -39,8 +39,6 @@ args = get_args("encode_censored.yaml", "encode_censored")
 config_path = args.config_path
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
 
-run_name = args.run_name
-
 def main_encode():
     os.makedirs('tmp', exist_ok=True)
     logger = setup_logger('tmp')
@@ -106,12 +104,8 @@ def main_encode():
             from azure_run import file_dataset_save
             file_dataset_save(local_path='outputs', datastore_name = "workspaceblobstore",
                         remote_path = join("PHAIR", censored_patients_path), name="censored_patients")
+            mount_context.stop()
         logger.info('Done')
-        
-        
-    if cfg.env=='azure':
-        mount_context.stop()
-
         
 if __name__ == '__main__':
     main_encode()

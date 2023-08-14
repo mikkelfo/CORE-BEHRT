@@ -3,6 +3,7 @@ paths:
   # data_path: 'pretrain_datasets/diagnosis_medication/070623/outputs/data' # inside mounted datastore
   data_path: "..\\outputs\\data_icd10_l"
   output_path: 'outputs/pretraining'
+  type: med_diag
   run_name: test
   
 dataset:

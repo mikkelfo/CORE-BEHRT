@@ -10,7 +10,7 @@ from common.utils import check_patient_counts
 from data.concept_loader import ConceptLoader
 from downstream_tasks.outcomes import OutcomeMaker
 
-args = get_args('data_finetune.yaml')
+args = get_args('outcomes_test.yaml')
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
 
             

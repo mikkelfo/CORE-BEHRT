@@ -38,6 +38,9 @@ def setup_hierarchical(config_path=config_path):
     logger.info('Construct and Save tree matrix')
     torch.save(tree.get_tree_matrix(), join(data_dir, 'hierarchical', 'tree_matrix.pt'))
     if cfg.env == 'azure':
+        from azure_run import file_dataset_save
+        file_dataset_save(local_path=join('outputs', 'data'), datastore_name = "workspaceblobstore",
+                    remote_path = join("PHAIR", cfg.paths.features), name="censored_patients")
         mount_context.stop()
 
 if __name__ == '__main__':

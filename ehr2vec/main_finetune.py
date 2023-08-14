@@ -1,5 +1,5 @@
 import os
-from os.path import join
+from os.path import join, split
 
 import pandas as pd
 from common.config import load_config
@@ -44,6 +44,7 @@ def main_finetune():
         run, mount_context = setup_azure(cfg.paths.run_name)
         cfg.paths.data_path = join(mount_context.mount_point, cfg.paths.data_path)
         cfg.paths.model_path = join(mount_context.mount_point, cfg.paths.model_path)
+        cfg.paths.output_path = join("outputs")
     # Finetune specific
     logger = setup_run_folder(cfg)
     logger.info(f"Access data from {cfg.paths.data_path}")
@@ -73,7 +74,12 @@ def main_finetune():
         run=run,
     )
     trainer.train()
-
+    if cfg.env=='azure':
+        from azure_run import file_dataset_save
+        file_dataset_save(local_path=join('outputs', cfg.paths.run_name), datastore_name = "workspaceblobstore",
+                    remote_path = join("PHAIR", 'models', split(cfg.paths.model_path)[-1], "finetune_"+cfg.run_name), name="finetune")
+        mount_context.stop()
+    logger.info('Done')
 
 if __name__ == '__main__':
     main_finetune()

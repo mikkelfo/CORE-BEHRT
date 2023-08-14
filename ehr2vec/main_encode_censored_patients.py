@@ -31,9 +31,9 @@ def _validate_outcomes(all_outcomes, cfg):
     for outcome in cfg.outcomes:
         cfg.outcome = cfg.outcomes[outcome]
         if cfg.outcome.type:
-            assert cfg.outcome.type in all_outcomes, f"Outcome {cfg.outcome.type} not found in outcomes file"
+            assert cfg.outcome.type in all_outcomes, f"Outcome {cfg.outcome.type} not found in outcomes."
         if cfg.outcome.censor_type:
-            assert cfg.censor_type in all_outcomes, f"Censor type {cfg.censor_type} not found in outcomes file for outcome {cfg.outcome.type}"
+            assert cfg.outcome.censor_type in all_outcomes, f"Censor type {cfg.outcome.censor_type} not found in outcomes."
 
 args = get_args("encode_censored.yaml", "encode_censored")
 config_path = args.config_path

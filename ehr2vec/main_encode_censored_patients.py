@@ -83,7 +83,8 @@ def main_encode():
             shutil.copy(join('outputs','tmp', 'info.log'), join(cfg.output_dir, 'info.log'))
             logger.info('Deleting tmp directory')
             shutil.rmtree(join('outputs', 'tmp'))
-            
+        else:
+            shutil.copyfile(config_path, join(cfg.output_dir, 'encodings_config.yaml'))
             
         logger.info(f"Store in directory with name: {_get_output_path_name(dataset, cfg)}")
         logger.info('Initializing model')

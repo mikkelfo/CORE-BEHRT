@@ -15,17 +15,16 @@ class BaseEHRDataset(IterableDataset):
         self.seed = seed
         self.set_random_seed()
         
-        self.tokenized_files = self.get_all_tokenized_files()
-        self.file_ids = self.get_file_ids()
-        self.pid_files = self.get_pid_files()
-        self.pids = self.set_pids(pids)
-        self.num_patients = len(self.pids)
-        self.patient_integer_ids = self.set_patient_integer_ids() 
-        self.tokenized_files = self.update_tokenized_files()
+        self.vocabulary = vocabulary or torch.load(join(data_dir, 'vocabulary.pt'))
 
-        if isinstance(vocabulary, type(None)):
-            vocabulary = torch.load(join(data_dir, 'vocabulary.pt'))
-        self.vocabulary = vocabulary
+        self.tokenized_files = self.get_all_tokenized_files()
+        self.file_ids = self.get_file_ids_from_files(self.tokenized_files)
+        self.pid_files = self.get_pid_files_from_file_ids(self.file_ids)
+        self.pids = self.initialize_pids(pids)
+
+        self.num_patients = len(self.pids) # Update num_patients to the actual number of patients
+        self.patient_integer_ids = self.create_patient_integer_ids() # file_id:{patient_index:pid}
+        self.tokenized_files = self.update_tokenized_files() # Only keep files with relevant patients
 
     def __iter__(self):
         for file_name in self.tokenized_files:
@@ -38,49 +37,48 @@ class BaseEHRDataset(IterableDataset):
     def get_patient(self, file_name: str):
         """Loads a single patient from a file"""
         features = torch.load(file_name)
-        for patient_index in self.patient_integer_ids[self.get_file_id(file_name)]:
+        for patient_index in self.patient_integer_ids[self.extract_file_id(file_name)]:
             yield self.get_patient_dic(features, patient_index)
 
-    def get_patient_dic(self, features: dict, patient_index: int):
-        """Get a patient dictionary from a patient index"""
+    def get_patient_dic(self, features, patient_index):
         return {key: torch.tensor(values[patient_index]) for key, values in features.items()}
-
-    def get_file_ids(self):
+    def get_file_ids_from_files(self, files):
         """Returns the file ids for the given mode"""
-        return [self.get_file_id(f) for f in self.tokenized_files]
+        return [self.extract_file_id(f) for f in files]
 
-    def set_pids(self, pids):
-        if not pids:
+    def initialize_pids(self, provided_pids):
+        if provided_pids:
             if self.num_patients:
-                pids = self.get_n_patients()
-            else:
-                pids = self.get_all_patients()
-        else:
-            self.update_file_ids(pids)
-        return pids
+                raise ValueError("Cannot provide pids and num_patients")    
+            return self.filter_pids_update_file_ids(provided_pids)
+        if self.num_patients:
+            return self.load_n_random_pids()
+        return torch.load(join(self.data_dir, f'{self.mode}_pids.pt'))
 
-    def get_n_patients(self):
+    def load_n_random_pids(self):
         np.random.shuffle(self.pid_files)
         return self.get_n_pids()
 
-    def get_all_patients(self):
-        return torch.load(join(self.data_dir, f'{self.mode}_pids.pt'))
-        
-    def update_file_ids(self, pids):
+    def filter_pids_update_file_ids(self, pids):
         """Updates the file ids to only include the selected patients"""
         self.file_ids = []
+        new_pids = []
         for file in self.pid_files:
             pids_batch = torch.load(file)
-            if set(pids_batch).intersection(set(pids)):
-                self.file_ids.append(self.get_file_id(file))
+            pids_intersection = set(pids_batch).intersection(set(pids))
+
+            if len(pids_intersection)>0:
+                new_pids.extend(list(pids_intersection))
+                self.file_ids.append(self.extract_file_id(file))
+        return new_pids
     
-    def set_patient_integer_ids(self)->dict:
+    def create_patient_integer_ids(self)->dict:
         """
         Returns a dictionary file_id:{patient_index:pid}
         """
         patient_integer_ids = {}
         for pid_file in self.pid_files:
-            file_id = self.get_file_id(pid_file)
+            file_id = self.extract_file_id(pid_file)
             pids = torch.load(pid_file)
             patient_integer_ids[file_id] = {i:pid for i, pid in enumerate(pids) if pid in self.pids}
         return patient_integer_ids
@@ -91,12 +89,12 @@ class BaseEHRDataset(IterableDataset):
     
     def update_tokenized_files(self):
         """Updates the tokenized files to only include the selected patients"""
-        return [file for file in self.tokenized_files if self.get_file_id(file) in self.file_ids]
+        return [file for file in self.tokenized_files if self.extract_file_id(file) in self.file_ids]
 
-    def get_pid_files(self):
-        return [join(self.data_dir, 'features', f'pids_features_{file_id}.pt') for file_id in self.file_ids]
-
-    def get_file_id(self, file_name: str):
+    def get_pid_files_from_file_ids(self, file_ids):
+        return [join(self.data_dir, 'features', f'pids_features_{file_id}.pt') for file_id in file_ids]
+    @staticmethod
+    def extract_file_id(file_name: str):
         """Returns the file id for a given file name"""
         return int(file_name.split('_')[-1].split('.')[0])
 
@@ -105,7 +103,7 @@ class BaseEHRDataset(IterableDataset):
         selected_pids = []
         self.file_ids = [] # Reset file ids, use only those containing the relevant patients
         for pid_file_name in self.pid_files:
-            self.file_ids.append(self.get_file_id(pid_file_name))
+            self.file_ids.append(self.extract_file_id(pid_file_name))
             pids = torch.load(pid_file_name)
             selected_pids.extend(pids[:self.num_patients - len(selected_pids)])
             if len(selected_pids) >= self.num_patients:
@@ -292,7 +290,7 @@ class CensorDataset(BaseEHRDataset):
     def get_patient(self, file_name: str):
         """Loads a single patient from a file"""
         features = torch.load(file_name)
-        for patient_index, pid in self.patient_integer_ids[self.get_file_id(file_name)].items():
+        for patient_index, pid in self.patient_integer_ids[self.extract_file_id(file_name)].items():
             patient = self.get_patient_dic(features, patient_index)
             outcome_patient_index = self.outcome_pids.index(pid)
             censor_timestamp = self.censor_outcomes[outcome_patient_index]

@@ -100,11 +100,13 @@ def main_encode():
         forwarder.forward_patients()
 
         if cfg.env=='azure':
+            logger.info('Saving to blob storage')
             from azure_run import file_dataset_save
             file_dataset_save(local_path='outputs', datastore_name = "workspaceblobstore",
                         remote_path = join("PHAIR", censored_patients_path))
-            mount_context.stop()
-        logger.info('Done')
+    if cfg.env=='azure':
+        mount_context.stop()
+    logger.info('Done')
         
 if __name__ == '__main__':
     main_encode()

@@ -40,7 +40,7 @@ def setup_hierarchical(config_path=config_path):
     if cfg.env == 'azure':
         from azure_run import file_dataset_save
         file_dataset_save(local_path=join('outputs', 'data'), datastore_name = "workspaceblobstore",
-                    remote_path = join("PHAIR", cfg.paths.features), name="censored_patients")
+                    remote_path = join("PHAIR", cfg.paths.features))
         mount_context.stop()
 
 if __name__ == '__main__':

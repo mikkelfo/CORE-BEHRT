@@ -102,7 +102,7 @@ def main_encode():
         if cfg.env=='azure':
             from azure_run import file_dataset_save
             file_dataset_save(local_path='outputs', datastore_name = "workspaceblobstore",
-                        remote_path = join("PHAIR", censored_patients_path), name="censored_patients")
+                        remote_path = join("PHAIR", censored_patients_path))
             mount_context.stop()
         logger.info('Done')
         

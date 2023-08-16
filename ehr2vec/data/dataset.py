@@ -285,7 +285,7 @@ class CensorDataset(BaseEHRDataset):
         self.outcomes = outcomes
         self.censor_outcomes = censor_outcomes
         self.n_hours = n_hours
-        self.outcome_pids = outcome_pids
+        self.outcome_pids = self.validate_outcome_pids(outcome_pids)
 
     def get_patient(self, file_name: str):
         """Loads a single patient from a file"""
@@ -318,3 +318,9 @@ class CensorDataset(BaseEHRDataset):
 
         return patient
 
+    def validate_outcome_pids(self, outcome_pids):
+        """All the pids should be contained in outcome pids"""
+        if set(self.pids).issubset(set(outcome_pids)):
+            return outcome_pids
+        else:
+            raise ValueError("Not all pids are contained in the outcome pids")

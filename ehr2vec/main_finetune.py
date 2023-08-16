@@ -2,11 +2,11 @@ import os
 from os.path import join, split
 
 import pandas as pd
-from common.config import load_config
+import torch
 from common.azure import setup_azure
-from common.setup import setup_run_folder, get_args
+from common.config import load_config
 from common.loader import create_binary_outcome_datasets, load_model
-
+from common.setup import get_args, setup_run_folder
 from model.model import BertForFineTuning
 from torch.optim import AdamW
 from torch.utils.data import WeightedRandomSampler
@@ -51,7 +51,8 @@ def main_finetune():
     logger.info(f'Outcome file: {cfg.paths.outcome}, Outcome name: {cfg.outcome.type}')
     logger.info(f'Censor file: {cfg.paths.censor}, Censor name: {cfg.outcome.censor_type}')
     logger.info(f"Censoring {cfg.outcome.n_hours} hours after censor_outcome")
-    train_dataset, val_dataset, outcomes = create_binary_outcome_datasets(cfg)
+    all_outcomes = torch.load(cfg.paths.outcome)
+    train_dataset, val_dataset, outcomes = create_binary_outcome_datasets(all_outcomes, cfg)
 
     logger.info('Initializing model')
     model = load_model(BertForFineTuning, cfg, {'pos_weight':get_pos_weight(cfg, outcomes)})

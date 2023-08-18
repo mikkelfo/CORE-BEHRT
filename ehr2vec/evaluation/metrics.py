@@ -1,5 +1,6 @@
 import torch
-from sklearn.metrics import accuracy_score, recall_score, precision_score, roc_auc_score
+from sklearn.metrics import (accuracy_score, average_precision_score,
+                             precision_score, recall_score, roc_auc_score)
 
 """Computes the precision@k for the specified value of k"""
 class PrecisionAtK:
@@ -37,46 +38,45 @@ def binary_hit(outputs, batch, threshold=0.5, average=True):
     else:
         return (predictions == target).float().mean().item()
 
-class Accuracy():
-    def __init__(self) -> None:
-        pass
+
+class Accuracy:
     def __call__(self, outputs, batch):
-        logits = outputs.logits
-        probas = torch.nn.functional.softmax(logits, dim=-1)
-        _, predictions = torch.max(probas, dim=-1)
+        probas = torch.sigmoid(outputs.logits)
+        predictions = (probas > 0.5).long().view(-1) 
         try:
             score = accuracy_score(batch['target'], predictions)
             return score
         except Warning("Accuracy score could not be computed"):
             return None
-
-class Precision():
-    def __init__(self) -> None:
-        pass
+class Precision:
     def __call__(self, outputs, batch):
-        logits = outputs.logits
-        probas = torch.nn.functional.softmax(logits, dim=-1)
-        _, predictions = torch.max(probas, dim=-1)
+        probas = torch.sigmoid(outputs.logits)
+        predictions = (probas > 0.5).long().view(-1) 
+        # print(predictions) 
+        # breakpoint()
         return precision_score(batch['target'], predictions, zero_division=0)
     
-class Recall():
-    def __init__(self) -> None:
-        pass
+class Recall:
     def __call__(self, outputs, batch):
-        logits = outputs.logits
-        probas = torch.nn.functional.softmax(logits, dim=-1)
-        _, predictions = torch.max(probas, dim=-1)
+        probas = torch.sigmoid(outputs.logits)
+        predictions = (probas > 0.5).long().view(-1)
         return recall_score(batch['target'], predictions, zero_division=0)
 
-class ROC_AUC():
-    def __init__(self) -> None:
-        pass
+class ROC_AUC:
     def __call__(self, outputs, batch):
-        logits = outputs.logits
-        probas = torch.nn.functional.softmax(logits, dim=-1).detach().cpu().numpy()
+        probas = torch.sigmoid(outputs.logits)
         try:
-            score = roc_auc_score(batch['target'], probas[:,-1])
+            score = roc_auc_score(batch['target'], probas)
             return score
         except:
             print("ROC AUC score could not be computed")
+            return 0
+class PR_AUC:
+    def __call__(self, outputs, batch):
+        probas = torch.sigmoid(outputs.logits)
+        try:
+            score = average_precision_score(batch['target'], probas)
+            return score
+        except:
+            print("PR AUC score could not be computed")
             return 0

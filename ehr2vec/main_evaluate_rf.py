@@ -2,18 +2,18 @@ import os
 from os.path import join, split
 from shutil import copyfile
 
+import numpy as np
 import pandas as pd
 from common.azure import setup_azure
-from common.config import get_function, load_config
+from common.config import Config, get_function, load_config
 from common.io import PatientHDF5Reader
 from common.logger import TqdmToLogger
-from common.setup import setup_logger, get_args
-from evaluation.utils import get_mean_std
+from common.setup import get_args, setup_logger
 from evaluation.optimize import find_best_params
+from evaluation.utils import get_mean_std, Oversampler, sample
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import StratifiedKFold
 from tqdm import tqdm
-from common.config import Config
 
 args = get_args("evaluate_rf.yaml")
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
@@ -33,24 +33,54 @@ def prepare_eval_directory(config_path: str, cfg: Config):
     copyfile(config_path, join(cfg.output_dir, split(config_path)[1]))
     return setup_logger(cfg.output_dir)
 
+def get_dataset(X_unc, pids_unc, reader, shuffle=True):
+    X, y = reader.read_arrays()
+    y = y.astype(bool)
+    mask = y==1
+    X, y = X[mask], y[mask]
+    pids = reader.read_pids()
+    pids = [pid for i, pid in enumerate(pids) if mask[i]]
+    indices = [i for i, pid in enumerate(pids_unc) if pid not in pids]
+    X_unc = X_unc[indices]
+    X, y = np.concatenate([X, X_unc]), np.concatenate([y, np.zeros(len(X_unc), dtype='bool')])
+    if shuffle:
+        indices = np.arange(len(X))
+        np.random.shuffle(indices)
+        X, y = X[indices], y[indices]
+    return X, y
+
 def main(config_path):
     cfg = load_config(config_path)
     cfg.output_dir = join(cfg.model_dir, 'results', 'RF', cfg.run_name)
     cfg, mount_context = azure_mount(cfg)
     logger = prepare_eval_directory(config_path, cfg)
-
-    metrics = [get_function(metric) for metric in cfg.metrics.values()]
     
+    reader = PatientHDF5Reader(join(cfg.model_dir, 'encodings', 'censored_patients', cfg.uncensored, 'encodings.h5'))
+    X_uncencored, _ = reader.read_arrays()
+    pids_uncensored = reader.read_pids()
+    
+    metrics = [get_function(metric) for metric in cfg.metrics.values()]
     Results_dic = {}
-    for task in tqdm(cfg.tasks, desc='Tasks',  file=TqdmToLogger(logger)):
+    for name in tqdm(cfg.tasks, desc='Tasks',  file=TqdmToLogger(logger)):
+        task = cfg.tasks[name]
         logger.info(f'Processing task {task}')
-        reader = PatientHDF5Reader(join(cfg.model_dir, 'encodings', task, 'encodings.h5'))
-        X, y = reader.read_arrays()
-        skf = StratifiedKFold(cfg.n_folds)
+        reader = PatientHDF5Reader(join(cfg.model_dir, 'encodings', 'censored_patients', task.folder, 'encodings.h5'))
+        X, y = get_dataset(X_uncencored, pids_uncensored, reader)
+        
+        if 'sample' in task:
+            X, y = sample(X, y, **task.sample)
+
+        skf = StratifiedKFold(cfg.n_folds, shuffle=True, random_state=42)
         results = {metric.__name__:[] for metric in metrics}
         for fold in tqdm(skf.split(X,y), desc='CV',  file=TqdmToLogger(logger)):
             train_ids, val_ids = fold
             X_train, X_val, y_train, y_val = X[train_ids], X[val_ids], y[train_ids], y[val_ids]
+
+            if task.oversampling_ratio:
+                logger.info(f"Oversampling with ratio {task.oversampling_ratio}")
+                oversampler = Oversampler(task.oversampling_ratio)
+                X_train, y_train = oversampler.fit_resample(X_train, y_train)
+
             logger.info("Optimize hyperparameters")
             best_params = find_best_params(X_train, y_train, cfg.param_grid)
             logger.info(f"Best params: {best_params}")
@@ -65,11 +95,11 @@ def main(config_path):
                 score = metric(y_val, pred_probas if metric.__name__.endswith('auc') else pred)
                 logger.info(f"{metric.__name__}: {score}")
                 results[metric.__name__].append(score)
-        Results_dic[task] = results
+        Results_dic[name] = results
 
     Results_dic = get_mean_std(Results_dic)
     Results_df = pd.DataFrame(Results_dic).T
-    Results_df.to_csv(join(cfg.output_dir, 'results.csv'))
+    Results_df.to_csv(join(cfg.output_dir, f'results.csv'), index_label='task')
 
     if cfg.env=='azure':
         from azure_run import file_dataset_save

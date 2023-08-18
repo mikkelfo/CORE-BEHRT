@@ -16,8 +16,9 @@ args = get_args('finetune.yaml')
 
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
 
-def get_sampler(cfg, train_dataset, outcomes):
+def get_sampler(cfg, train_dataset, outcomes, logger):
     if cfg.trainer_args['sampler']:
+        logger.warning('Sampler does not work with IterableDataset. Use positive weight instead')
         labels = pd.Series(outcomes).notna().astype(int)
         label_weight = 1 / labels.value_counts()
         weights = labels.map(label_weight).values
@@ -70,7 +71,7 @@ def main_finetune():
         val_dataset=val_dataset, 
         args=cfg.trainer_args,
         metrics=cfg.metrics,
-        sampler=get_sampler(cfg, train_dataset, outcomes),
+        sampler=get_sampler(cfg, train_dataset, outcomes, logger),
         cfg=cfg,
         run=run,
     )

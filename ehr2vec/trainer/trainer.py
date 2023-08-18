@@ -183,7 +183,7 @@ class EHRTrainer():
             return None, None
         
         self.model.eval()
-        dataloader = DataLoader(self.val_dataset, batch_size=self.args['batch_size'], shuffle=False, collate_fn=self.args['collate_fn'])
+        dataloader = DataLoader(self.val_dataset, batch_size=self.args['batch_size'], shuffle=False, collate_fn=self.args['collate_fn'], sampler=self.sampler)
         val_loop = tqdm(dataloader, total=len(dataloader), file=TqdmToLogger(self.logger) if self.logger else None)
         val_loop.set_description('Validation')
         val_loss = 0

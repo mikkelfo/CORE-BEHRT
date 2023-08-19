@@ -86,10 +86,10 @@ class PatientHDF5Writer:
 
 class PatientHDF5Reader:
     """Reads a encoded patients (pids and tensor of bsxhiddden_dim) from HDF5 file."""
-    def __init__(self, input_path, encodings_dataset_name="X", pid_dataset_name="pids", target_ds_name="y"):
+    def __init__(self, input_path, encodings_ds_name="X", pid_ds_name="pids", target_ds_name="y"):
         self.input_path = input_path
-        self.encodings_dataset_name = encodings_dataset_name
-        self.pid_dataset_name = pid_dataset_name
+        self.encodings_dataset_name = encodings_ds_name
+        self.pid_dataset_name = pid_ds_name
         self.target_dataset_name = target_ds_name
 
     def read_arrays(self, start_idx=None, end_idx=None):

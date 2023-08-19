@@ -66,9 +66,14 @@ def main(config_path):
         logger.info(f'Processing task {task}')
         reader = PatientHDF5Reader(join(cfg.model_dir, 'encodings', 'censored_patients', task.folder, 'encodings.h5'))
         X, y = get_dataset(X_uncencored, pids_uncensored, reader)
-        
+        logger.info(f"Dataset size: {len(X)}")
+        logger.info(f"Perc. positives: {sum(y)/len(y)}")
+
         if 'sample' in task:
+            logger.info(f"Sampling with {task.sample}")
             X, y = sample(X, y, **task.sample)
+            logger.info(f"New dataset size: {len(X)}")
+            logger.info(f"New Perc. positives: {sum(y)/len(y)}")
 
         skf = StratifiedKFold(cfg.n_folds, shuffle=True, random_state=42)
         results = {metric.__name__:[] for metric in metrics}
@@ -80,7 +85,8 @@ def main(config_path):
                 logger.info(f"Oversampling with ratio {task.oversampling_ratio}")
                 oversampler = Oversampler(task.oversampling_ratio)
                 X_train, y_train = oversampler.fit_resample(X_train, y_train)
-
+                logger.info(f"New dataset size: {len(X_train)}")
+                logger.info(f"New Perc. positives: {sum(y_train)/len(y_train)}")
             logger.info("Optimize hyperparameters")
             best_params = find_best_params(X_train, y_train, cfg.param_grid)
             logger.info(f"Best params: {best_params}")

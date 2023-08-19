@@ -1,6 +1,7 @@
 import torch
 from sklearn.metrics import (accuracy_score, average_precision_score,
-                             precision_score, recall_score, roc_auc_score)
+                             precision_score, recall_score, roc_auc_score,
+                             confusion_matrix)
 
 """Computes the precision@k for the specified value of k"""
 class PrecisionAtK:
@@ -80,3 +81,7 @@ class PR_AUC:
         except:
             print("PR AUC score could not be computed")
             return 0
+        
+def specificity(y, y_scores):
+    tn, fp, fn, tp = confusion_matrix(y, y_scores).ravel()
+    return tn / (tn + fp)

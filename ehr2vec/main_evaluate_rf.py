@@ -81,7 +81,7 @@ def main(config_path):
             train_ids, val_ids = fold
             X_train, X_val, y_train, y_val = X[train_ids], X[val_ids], y[train_ids], y[val_ids]
 
-            if task.oversampling_ratio:
+            if "oversampling_ratio" in task and task.get("oversampling_ratio", False):
                 logger.info(f"Oversampling with ratio {task.oversampling_ratio}")
                 oversampler = Oversampler(task.oversampling_ratio)
                 X_train, y_train = oversampler.fit_resample(X_train, y_train)

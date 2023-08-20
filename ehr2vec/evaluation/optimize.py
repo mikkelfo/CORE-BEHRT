@@ -6,10 +6,10 @@ from joblib import Parallel, delayed
 def get_all_combinations(param_grid):
     return [dict(zip(param_grid.keys(), values)) for values in product(*param_grid.values())]
 
-def find_best_params(X, y, param_grid, n_jobs=-1):
+def find_best_params(X, y, param_grid, n_jobs=-1, temp_folder=None):
     all_params = get_all_combinations(param_grid)
     # Parallel processing
-    results = Parallel(n_jobs=n_jobs)(
+    results = Parallel(n_jobs=n_jobs, temp_folder=temp_folder)(
         delayed(evaluate_params)(X, y, params) for params in tqdm(all_params, desc='Grid Search')
     )
     # Find the best result

@@ -42,11 +42,11 @@ def main(config_path):
         logger.info(f"Perc. positives: {sum(y)/len(y)}")
         X, y = sample(X, y, task, logger)
         
-        logger.info("Use {cfg.optimizer.split} of the data to optimize hyperparameters")
+        logger.info(f"Use {cfg.optimizer.split} of the data to optimize hyperparameters")
         X, X_opt, y, y_opt = train_test_split(X, y, test_size=cfg.optimizer.split, random_state=42)
         best_params = find_best_params_RF(X_opt, y_opt, param_grid=cfg.optimizer.param_grid, **cfg.parallel)
         logger.info(f"Best params: {best_params}")
-        logger.info(f" {cfg.n_folds}-fold Cross-validate")
+        logger.info(f"{cfg.n_folds}-fold Cross-validate")
         skf = StratifiedKFold(cfg.n_folds, shuffle=True, random_state=42)
         # Parallelize the cross-validation process
         parallel = Parallel(n_jobs=cfg.parallel.n_jobs, temp_folder=cfg.parallel.temp_folder)

@@ -9,7 +9,7 @@ from common.config import Config, get_function, load_config
 from common.io import PatientHDF5Reader
 from common.logger import TqdmToLogger
 from common.setup import get_args, setup_logger
-from evaluation.optimize import find_best_params
+from evaluation.optimize import find_best_params_RF
 from evaluation.utils import get_mean_std, Oversampler, sample
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import StratifiedKFold
@@ -88,7 +88,7 @@ def main(config_path):
                 logger.info(f"New dataset size: {len(X_train)}")
                 logger.info(f"New Perc. positives: {sum(y_train)/len(y_train)}")
             logger.info("Optimize hyperparameters")
-            best_params = find_best_params(X_train, y_train, **cfg.optimizer)
+            best_params = find_best_params_RF(X_train, y_train, **cfg.optimizer)
             logger.info(f"Best params: {best_params}")
             logger.info("Train model")
             clf = RandomForestClassifier(**best_params, random_state=42)

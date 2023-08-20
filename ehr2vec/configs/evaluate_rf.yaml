@@ -7,7 +7,7 @@ tasks:
   first:
     folder: TEST_OUTCOME_Patients_0k_Censor_3hours_post_TEST_OUTCOME
 sampler:
-  n_samples: 300
+  n_samples: 500
 uncensored: Patients_0k_Uncensored
 metrics:
   roc_auc_score:
@@ -25,10 +25,14 @@ metrics:
   specificity_score:
     _target_: evaluation.metrics.specificity
 
-optimizer:
-  param_grid:
-    n_estimators: [50]
-    max_depth: [2, 5]
-    min_samples_split: [2,3]
+parallel:
   n_jobs: 4
   temp_folder: "outputs/tmp"
+
+
+optimizer:
+  param_grid:
+    n_estimators: [100]
+    max_depth: [2, 5]
+    min_samples_split: [2,3]
+  split: 0.7

@@ -61,7 +61,16 @@ class Forwarder(EHRTrainer):
         else:
             return None
         
-
+    def encode_concepts(self)->None:
+        for i, batch in enumerate(tqdm(self.dataloader, desc='Batch Forward',  file=TqdmToLogger(self.logger) if self.logger else None)):
+            self.to_device(batch)
+            mask = batch['attention_mask']
+            output = self.forward_pass(batch)
+            hidden = output.last_hidden_state.detach()
+            hidden = hidden[mask]
+            print(hidden.shape)
+            breakpoint()
+            
     def produce_patient_trajectory_embeddings(self, start_code_id=4)->dict:
         """Produce embedding for each patient. Showing an increasing number of codes to the model,
         starting with start_code_id. 

@@ -1,0 +1,14 @@
+env: local
+run_name: test
+paths:
+  data_path: ../outputs/data_icd10
+  model_path: outputs/pretraining/test
+  outcomes_path: ../outputs/outcomes/TEST.pt
+  checkpoint_num: 19
+
+outcomes: 
+  outcome1:
+     type: TEST_OUTCOME
+
+forwarder_args:
+  batch_size: 64

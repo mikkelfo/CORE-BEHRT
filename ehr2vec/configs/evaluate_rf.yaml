@@ -6,9 +6,8 @@ n_folds:
 tasks:
   first:
     folder: TEST_OUTCOME_Patients_0k_Censor_3hours_post_TEST_OUTCOME
-    oversampling_ratio: .3
 sampler:
-  n_samples: 100
+  n_samples: 300
 uncensored: Patients_0k_Uncensored
 metrics:
   roc_auc_score:
@@ -21,7 +20,14 @@ metrics:
     _target_: sklearn.metrics.precision_score
   recall_score:
     _target_: sklearn.metrics.recall_score
-param_grid:
-  n_estimators: [100]
-  max_depth: [5]
-  min_samples_split: [2]
+  f1_score:
+    _target_: sklearn.metrics.f1_score
+  specificity_score:
+    _target_: evaluation.metrics.specificity
+
+optimizer:
+  param_grid:
+    n_estimators: [50]
+    max_depth: [2, 5]
+    min_samples_split: [2,3]
+  n_jobs: 4

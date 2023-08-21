@@ -13,6 +13,9 @@ hydra:
   run:  
     dir: .
 
+paths:
+  encoded_suffix: finetune
+
 outcome: 
   type: DEATH
   n_hours: 12

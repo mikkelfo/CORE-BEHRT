@@ -1,5 +1,16 @@
-HOSPITAL_ADMISSION: true
-ICU_ADMISSION: true
-MECHANICAL_VENTILATION: true
-DEATH: true
-COVID: true
+HOSPITAL_ADMISSION:
+  type: [ADMISSION_ID]
+  match: [[unq_]]
+  negation: True
+ICU_ADMISSION:
+  type: [CONCEPT]
+  match: [[ICU]]
+MECHANICAL_VENTILATION:
+  type: [CONCEPT]
+  match: [[RESPIRATOR]]
+DEATH:
+  type: patients_info
+  match: DATE_OF_DEATH
+COVID: 
+  type: [CONCEPT, VALUE]
+  match: [[COVID_TEST], [POSITIV]]

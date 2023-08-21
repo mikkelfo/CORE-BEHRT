@@ -4,14 +4,10 @@ import os
 
 
 class Excluder:
-    def __call__(
-        self, features: dict, outcomes: dict, k: int = 2, dir: str = ""
-    ) -> pd.DataFrame:
+    def __call__(self, features: dict, k: int = 2, dir: str = "") -> pd.DataFrame:
         # Exclude patients with few concepts
-        features, outcomes = self.exclude_short_sequences(
-            features, outcomes, k=k, dir=dir
-        )
-        return features, outcomes
+        features = self.exclude_short_sequences(features, k=k, dir=dir)
+        return features
 
     @staticmethod  # Currently unused
     def exclude_rare_concepts(
@@ -33,9 +29,7 @@ class Excluder:
         return features
 
     @staticmethod
-    def exclude_short_sequences(
-        features: dict, outcomes: dict, k: int = 2, dir: str = ""
-    ) -> tuple:
+    def exclude_short_sequences(features: dict, k: int = 2, dir: str = "") -> tuple:
         kept_indices = []
         for i, concepts in enumerate(features["concept"]):
             unique_codes = set([code for code in concepts if not code.startswith("[")])
@@ -46,22 +40,4 @@ class Excluder:
         for key, values in features.items():
             features[key] = [values[i] for i in kept_indices]
 
-        for key, values in outcomes.items():
-            outcomes[key] = [values[i] for i in kept_indices]
-
-        return features, outcomes
-
-    @staticmethod
-    def exclude_covid_negative(features: dict, outcomes: dict):
-        kept_indices = []
-        for i, result in enumerate(outcomes["COVID"]):
-            if pd.notna(result):
-                kept_indices.append(i)
-
-        for key, values in features.items():
-            features[key] = [values[i] for i in kept_indices]
-
-        for key, values in outcomes.items():
-            outcomes[key] = [values[i] for i in kept_indices]
-
-        return features, outcomes
+        return features

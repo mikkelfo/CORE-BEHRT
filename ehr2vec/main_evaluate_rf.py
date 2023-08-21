@@ -97,9 +97,9 @@ def oversample_data(X, y, task, logger):
     if "oversampling_ratio" in task and task.get("oversampling_ratio", False):
         logger.info(f"Oversampling with ratio {task.oversampling_ratio}")
         oversampler = Oversampler(task.oversampling_ratio)
-        X_train, y_train = oversampler.fit_resample(X_train, y_train)
-        logger.info(f"New dataset size: {len(X_train)}")
-        logger.info(f"New Perc. positives: {sum(y_train)/len(y_train)}")
+        X, y = oversampler.fit_resample(X, y)
+        logger.info(f"New dataset size: {len(X)}")
+        logger.info(f"New Perc. positives: {sum(y)/len(y)}")
     return X, y
 
 def get_results_dic(parallel_results):

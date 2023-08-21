@@ -52,6 +52,7 @@ def main(config_path):
         parallel = Parallel(n_jobs=cfg.parallel.n_jobs, temp_folder=cfg.parallel.temp_folder)
         parallel_results = parallel(delayed(process_fold)(fold, X, y, task, metrics, best_params, logger) for fold in skf.split(X, y))
         # Aggregate results
+        logger.info(parallel_results)
         Results_dic[name] = get_results_dic(parallel_results)
 
     Results_dic = get_mean_std(Results_dic)

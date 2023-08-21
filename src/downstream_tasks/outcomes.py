@@ -39,6 +39,7 @@ class OutcomeMaker:
             types = attrs["type"]
             matches = attrs["match"]
 
+            # If patients_info, get from dict (patients_info_dict)
             if types == "patients_info":
                 timestamps = outcome_df.PID.map(
                     lambda pid: patients_info_dict[matches].get(pid, pd.NaT)
@@ -46,23 +47,30 @@ class OutcomeMaker:
                 timestamps = pd.Series(
                     timestamps.values, index=outcome_df.PID
                 )  # Convert to series
+
+            # Default, get from dataframe (concepts_plus)
             else:
+                # Get a boolean matrix (row x col) of whether any concept matches
                 col_booleans = [
                     concepts_plus[typ].astype(str).str.startswith(tuple(lst), False)
                     for typ, lst in zip(types, matches)
                 ]
+                # Get a boolean vector (row) of whether all concepts match (a & b & ...)
                 mask = np.bitwise_and.reduce(col_booleans)
 
+                # Support negation
                 if "negation" in attrs:
                     timestamps = concepts_plus[~mask].groupby("PID").TIMESTAMP.min()
                 else:
                     timestamps = concepts_plus[mask].groupby("PID").TIMESTAMP.min()
 
+            # Rename and convert to abspos
             timestamps = timestamps.rename(outcome)
             timestamps = (origin_point - timestamps).dt.total_seconds() / 60 / 60
 
             outcome_df = outcome_df.merge(timestamps, on="PID", how="left")
 
+        # Format to dict
         outcomes = outcome_df.to_dict("list")
         del outcomes["PID"]
 

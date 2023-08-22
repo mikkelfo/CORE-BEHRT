@@ -74,7 +74,7 @@ def retrieve_outcomes(all_outcomes, cfg):
     Access pids, the outcome of interest and the censoring outcome."""
     
     outcomes = all_outcomes.get(cfg.outcome.type, [None]*len(all_outcomes['PID']))
-    censor_outcomes = all_outcomes.get(cfg.outcome.censor_type, [None]*len(outcomes))
+    censor_outcomes = all_outcomes.get(cfg.outcome.get('censor_type', None), [None]*len(outcomes))
     pids = all_outcomes['PID']
     return outcomes, censor_outcomes, pids
 

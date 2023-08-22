@@ -69,5 +69,5 @@ def validate_outcomes(all_outcomes, cfg):
         cfg.outcome = cfg.outcomes[outcome]
         if cfg.outcome.type:
             assert cfg.outcome.type in all_outcomes, f"Outcome {cfg.outcome.type} not found in outcomes."
-        if cfg.outcome.censor_type:
+        if cfg.outcome.get('censor_type', False):
             assert cfg.outcome.censor_type in all_outcomes, f"Censor type {cfg.outcome.censor_type} not found in outcomes."

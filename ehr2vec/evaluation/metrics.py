@@ -53,8 +53,6 @@ class Precision:
     def __call__(self, outputs, batch):
         probas = torch.sigmoid(outputs.logits)
         predictions = (probas > 0.5).long().view(-1) 
-        # print(predictions) 
-        # breakpoint()
         return precision_score(batch['target'], predictions, zero_division=0)
     
 class Recall:

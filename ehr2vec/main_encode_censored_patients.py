@@ -9,7 +9,7 @@ from common.loader import create_binary_outcome_datasets, load_model
 from common.logger import close_handlers
 from common.setup import prepare_encodings_directory, setup_logger, get_args
 from common.utils import ConcatIterableDataset
-from common.io import PatientHDF5Reader
+from common.io import PatientHDF5Writer
 from evaluation.encodings import Forwarder
 from evaluation.utils import validate_outcomes
 from model.model import BertEHREncoder
@@ -89,7 +89,7 @@ def main_encode():
             dataset=dataset, 
             run=run,
             logger=logger,
-            writer=PatientHDF5Reader(join(cfg.output_dir, encodings_file_name)),
+            writer=PatientHDF5Writer(join(cfg.output_dir, encodings_file_name)),
             **cfg.forwarder_args,
         )
         forwarder.forward_patients()

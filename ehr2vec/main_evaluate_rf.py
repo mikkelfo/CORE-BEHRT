@@ -42,16 +42,17 @@ def main(config_path):
         logger.info(f"Perc. positives: {sum(y)/len(y)}")
         X, y = sample(X, y, task, logger)
         
-        logger.info("Use {cfg.optimizer.split} of the data to optimize hyperparameters")
+        logger.info(f"Use {cfg.optimizer.split} of the data to optimize hyperparameters")
         X, X_opt, y, y_opt = train_test_split(X, y, test_size=cfg.optimizer.split, random_state=42)
         best_params = find_best_params_RF(X_opt, y_opt, param_grid=cfg.optimizer.param_grid, **cfg.parallel)
         logger.info(f"Best params: {best_params}")
-        logger.info(f" {cfg.n_folds}-fold Cross-validate")
+        logger.info(f"{cfg.n_folds}-fold Cross-validate")
         skf = StratifiedKFold(cfg.n_folds, shuffle=True, random_state=42)
         # Parallelize the cross-validation process
         parallel = Parallel(n_jobs=cfg.parallel.n_jobs, temp_folder=cfg.parallel.temp_folder)
         parallel_results = parallel(delayed(process_fold)(fold, X, y, task, metrics, best_params, logger) for fold in skf.split(X, y))
         # Aggregate results
+        logger.info(parallel_results)
         Results_dic[name] = get_results_dic(parallel_results)
 
     Results_dic = get_mean_std(Results_dic)
@@ -97,9 +98,9 @@ def oversample_data(X, y, task, logger):
     if "oversampling_ratio" in task and task.get("oversampling_ratio", False):
         logger.info(f"Oversampling with ratio {task.oversampling_ratio}")
         oversampler = Oversampler(task.oversampling_ratio)
-        X_train, y_train = oversampler.fit_resample(X_train, y_train)
-        logger.info(f"New dataset size: {len(X_train)}")
-        logger.info(f"New Perc. positives: {sum(y_train)/len(y_train)}")
+        X, y = oversampler.fit_resample(X, y)
+        logger.info(f"New dataset size: {len(X)}")
+        logger.info(f"New Perc. positives: {sum(y)/len(y)}")
     return X, y
 
 def get_results_dic(parallel_results):

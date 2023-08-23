@@ -13,14 +13,14 @@ from trainer.trainer import EHRTrainer
 
 
 class Forwarder(EHRTrainer):
-    def __init__(self, model, dataset, batch_size=64, output_path=None, pooler=None, logger=None, run=None):
+    def __init__(self, model, dataset, batch_size=64, writer=None, pooler=None, logger=None, run=None):
         
         self.model = model
         self.model.eval()
         
         self.dataset = dataset
         self.batch_size = batch_size
-        self.pooler =  instantiate(pooler)
+        self.pooler =  instantiate(pooler) if pooler else None
 
         self.logger = logger
         self.run = run
@@ -28,8 +28,8 @@ class Forwarder(EHRTrainer):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model = model.to(self.device)
         self.dataloader = DataLoader(self.dataset, batch_size=self.batch_size, shuffle=False, collate_fn=dynamic_padding)
-        if output_path:
-            self.writer = PatientHDF5Writer(output_path)
+        if writer:
+            self.writer = writer
         if self.writer:
             self.logger.info(f"Writing encodings to {self.writer.output_path}")
 
@@ -61,6 +61,42 @@ class Forwarder(EHRTrainer):
         else:
             return None
         
+    def encode_concepts(self, cfg)->None:
+        selected_concept_ints = self.retrieve_selected_concept_ints(cfg)
+        if not self.writer:
+            encodings = []
+            labels = []
+        for i, batch in enumerate(tqdm(self.dataloader, desc='Batch Forward',  file=TqdmToLogger(self.logger) if self.logger else None)):
+            self.to_device(batch)
+            mask = batch['attention_mask']
+            input = batch['concept']
+            output = self.forward_pass(batch)
+            hidden = output.last_hidden_state.detach()
+            hidden = hidden.view(-1, hidden.shape[-1])
+            mask = mask.view(-1).bool()
+            hidden = hidden[mask]
+            input = input.view(-1)[mask]
+            filter_mask = self.obtain_filter_mask(input, selected_concept_ints)
+            hidden = hidden[filter_mask]
+            input = input[filter_mask]
+
+            if self.writer:
+                self.writer.write(hidden, input)
+            else:
+                encodings.append(hidden.cpu())
+                labels.append(input.cpu())
+        if not self.writer:
+            return torch.cat(encodings), torch.cat(labels)
+        else:
+            return None
+    def obtain_filter_mask(self, input, selected_concept_ints):
+        # Expand dimensions to make tensors broadcastable
+        input = input.unsqueeze(1)  # Add a new dimension to tensor1
+        selected_concept_ints = selected_concept_ints.unsqueeze(0)  # Add a new dimension to tensor2
+        # Check for equality
+        equality_check = input == selected_concept_ints
+        # Check if any value in tensor2 matches a value in tensor1
+        return torch.any(equality_check, dim=1)
 
     def produce_patient_trajectory_embeddings(self, start_code_id=4)->dict:
         """Produce embedding for each patient. Showing an increasing number of codes to the model,
@@ -149,4 +185,11 @@ class Forwarder(EHRTrainer):
     def censor(batch: dict, length: int):
         """Censor a patient based on indices (bs=1)"""
         return {k:v[:,:length] for k,v in batch.items()}
+
+    def retrieve_selected_concept_ints(self, cfg):
+        vocabulary = torch.load(join(cfg.paths.model_path, 'vocabulary.pt'))
+        return self.get_relevant_ids(cfg, vocabulary)
+
+    def get_relevant_ids(self, cfg, vocabulary)->torch.tensor:
+        return torch.tensor([v for k,v in vocabulary.items() if any(k.startswith(char) for char in cfg.filter_concepts)], dtype=int)
 

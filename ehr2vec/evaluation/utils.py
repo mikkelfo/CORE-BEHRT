@@ -63,3 +63,11 @@ def sample(X, y, n_samples=None, fraction=None):
     n_samples = n_samples if n_samples else int(X.shape[0] * fraction)
     indices = np.random.choice(X.shape[0], size=n_samples, replace=False)
     return X[indices], y[indices]
+
+def validate_outcomes(all_outcomes, cfg):
+    for outcome in cfg.outcomes:
+        cfg.outcome = cfg.outcomes[outcome]
+        if cfg.outcome.type:
+            assert cfg.outcome.type in all_outcomes, f"Outcome {cfg.outcome.type} not found in outcomes."
+        if cfg.outcome.get('censor_type', False):
+            assert cfg.outcome.censor_type in all_outcomes, f"Censor type {cfg.outcome.censor_type} not found in outcomes."

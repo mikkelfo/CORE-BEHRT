@@ -9,7 +9,9 @@ from common.loader import create_binary_outcome_datasets, load_model
 from common.logger import close_handlers
 from common.setup import prepare_encodings_directory, setup_logger, get_args
 from common.utils import ConcatIterableDataset
+from common.io import PatientHDF5Writer
 from evaluation.encodings import Forwarder
+from evaluation.utils import validate_outcomes
 from model.model import BertEHREncoder
 
 
@@ -26,14 +28,6 @@ def _get_output_path_name(dataset, cfg):
             return f"{cfg.outcome.type}_Patients_{num_patients}_Uncensored"
         else:
             return f"Patients_{num_patients}_Uncensored"
-
-def _validate_outcomes(all_outcomes, cfg):
-    for outcome in cfg.outcomes:
-        cfg.outcome = cfg.outcomes[outcome]
-        if cfg.outcome.type:
-            assert cfg.outcome.type in all_outcomes, f"Outcome {cfg.outcome.type} not found in outcomes."
-        if cfg.outcome.censor_type:
-            assert cfg.outcome.censor_type in all_outcomes, f"Censor type {cfg.outcome.censor_type} not found in outcomes."
 
 args = get_args("encode_censored.yaml", "encode_censored")
 config_path = args.config_path
@@ -61,7 +55,7 @@ def main_encode():
     
     output_dir = cfg.output_dir # we will modify cfg. output_dir
     all_outcomes = torch.load(cfg.paths.outcomes_path)
-    _validate_outcomes(all_outcomes, cfg)
+    validate_outcomes(all_outcomes, cfg)
     for i, outcome in enumerate(cfg.outcomes):
         cfg.outcome = cfg.outcomes[outcome]
 
@@ -95,7 +89,7 @@ def main_encode():
             dataset=dataset, 
             run=run,
             logger=logger,
-            output_path=join(cfg.output_dir, encodings_file_name),
+            writer=PatientHDF5Writer(join(cfg.output_dir, encodings_file_name)),
             **cfg.forwarder_args,
         )
         forwarder.forward_patients()

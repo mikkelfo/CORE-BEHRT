@@ -27,13 +27,13 @@ def main(config_path):
     run = None
     model_path = cfg.paths.model_path
     concepts_path = join(model_path, 'encodings', 'concepts')
-    cfg.output_dir = join(concepts_path, cfg.run_name)
+    cfg.output_dir = join(concepts_path, cfg.paths.run_name)
     if cfg.env=='azure':
         run, mount_context = setup_azure(cfg.paths.run_name)
         cfg.paths.data_path = join(mount_context.mount_point, cfg.paths.data_path)
         cfg.paths.model_path = join(mount_context.mount_point, cfg.paths.model_path)
         cfg.paths.outcomes_path = join(mount_context.mount_point, cfg.paths.outcomes_path)
-        cfg.output_dir = join('outputs', cfg.run_name)
+        cfg.output_dir = join('outputs', cfg.paths.run_name)
     logger = prepare_encodings_directory(config_path, cfg)
     logger.info('Initializing model')
     model = load_model(BertEHREncoder, cfg)

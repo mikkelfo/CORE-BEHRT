@@ -1,14 +1,16 @@
 env: local
-run_name: test
+run_name: test4
 paths:
   data_path: ../outputs/data_icd10
   model_path: outputs/pretraining/test
   outcomes_path: ../outputs/outcomes/TEST.pt
-  checkpoint_num: 19
+  checkpoint_epoch: 2
 
 outcomes: 
   outcome1:
      type: TEST_OUTCOME
+
+filter_concepts: ['DA', 'DB']
 
 forwarder_args:
   batch_size: 64

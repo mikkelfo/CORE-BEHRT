@@ -9,7 +9,7 @@ paths:
 dataset:
   masked_ratio: 0.15
   ignore_special_tokens: true
-
+  hierarchical_dir: hierarchical
 train_data:  
   num_patients: 400
 val_data:
@@ -34,6 +34,7 @@ model:
   intermediate_size: 64
   type_vocab_size: 1000 
   pool_type: mean
+  trainable_level_weights: true
 
 optimizer:
   lr: 5e-4

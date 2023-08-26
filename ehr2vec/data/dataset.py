@@ -179,10 +179,10 @@ class MLMDataset(BaseEHRDataset):
 
 class HierarchicalMLMDataset(MLMDataset):
     """Hierarchical MLM Dataset"""
-    def __init__(self, data_dir, mode, masked_ratio=0.3, ignore_special_tokens=True, tree=None, tree_matrix=None,num_patients=None, seed=None, ):
+    def __init__(self, data_dir, mode, masked_ratio=0.3, ignore_special_tokens=True, tree=None, tree_matrix=None,num_patients=None, seed=None, hierarchical_dir='hierarchical'):
         super().__init__(data_dir, mode, masked_ratio=masked_ratio, ignore_special_tokens=ignore_special_tokens, num_patients=num_patients, seed=seed)
         
-        hierarchical_dir = join(data_dir, 'hierarchical')
+        hierarchical_dir = join(data_dir, hierarchical_dir)
         self.h_vocabulary = torch.load(join(hierarchical_dir, 'vocabulary.pt'))
         if isinstance(tree_matrix, type(None)):
             tree_matrix = torch.load(join(hierarchical_dir, 'tree_matrix.pt'))

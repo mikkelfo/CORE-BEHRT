@@ -35,9 +35,9 @@ def prepare_directory_outcomes(config_path: str, outcome_dir: str, outcomes_name
     
     return setup_logger(outcome_dir)  
 
-def prepare_directory_hierarchical(config_path: str, out_dir: str):
+def prepare_directory_hierarchical(config_path: str, out_dir: str, hierarchical_name: str = 'hierarchical'):
     """Creates hierarchical directory and copies config file"""
-    hierarchical_dir = join(out_dir, "hierarchical")
+    hierarchical_dir = join(out_dir, hierarchical_name)
     os.makedirs(hierarchical_dir, exist_ok=True)
     copyfile(config_path, join(hierarchical_dir, 'h_setup.yaml'))
     return setup_logger(hierarchical_dir)

@@ -14,29 +14,29 @@ config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.conf
 def setup_hierarchical(config_path=config_path):
     cfg = load_config(config_path)
     data_dir = cfg.paths.features
+    hierarchical_name = cfg.paths.get('hierarchical_name', 'hierarchical')
     if cfg.env=='azure':
         _, mount_context = setup_azure(cfg.run_name)
         mount_dir = mount_context.mount_point
         cfg.paths.features = join(mount_dir, cfg.paths.features)
         data_dir = "outputs/data"
-    logger = prepare_directory_hierarchical(config_path, data_dir)  
-    
-    
+    logger = prepare_directory_hierarchical(config_path, data_dir, hierarchical_name)  
     
     logger.info('Get Counts')
     counts = get_counts(cfg, logger=logger)
     logger.info('Build Tree')
-    tree = TreeBuilder(counts=counts, cutoff_level=cfg.cutoff_level).build()
+    tree = TreeBuilder(counts=counts, **cfg.tree).build()
     logger.info('Create Vocabulary')
     vocabulary = tree.create_vocabulary()
     logger.info('Save hierarchical vocabulary')
-    torch.save(vocabulary, join(data_dir,'hierarchical', 'vocabulary.pt'))
+    hierarchical_path = join(data_dir, hierarchical_name)
+    torch.save(vocabulary, join(hierarchical_path, 'vocabulary.pt'))
     logger.info('Save base counts')
-    torch.save(counts, join(data_dir, 'hierarchical', 'base_counts.pt'))
+    torch.save(counts, join(hierarchical_path, 'base_counts.pt'))
     logger.info('Save tree')
-    torch.save(tree, join(data_dir, 'hierarchical','tree.pt'))
+    torch.save(tree, join(hierarchical_path,'tree.pt'))
     logger.info('Construct and Save tree matrix')
-    torch.save(tree.get_tree_matrix(), join(data_dir, 'hierarchical', 'tree_matrix.pt'))
+    torch.save(tree.get_tree_matrix(), join(hierarchical_path, 'tree_matrix.pt'))
     if cfg.env == 'azure':
         from azure_run import file_dataset_save
         file_dataset_save(local_path=join('outputs', 'data'), datastore_name = "workspaceblobstore",

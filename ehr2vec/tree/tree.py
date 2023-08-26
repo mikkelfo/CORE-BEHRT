@@ -14,12 +14,13 @@ class TreeBuilder:
                  counts, 
                  cutoff_level=5,
                  extend_level=5,
-                 files=['data_dumps/sks_dump_diagnose.csv', 'data_dumps/sks_dump_medication.csv'],):
+                 files=['data_dumps/sks_dump_diagnose.csv', 'data_dumps/sks_dump_medication.csv'],
+                 filter_database=False,):
         self.files = files
         self.counts = counts
         self.cutoff_level = cutoff_level
         self.extend_level = extend_level
-
+        self.filter_database = filter_database
 
     def build(self):
         tree_codes = self.create_tree_codes()
@@ -44,7 +45,9 @@ class TreeBuilder:
             data_codes = self.select_codes_outside_database(database, data_codes)
             data_codes = self.sort_data_codes(data_codes)
             database = self.augment_database(database, data_codes)
-            
+            if self.filter_database:
+                database = self._filter_database(database, data_codes)
+
             level = -1
             prev_code = ''
             for i, (code, text) in database.iterrows():
@@ -133,6 +136,20 @@ class TreeBuilder:
             return {code: count for code, count in self.counts.items() if code.startswith('M')}
         else:
             raise NotImplementedError
+
+    def _filter_database(self, database:pd.DataFrame, data_codes:dict)->pd.DataFrame:
+        """Takes a DataFrame and a dictionary of codes and returns a DataFrame with only the codes in the dictionary."""
+        codes_ls = self._extend_data_codes_by_ancestors(data_codes)
+        mask = (database['Kode'].isin(codes_ls)) | (database['Kode'].isna()) | (database['Kode'].str.len()<3)
+        return database[mask].reset_index(drop=True, inplace=False)
+    @staticmethod
+    def _extend_data_codes_by_ancestors(data_codes: dict)->list:
+        """Takes a dictionary of codes and returns a list of codes with ancestors."""
+        codes_ls = list(data_codes.keys())
+        for code in codes_ls:
+            codes_ls.extend(code[:i] for i in range(4, len(code)) if code[:i] not in codes_ls)
+        return codes_ls
+
     @staticmethod
     def augment_database(database:pd.DataFrame, data_codes:dict)->pd.DataFrame:
         """Takes a DataFrame and a dictionary of codes and returns a DataFrame with the codes inserted in the correct position."""
@@ -157,7 +174,6 @@ class TreeBuilder:
     def sort_data_codes(data_codes: dict):
         return dict(sorted(data_codes.items(), key=lambda x: x[0]))
 
-    
 
 
 def get_counts(cfg, logger)-> dict:

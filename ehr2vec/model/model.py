@@ -95,10 +95,10 @@ class HierarchicalBertForPretraining(BertEHRModel):
         
         if getattr(config, "trainable_level_weights"):
             self.trainable_level_weights = config.trainable_level_weights
-            self.linear_combination = nn.Parameter(torch.arange(self.levels, 0, -1).float() / self.levels)
+            self.linear_combination = nn.Parameter(torch.arange(self.levels-1, 0, -1).float() / self.levels)
         else:
             self.trainable_level_weights = False
-            self.linear_combination = torch.arange(self.levels, 0, -1) / self.levels
+            self.linear_combination = torch.arange(self.levels-1, 0, -1) / self.levels
         
         if not isinstance(tree_matrix, torch.Tensor):
             assert tree is not None, "Either tree or tree_matrix must be provided"
@@ -154,9 +154,12 @@ class HierarchicalBertForPretraining(BertEHRModel):
             level_labels = labels[:, i, self.tree_mask[i]]
             
             loss = self.loss_fct(level_predictions, level_labels)
-            acc_loss += loss.mean() * self.linear_combination[i]
-            if self.trainable_level_weights:
-                acc_loss -= torch.log(self.linear_combination[i])
+            if i == 0:
+                acc_loss = loss.mean()
+            else:
+                acc_loss += loss.mean() * self.linear_combination[i-1]
+                if self.trainable_level_weights:
+                    acc_loss -= torch.log(self.linear_combination[i-1])
         
         return acc_loss / levels
 

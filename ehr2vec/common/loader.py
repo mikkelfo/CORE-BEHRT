@@ -38,8 +38,9 @@ def create_binary_outcome_datasets(all_outcomes, cfg):
                                     outcome_pids=pids,
                                     num_patients=cfg.train_data.num_patients,
                                     pids=pids if cfg.get("encode_pos_only", False) else None,
-                                    n_hours=cfg.outcome.n_hours,)
-        
+                                    n_hours=cfg.outcome.n_hours,
+                                    n_procs=cfg.train_data.get('n_procs', None))
+
     if cfg.val_data.num_patients == 0:
         val_dataset = None
     else:
@@ -49,6 +50,7 @@ def create_binary_outcome_datasets(all_outcomes, cfg):
                                     num_patients=cfg.val_data.num_patients,
                                     pids=pids if cfg.get("encode_pos_only", False) else None, 
                                     n_hours=cfg.outcome.n_hours,
+                                    n_procs=cfg.val_data.get('n_procs', None),
                                     )
     
     return train_dataset, val_dataset, outcomes

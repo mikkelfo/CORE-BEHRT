@@ -4,6 +4,8 @@ from glob import glob
 from os.path import join
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
+from concurrent.futures import ProcessPoolExecutor
+
 import numpy as np
 import pandas as pd
 import torch
@@ -11,24 +13,31 @@ from torch.utils.data import IterableDataset
 
 
 class BaseEHRDataset(IterableDataset):
-    def __init__(self, data_dir, mode, pids=None, num_patients=None, seed=None, vocabulary:dict=None):  #
+    def __init__(self, data_dir, mode, pids=None, num_patients=None, seed=None, vocabulary:dict=None, n_procs=None):  #
         logger.info(f"Initializing {mode} dataset")
         self.data_dir = data_dir
         self.mode = mode
         self.num_patients = num_patients
         self.seed = seed
         self.set_random_seed()
+        self.n_procs = n_procs
+        self.pid_cache = {}
         
         self.vocabulary = vocabulary or torch.load(join(data_dir, 'vocabulary.pt'))
 
-        self.tokenized_files = self.get_all_tokenized_files()
+        self.tokenized_files = self._get_all_tokenized_files()
         self.file_ids = self.get_file_ids_from_files(self.tokenized_files)
         self.pid_files = self.get_pid_files_from_file_ids(self.file_ids)
-        self.pids = self.initialize_pids(pids)
-
+        self.pids = self._initialize_pids(pids)
+        
+        self.pid_files = self.get_pid_files_from_file_ids(self.file_ids) # update file ids to only include the selected patients
         self.num_patients = len(self.pids) # Update num_patients to the actual number of patients
-        self.patient_integer_ids = self.create_patient_integer_ids() # file_id:{patient_index:pid}
-        self.tokenized_files = self.update_tokenized_files() # Only keep files with relevant patients
+        
+        self.patient_integer_ids = self._create_patient_integer_ids() # file_id:{patient_index:pid}
+        self.tokenized_files = self._update_tokenized_files() # Only keep files with relevant patients
+
+        del self.pid_cache # Free up memory
+        logger.info("Done initializing dataset")
 
     def __iter__(self):
         for file_name in self.tokenized_files:
@@ -46,59 +55,94 @@ class BaseEHRDataset(IterableDataset):
 
     def get_patient_dic(self, features, patient_index):
         return {key: torch.tensor(values[patient_index]) for key, values in features.items()}
+    
     def get_file_ids_from_files(self, files):
         """Returns the file ids for the given mode"""
         return [self.extract_file_id(f) for f in files]
 
-    def initialize_pids(self, provided_pids):
+    def _initialize_pids(self, provided_pids):
         logger.info("Initializing patient IDs")
+        
+        if provided_pids and self.num_patients:
+            logger.error("Cannot provide both pids and num_patients")
+            raise ValueError("Cannot provide pids and num_patients")    
+        
         if provided_pids:
             logger.info("Using provided patient IDs")
-            if self.num_patients:
-                raise ValueError("Cannot provide pids and num_patients")    
             return self.filter_pids_update_file_ids(provided_pids)
+
         if self.num_patients:
+            logger.info(f"Using {self.num_patients} random patient IDs")
             return self.load_n_random_pids()
+        
+        logger.info("Using all patient IDs")
         return torch.load(join(self.data_dir, f'{self.mode}_pids.pt'))
 
     def load_n_random_pids(self):
         np.random.shuffle(self.pid_files)
         return self.get_n_pids()
 
+    def _process_files(self, func, pids_set):
+        if self.n_procs:
+            logger.info(f"Using parallel processing with {self.n_procs}")
+            with ProcessPoolExecutor() as executor:
+                return list(executor.map(func, self.pid_files, [pids_set] * len(self.pid_files)))
+        else:
+            logger.info("Using sequential processing")
+            return [func(file, pids_set) for file in self.pid_files]
+
+    def _find_pids_in_file(self, file, pids_set):
+        """
+        This function will process each file.
+        """
+        logger.info("::: Loading file ::: " + file)
+        pids_batch = torch.load(file)
+        pids_intersection = pids_set.intersection(set(pids_batch))
+
+        if len(pids_intersection) > 0:
+            self.pid_cache[file] = pids_batch
+            file_id = self.extract_file_id(file)
+            return list(pids_intersection), file_id
+
+        return [], None
+
     def filter_pids_update_file_ids(self, pids):
         """Updates the file ids to only include the selected patients"""
         logger.info("Filtering patient IDs")
-        self.file_ids = []
-        new_pids = []
-        for file in self.pid_files:
-            logger.info("::: Loading file ::: " + file)
-            pids_batch = torch.load(file)
-            pids_intersection = set(pids_batch).intersection(set(pids))
+        pids_set = set(pids)
 
-            if len(pids_intersection)>0:
-                new_pids.extend(list(pids_intersection))
-                self.file_ids.append(self.extract_file_id(file))
+        results = self._process_files(self._find_pids_in_file, pids_set)
+
+        new_pids = []
+        self.file_ids = [file_id for _, file_id in results if file_id is not None]
+
+        for new_pids_chunk, _ in results:
+            new_pids.extend(new_pids_chunk)
+
         return new_pids
     
-    def create_patient_integer_ids(self)->dict:
-        """
-        Returns a dictionary file_id:{patient_index:pid}
-        """
+    def _enumerate_pids_in_file(self, pid_file, pids_set):
+        logger.info("::: Loading file ::: " + pid_file)
+        file_id = self.extract_file_id(pid_file)
+        pids = self.pid_cache.get(pid_file, torch.load(pid_file))
+        int2pid = {i: pid for i, pid in enumerate(pids) if pid in pids_set}
+        return file_id, int2pid
+
+    def _create_patient_integer_ids(self)->dict:
         logger.info("Creating patient integer IDs")
-        patient_integer_ids = {}
         pids_set = set(self.pids)
-        for pid_file in self.pid_files:
-            logger.info("::: Loading file ::: " + pid_file)
-            file_id = self.extract_file_id(pid_file)
-            pids = torch.load(pid_file)
-            patient_integer_ids[file_id] = {i:pid for i, pid in enumerate(pids) if pid in pids_set}
-        return patient_integer_ids
+        
+        results = self._process_files(self._enumerate_pids_in_file, pids_set)
+        
+        file2intpid_dic = {file_id: data for file_id, data in results}
+
+        return file2intpid_dic
     
-    def get_all_tokenized_files(self):
+    def _get_all_tokenized_files(self):
         """Returns the data files for the given mode"""
         return glob(join(self.data_dir, 'tokenized',f'tokenized_{self.mode}_*.pt'))
     
-    def update_tokenized_files(self):
+    def _update_tokenized_files(self):
         """Updates the tokenized files to only include the selected patients"""
         return [file for file in self.tokenized_files if self.extract_file_id(file) in self.file_ids]
 
@@ -291,8 +335,8 @@ class CensorDataset(BaseEHRDataset):
         outcomes is a list of the outcome timestamps to predict
         censor_outcomes is a list of the censor timestamps to use
     """
-    def __init__(self, data_dir:str, mode:str, outcomes:list, censor_outcomes: list, n_hours: int, outcome_pids: list, num_patients=None, pids=None, seed=None, ):
-        super().__init__(data_dir, mode, num_patients=num_patients, pids=pids, seed=seed)
+    def __init__(self, data_dir:str, mode:str, outcomes:list, censor_outcomes: list, n_hours: int, outcome_pids: list, num_patients=None, pids=None, seed=None, n_procs=None):
+        super().__init__(data_dir, mode, num_patients=num_patients, pids=pids, seed=seed, n_procs=n_procs)
         self.outcomes = outcomes
         self.censor_outcomes = censor_outcomes
         self.n_hours = n_hours

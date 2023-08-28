@@ -1,14 +1,18 @@
+import logging
 import random
-from os.path import join
 from glob import glob
+from os.path import join
 
+logger = logging.getLogger(__name__)  # Get the logger for this module
 import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import IterableDataset
 
+
 class BaseEHRDataset(IterableDataset):
-    def __init__(self, data_dir, mode, pids=None, num_patients=None, seed=None, vocabulary:dict=None):
+    def __init__(self, data_dir, mode, pids=None, num_patients=None, seed=None, vocabulary:dict=None):  #
+        logger.info(f"Initializing {mode} dataset")
         self.data_dir = data_dir
         self.mode = mode
         self.num_patients = num_patients
@@ -47,7 +51,9 @@ class BaseEHRDataset(IterableDataset):
         return [self.extract_file_id(f) for f in files]
 
     def initialize_pids(self, provided_pids):
+        logger.info("Initializing patient IDs")
         if provided_pids:
+            logger.info("Using provided patient IDs")
             if self.num_patients:
                 raise ValueError("Cannot provide pids and num_patients")    
             return self.filter_pids_update_file_ids(provided_pids)
@@ -61,9 +67,11 @@ class BaseEHRDataset(IterableDataset):
 
     def filter_pids_update_file_ids(self, pids):
         """Updates the file ids to only include the selected patients"""
+        logger.info("Filtering patient IDs")
         self.file_ids = []
         new_pids = []
         for file in self.pid_files:
+            logger.info("::: Loading file ::: " + file)
             pids_batch = torch.load(file)
             pids_intersection = set(pids_batch).intersection(set(pids))
 
@@ -76,8 +84,10 @@ class BaseEHRDataset(IterableDataset):
         """
         Returns a dictionary file_id:{patient_index:pid}
         """
+        logger.info("Creating patient integer IDs")
         patient_integer_ids = {}
         for pid_file in self.pid_files:
+            logger.info("::: Loading file ::: " + pid_file)
             file_id = self.extract_file_id(pid_file)
             pids = torch.load(pid_file)
             patient_integer_ids[file_id] = {i:pid for i, pid in enumerate(pids) if pid in self.pids}
@@ -323,4 +333,5 @@ class CensorDataset(BaseEHRDataset):
         if set(self.pids).issubset(set(outcome_pids)):
             return outcome_pids
         else:
-            raise ValueError("Not all pids are contained in the outcome pids")
+            logger.warn('Some patients in the dataset are not contained in the outcome pids. They will be removed.')
+            return [pid for pid in self.pids if pid in outcome_pids]

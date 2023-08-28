@@ -1,7 +1,9 @@
 import glob
+import logging
 import os
 from os.path import join
 
+logger = logging.getLogger(__name__)  # Get the logger for this module
 import pandas as pd
 import torch
 from data.dataset import CensorDataset, HierarchicalMLMDataset, MLMDataset
@@ -53,6 +55,7 @@ def create_binary_outcome_datasets(all_outcomes, cfg):
 
 def select_positives(outcomes, censor_outcomes, pids):
     """Select only positive outcomes."""
+    logger.info("Selecting only positive outcomes")
     select_indices = [i for i, outcome in enumerate(outcomes) if pd.notna(outcome)]
     outcomes = [outcomes[i] for i in select_indices]
     censor_outcomes = [censor_outcomes[i] for i in select_indices]

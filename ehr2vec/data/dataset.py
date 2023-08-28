@@ -86,11 +86,12 @@ class BaseEHRDataset(IterableDataset):
         """
         logger.info("Creating patient integer IDs")
         patient_integer_ids = {}
+        pids_set = set(self.pids)
         for pid_file in self.pid_files:
             logger.info("::: Loading file ::: " + pid_file)
             file_id = self.extract_file_id(pid_file)
             pids = torch.load(pid_file)
-            patient_integer_ids[file_id] = {i:pid for i, pid in enumerate(pids) if pid in self.pids}
+            patient_integer_ids[file_id] = {i:pid for i, pid in enumerate(pids) if pid in pids_set}
         return patient_integer_ids
     
     def get_all_tokenized_files(self):

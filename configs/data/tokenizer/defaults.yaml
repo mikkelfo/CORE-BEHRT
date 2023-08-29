@@ -1,6 +1,6 @@
 sep_tokens: true
 cls_token: true
 padding: false
-truncation: 512
+truncation: false
 max_concept_length: false
 vocabulary: null

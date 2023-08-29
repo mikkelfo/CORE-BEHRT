@@ -54,7 +54,7 @@ class SegmentCreator(BaseCreator):
 
 class BackgroundCreator(BaseCreator):
     id = "background"
-    prepend_token = "BG_"
+    prepend_token = "BG"
 
     def create(self, concepts: pd.DataFrame, patients_info: pd.DataFrame):
         info = patients_info.set_index("PID").to_dict("index")
@@ -70,8 +70,9 @@ class BackgroundCreator(BaseCreator):
                 p_info = info[pid]
                 for col in self.config.features.background:
                     if col in p_info and pd.notna(p_info[col]):
+                        name = "_".join([self.prepend_token, col, p_info[col]])
                         background["PID"].append(pid)
-                        background["CONCEPT"].append(self.prepend_token + p_info[col])
+                        background["CONCEPT"].append(name)
                         background["ABSPOS"].append(
                             (p_info["BIRTHDATE"] - origin_point).total_seconds()
                             / 60

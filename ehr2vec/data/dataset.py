@@ -379,4 +379,15 @@ class CensorDataset(BaseEHRDataset):
             return outcome_pids
         else:
             logger.warn('Some patients in the dataset are not contained in the outcome pids. They will be removed.')
-            return [pid for pid in self.pids if pid in outcome_pids]
+            self._filter_pids_by_outcome_pids(outcome_pids)
+            return outcome_pids
+    
+    def _filter_pids_by_outcome_pids(self, outcome_pids):
+        outcome_pids = set(outcome_pids)
+        logger.info(f"Filtering {len(self.pids)} patients")
+        self.pids = [pid for pid in self.pids if pid in outcome_pids]
+        for file, int2pid in self.patient_integer_ids.items():
+            filtered_dic = {int_ : pid for int_, pid in int2pid.items() if pid in outcome_pids}
+            self.patient_integer_ids[file] = filtered_dic 
+        logger.info(f"Remaining patients: {len(self.patient_integer_ids)}")
+        self.num_patients = len(self.pids)

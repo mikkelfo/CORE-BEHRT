@@ -376,7 +376,9 @@ class CensorDataset(BaseEHRDataset):
     def validate_outcome_pids(self, outcome_pids):
         """All the pids should be contained in outcome pids"""
         if set(self.pids).issubset(set(outcome_pids)):
+            logger.warn("test")
             return outcome_pids
         else:
             logger.warn('Some patients in the dataset are not contained in the outcome pids. They will be removed.')
-            return [pid for pid in self.pids if pid in outcome_pids]
+            pids_set = set(self.pids)
+            return [pid for pid in outcome_pids if pid in pids_set]

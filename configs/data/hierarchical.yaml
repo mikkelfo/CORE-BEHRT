@@ -1,0 +1,23 @@
+defaults:
+  - paths: defaults
+
+  - override hydra/hydra_logging: disabled  
+  - override hydra/job_logging: disabled  
+  - _self_
+  
+hydra:  
+  output_subdir: null
+  run:  
+    dir: .
+
+
+paths:
+  vocabulary: h_vocabulary.pt
+  counts: base_counts.pt
+  tree: tree.pt
+  dump_dir: data/dumps
+  dump_files: [sks_dump_diagnose.xlsx, sks_dump_medication.xlsx]
+  base_counts: base_counts.pt
+
+tree:
+  max_level: 5

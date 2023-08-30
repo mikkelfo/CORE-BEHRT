@@ -3,7 +3,7 @@ import torch.nn as nn
 from transformers import BertModel
 from src.embeddings.ehr import EhrEmbeddings
 from src.model.heads import MLMHead, FineTuneHead, HMLMHead
-from src.tree.helpers import build_tree
+import src.common.loading as loading
 
 
 class BertEHRModel(BertModel):
@@ -68,15 +68,19 @@ class HierarchicalBertForPretraining(BertEHRModel):
         self.loss_fct = nn.CrossEntropyLoss(reduction="none")
         self.cls = HMLMHead(config)
 
-        # TODO: Make this configurable
-        self.linear_combination = torch.arange(config.levels, 0, -1) / config.levels
-
-        tree = build_tree()
+        tree = loading.tree(config)
         self.tree_matrix = tree.get_tree_matrix()
         self.tree_mask = self.tree_matrix.any(2)
+        self.num_levels = self.tree_matrix.shape[0]
+
+        if config.linear_combination is None:
+            self.linear_combination = (
+                torch.arange(self.num_levels, 0, -1) / self.num_levels
+            )
+        else:
+            self.linear_combination = torch.tensor(config.linear_combination)
 
     def get_loss(self, logits, labels, labels_mask):
-        levels = 5
         batch_size, seq_len, leaves = logits.shape
         logits = logits.permute(2, 0, 1).view(
             leaves, -1
@@ -84,8 +88,8 @@ class HierarchicalBertForPretraining(BertEHRModel):
 
         # Calculate level predictions (one level each)
         acc_loss = 0
-        for i in range(levels):
-            if levels - 1 == i:
+        for i in range(self.num_levels):
+            if self.num_levels - 1 == i:
                 level_predictions = logits
             else:
                 level_predictions = torch.matmul(
@@ -97,4 +101,4 @@ class HierarchicalBertForPretraining(BertEHRModel):
             loss = self.loss_fct(level_predictions, level_labels)
             acc_loss += (loss * self.linear_combination[i]).mean()
 
-        return acc_loss / levels
+        return acc_loss / self.num_levels

@@ -46,13 +46,13 @@ class Node:
             )
             child.redist_counts()
 
-    def extend_leaves(self, level):
+    def extend_leaves(self, level: int):
         if not self.children and level > 0:
             self.add_child(self.name)
         for child in self.children:
             child.extend_leaves(level - 1)
 
-    def cutoff_at_level(self, cutoff_level):
+    def cutoff_at_level(self, cutoff_level: int):
         if not self.children:
             return self
 

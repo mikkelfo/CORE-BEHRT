@@ -53,15 +53,15 @@ def censor_dataset(cfg):
 
 def model(model_class, cfg, vocabulary=None, tree=None, **model_kwargs):
     # Automatically calculate model params if not given
-    if (
-        vocabulary and cfg.model.vocab_size is None
-    ):  # Calculates vocab_size if not given
+
+    # Calculates vocab_size if not given
+    if vocabulary and cfg.model.vocab_size is None:
         cfg.model.vocab_size = len(vocabulary)
-    if cfg.model.type_vocab_size is None:  # Max number of segments if SEP tokens
+    # Max number of segments if SEP tokens
+    if cfg.model.type_vocab_size is None:
         cfg.model.type_vocab_size = cfg.model.max_position_embeddings // 2
-    if (
-        tree and cfg.model.leaf_size is None
-    ):  # Calculate leaf_size if Tree and not given
+    # Calculate leaf_size if Tree and not given
+    if tree and cfg.model.leaf_size is None:
         tree = loading.tree(cfg)
         cfg.model.leaf_size = tree.num_children_leaves()
 

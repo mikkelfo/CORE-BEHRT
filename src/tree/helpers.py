@@ -23,9 +23,12 @@ def build_tree(cfg, counts=None):
     codes = create_levels(files)
     tree = create_tree(codes)
 
+    # max_level from tree if not specified in config
+    max_level = tree.max_level() if cfg.tree.max_level is None else cfg.tree.max_level
+
     if cfg.tree.max_level is not None:
-        tree.cutoff_at_level(cfg.tree.max_level)
-        tree.extend_leaves(cfg.tree.max_level)
+        tree.cutoff_at_level(max_level)  # Always cfg.tree.max_level
+    tree.extend_leaves(max_level)
 
     if counts is None:
         counts = loading.load(cfg.paths.extra_dir, cfg.paths.base_counts)

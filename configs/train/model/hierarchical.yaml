@@ -8,4 +8,4 @@ vocab_size: 26445
 leaf_size: 24142
 type_vocab_size: 306
 pool_type: mean
-levels: 5
+linear_combination: null

@@ -20,33 +20,6 @@ args = get_args('data_pretrain.yaml', 'data_pretrain')
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
 
 
-def check_and_clear_directory(cfg, logger):
-    tokenized_dir = join(cfg.output_dir, 'tokenized')
-    tokenized_files = os.listdir(tokenized_dir) 
-    if len(tokenized_files)>0:
-        logger.warning(f"The directory {tokenized_dir} is not empty.")
-        logger.warning(f"Deleting tokenized files.")
-        for file in tokenized_files:
-            os.remove(join(tokenized_dir, file))
-
-
-def create_and_save_features(conceptloader, handler, excluder, cfg, logger, )-> list[list]:
-    """
-    Creates features and saves them to disk.
-    Returns a list of lists of pids for each batch
-    """
-    pids = []
-    for i, (concept_batch, patient_batch) in enumerate(tqdm(conceptloader(), desc='Batch Process Data', file=TqdmToLogger(logger))):
-        feature_maker = FeatureMaker(cfg.features) # Otherwise appended to old features
-        features_batch, pids_batch = feature_maker(concept_batch, patient_batch)
-        features_batch = handler(features_batch)
-        features_batch, _, kept_indices  = excluder(features_batch)
-        kept_pids = [pids_batch[idx] for idx in kept_indices]
-        torch.save(features_batch, join(cfg.output_dir, 'features', f'features_{i}.pt'))
-        torch.save(kept_pids, join(cfg.output_dir, 'features', f'pids_features_{i}.pt'))
-        pids.append(kept_pids)
-    return pids
-
 def main_data(config_path):
     """
         Loads data
@@ -104,3 +77,31 @@ def main_data(config_path):
 
 if __name__ == '__main__':
     main_data(config_path)
+
+
+def check_and_clear_directory(cfg, logger):
+    tokenized_dir = join(cfg.output_dir, 'tokenized')
+    tokenized_files = os.listdir(tokenized_dir) 
+    if len(tokenized_files)>0:
+        logger.warning(f"The directory {tokenized_dir} is not empty.")
+        logger.warning(f"Deleting tokenized files.")
+        for file in tokenized_files:
+            os.remove(join(tokenized_dir, file))
+
+
+def create_and_save_features(conceptloader, handler, excluder, cfg, logger, )-> list[list]:
+    """
+    Creates features and saves them to disk.
+    Returns a list of lists of pids for each batch
+    """
+    pids = []
+    for i, (concept_batch, patient_batch) in enumerate(tqdm(conceptloader(), desc='Batch Process Data', file=TqdmToLogger(logger))):
+        feature_maker = FeatureMaker(cfg.features) # Otherwise appended to old features
+        features_batch, pids_batch = feature_maker(concept_batch, patient_batch)
+        features_batch = handler(features_batch)
+        features_batch, _, kept_indices  = excluder(features_batch)
+        kept_pids = [pids_batch[idx] for idx in kept_indices]
+        torch.save(features_batch, join(cfg.output_dir, 'features', f'features_{i}.pt'))
+        torch.save(kept_pids, join(cfg.output_dir, 'features', f'pids_features_{i}.pt'))
+        pids.append(kept_pids)
+    return pids

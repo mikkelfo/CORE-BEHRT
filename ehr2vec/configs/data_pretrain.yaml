@@ -31,8 +31,8 @@ excluder:
 
 split_ratios:
   train: 0.8
-  val: 0.2
-  test: 0.0
+  val: 0.1
+  test: 0.1
 
 handler:
   concept_fill: "[UNK]"    

@@ -7,6 +7,7 @@ import dateutil
 import pandas as pd
 import pyarrow.parquet as pq
 
+import random
 
 class ConceptLoader():
     def __init__(self, concepts=['diagnose', 'medication'], data_dir: str = 'formatted_data', patients_info: str = 'patients_info.csv', **kwargs):
@@ -67,6 +68,7 @@ class ConceptLoaderLarge(ConceptLoader):
         self.concept_paths = [p for p in concept_paths if (split(p)[1]).split('.')[1] in concepts]
         self.patients_df = self._read_file(join(data_dir, patients_info))
         self.patient_ids = self.patients_df['PID'].unique().tolist()
+        random.shuffle(self.patient_ids)  # Shuffle the patient IDs
         self.chunksize = kwargs.get('chunksize', 10000)
         self.batch_size = kwargs.get('batch_size', 100000)
         self.test = kwargs.get('test', False)

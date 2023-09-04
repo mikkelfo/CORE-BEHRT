@@ -51,7 +51,7 @@ def main_data(config_path):
     
     logger.info('Initialize Processors')
     logger.info('Starting feature creation and processing')
-    if not check_directory_for_features(cfg.loader.data_dir, logger):
+    if not check_directory_for_features(cfg.loader.data_dir):
         pids = create_and_save_features(ConceptLoaderLarge(**cfg.loader), 
                                         Handler(**cfg.handler), 
                                         Excluder(**cfg.excluder), 
@@ -68,8 +68,16 @@ def main_data(config_path):
     check_and_clear_directory(cfg, logger)
     logger.info('Tokenizing')
     tokenizer = EHRTokenizer(config=cfg.tokenizer)
-    batch_tokenize = BatchTokenize(tokenizer, cfg, logger)
+    batch_tokenize = BatchTokenize(tokenizer, cfg)
     batch_tokenize.tokenize(batches)
+    logger.info('Finished tokenizing')
+
+    logger.info('Tokenizing without truncation')
+    cfg.tokenizer.truncation = False
+    tokenizer = EHRTokenizer(config=cfg.tokenizer)
+    batch_tokenize = BatchTokenize(tokenizer, cfg, tokenized_dir_name='tokenized_no_truncation')
+    batch_tokenize.tokenize(batches)
+    logger.info('Finished tokenizing without truncation')
     
     logger.info('Saving file ids')
     torch.save(batches.train.file_ids, join(cfg.output_dir, 'train_file_ids.pt'))
@@ -82,10 +90,6 @@ def main_data(config_path):
                     remote_path = join("PHAIR", "pretrain_dataset", cfg.run_name))
         mount_context.stop()
     logger.info('Finished')
-
-if __name__ == '__main__':
-    main_data(config_path)
-
 
 def check_and_clear_directory(cfg, logger):
     tokenized_dir = join(cfg.output_dir, 'tokenized')
@@ -113,3 +117,8 @@ def create_and_save_features(conceptloader, handler, excluder, cfg, logger, )-> 
         torch.save(kept_pids, join(cfg.output_dir, 'features', f'pids_features_{i}.pt'))
         pids.append(kept_pids)
     return pids
+
+if __name__ == '__main__':
+    main_data(config_path)
+
+

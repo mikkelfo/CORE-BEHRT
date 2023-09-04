@@ -25,8 +25,6 @@ class EHRTokenizer():
             padding = self.padding
         if not truncation:
             truncation = self.truncation
-        if truncation=='skip':
-            return self.batch_encode(features, padding, truncation=False)
         return self.batch_encode(features, padding, truncation)
 
     def batch_encode(self, features: dict, padding=True, truncation=512):

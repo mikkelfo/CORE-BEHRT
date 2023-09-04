@@ -7,7 +7,7 @@ loader:
   concepts: [
     diagnose
   ]
-  batch_size: 50
+  batch_size: 64
   chunksize: 300
 
 features:
@@ -30,8 +30,8 @@ excluder:
   min_len: 2
 
 split_ratios:
-  train: 0.8
-  val: 0.1
+  train: 0.72 # 80% of 90%
+  val: 0.18 # 20% of 90%
   test: 0.1
 
 handler:

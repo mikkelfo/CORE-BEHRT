@@ -17,12 +17,16 @@ class EHRTokenizer():
         else:
             self.new_vocab = False
             self.vocabulary = vocabulary
+        self.truncation = config.get('truncation', None)
+        self.padding = config.get('padding', False)
 
     def __call__(self, features: dict, padding=None, truncation=None):
-        if padding is None:
-            padding = self.config.padding
-        if truncation is None:
-            truncation = self.config.truncation
+        if not padding:
+            padding = self.padding
+        if not truncation:
+            truncation = self.truncation
+        if truncation=='skip':
+            return self.batch_encode(features, padding, truncation=False)
         return self.batch_encode(features, padding, truncation)
 
     def batch_encode(self, features: dict, padding=True, truncation=512):
@@ -32,7 +36,7 @@ class EHRTokenizer():
         for patient in self._patient_iterator(features):
             patient = self.insert_special_tokens(patient)                   # Insert SEP and CLS tokens
 
-            if truncation and len(patient['concept']) > truncation:
+            if truncation and (len(patient['concept']) > truncation):
                 patient = self.truncate(patient, max_len=truncation)        # Truncate patient to max_len
             
             # Created after truncation for efficiency

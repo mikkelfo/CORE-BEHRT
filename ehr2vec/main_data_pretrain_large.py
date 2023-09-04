@@ -1,4 +1,12 @@
-"""Create tokenized features from formatted data. config template: data.yaml"""
+"""
+Input: Formatted Data
+- Load concepts
+- Handle wrong data
+- Exclude patients with <k concepts
+- Split data
+- Tokenize
+- truncate train and val
+"""
 import os
 from os.path import join
 

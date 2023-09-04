@@ -91,7 +91,7 @@ class BatchTokenize:
             features_dir = join(self.cfg.output_dir, 'features')
         for batch in tqdm(batches, desc=f'Tokenizing {mode} batches', file=TqdmToLogger(self.logger)):
             features = torch.load(join(features_dir, f'features_{batch}.pt'))
-            train_encoded = self.tokenizer(features)
+            train_encoded = self.tokenizer(features, truncation='skip' if mode=='test' else None)
             torch.save(train_encoded, join(self.cfg.output_dir, 'tokenized', f'tokenized_{mode}_{batch}.pt'))
             files.append(f'tokenized_{mode}_{batch}.pt')
         return files

@@ -1,13 +1,15 @@
+import logging
+import os
 from os.path import join
+from typing import List, Tuple
 
 import numpy as np
 import torch
-from tqdm import tqdm
 from common.loader import check_directory_for_features
 from common.logger import TqdmToLogger
+from tqdm import tqdm
 
-from typing import List, Tuple
-
+logger = logging.getLogger(__name__)  # Get the logger for this module
 class DataSet:
     def __init__(self):
         self.pids = None
@@ -69,10 +71,11 @@ class Batches:
         return [item for sublist in ls_of_ls for item in sublist] 
 
 class BatchTokenize:
-    def __init__(self, tokenizer, cfg, logger):
+    def __init__(self, tokenizer, cfg, tokenized_dir_name='tokenized'):
         self.tokenizer = tokenizer
         self.cfg = cfg
-        self.logger = logger
+        self.tokenized_dir_name = tokenized_dir_name
+        os.makedirs(join(cfg.output_dir, self.tokenized_dir_name), exist_ok=True)
 
     def tokenize(self, batches: Batches)-> Tuple[List[str]]:
         train_files = self.batch_tokenize(batches.train.file_ids, mode='train')
@@ -85,13 +88,13 @@ class BatchTokenize:
     def batch_tokenize(self, batches, mode='train'):
         """Tokenizes batches and saves them"""
         files = []
-        if check_directory_for_features(self.cfg.loader.data_dir, self.logger):
+        if check_directory_for_features(self.cfg.loader.data_dir):
             features_dir = join(self.cfg.loader.data_dir, 'features')
         else:
             features_dir = join(self.cfg.output_dir, 'features')
-        for batch in tqdm(batches, desc=f'Tokenizing {mode} batches', file=TqdmToLogger(self.logger)):
+        for batch in tqdm(batches, desc=f'Tokenizing {mode} batches', file=TqdmToLogger(logger)):
             features = torch.load(join(features_dir, f'features_{batch}.pt'))
-            train_encoded = self.tokenizer(features, truncation='skip' if mode=='test' else None)
-            torch.save(train_encoded, join(self.cfg.output_dir, 'tokenized', f'tokenized_{mode}_{batch}.pt'))
+            train_encoded = self.tokenizer(features)
+            torch.save(train_encoded, join(self.cfg.output_dir, self.tokenized_dir_name, f'tokenized_{mode}_{batch}.pt'))
             files.append(f'tokenized_{mode}_{batch}.pt')
         return files

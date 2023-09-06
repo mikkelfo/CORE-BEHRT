@@ -65,8 +65,10 @@ class BaseEHRDataset(IterableDataset):
         logger.info("Initializing patient IDs")
         
         if provided_pids and self.num_patients:
-            logger.error("Cannot provide both pids and num_patients")
-            raise ValueError("Cannot provide pids and num_patients")    
+            assert len(provided_pids) >= self.num_patients, f"Number of provided pids {len(provided_pids)} should be larger than num_patients {self.num_patients}"
+            logger.info(f"Select {self.num_patients} random patients from the provided patient IDs")
+            selected_pids = random.sample(provided_pids, self.num_patients)
+            return self.filter_pids_update_file_ids(selected_pids)
         
         if provided_pids:
             logger.info("Using provided patient IDs")

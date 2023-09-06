@@ -13,8 +13,9 @@ from torch.utils.data import IterableDataset
 
 
 class BaseEHRDataset(IterableDataset):
-    def __init__(self, data_dir, mode, pids=None, num_patients=None, seed=None, vocabulary:dict=None, n_procs=None):  #
+    def __init__(self, data_dir, mode, pids=None, num_patients=None, seed=None, vocabulary:dict=None, n_procs=None, tokenized_dir_name='tokenized'):  #
         logger.info(f"Initializing {mode} dataset")
+        self.tokenized_dir_name = tokenized_dir_name
         self.data_dir = data_dir
         self.mode = mode
         self.num_patients = num_patients
@@ -140,7 +141,7 @@ class BaseEHRDataset(IterableDataset):
     
     def _get_all_tokenized_files(self):
         """Returns the data files for the given mode"""
-        return glob(join(self.data_dir, 'tokenized',f'tokenized_{self.mode}_*.pt'))
+        return glob(join(self.data_dir, self.tokenized_dir_name, f'tokenized_{self.mode}_*.pt'))
     
     def _update_tokenized_files(self):
         """Updates the tokenized files to only include the selected patients"""
@@ -335,8 +336,8 @@ class CensorDataset(BaseEHRDataset):
         outcomes is a list of the outcome timestamps to predict
         censor_outcomes is a list of the censor timestamps to use
     """
-    def __init__(self, data_dir:str, mode:str, outcomes:list, censor_outcomes: list, n_hours: int, outcome_pids: list, num_patients=None, pids=None, seed=None, n_procs=None):
-        super().__init__(data_dir, mode, num_patients=num_patients, pids=pids, seed=seed, n_procs=n_procs)
+    def __init__(self, data_dir:str, mode:str, outcomes:list, censor_outcomes: list, n_hours: int, outcome_pids: list, num_patients=None, pids=None, seed=None, n_procs=None, tokenized_dir_name='tokenized_no_truncation'):
+        super().__init__(data_dir, mode, num_patients=num_patients, pids=pids, seed=seed, n_procs=n_procs, tokenized_dir_name=tokenized_dir_name)
         self.outcomes = outcomes
         self.censor_outcomes = censor_outcomes
         self.n_hours = n_hours
@@ -376,7 +377,6 @@ class CensorDataset(BaseEHRDataset):
     def validate_outcome_pids(self, outcome_pids):
         """All the pids should be contained in outcome pids"""
         if set(self.pids).issubset(set(outcome_pids)):
-            logger.warn("test")
             return outcome_pids
         else:
             logger.warn('Some patients in the dataset are not contained in the outcome pids. They will be removed.')

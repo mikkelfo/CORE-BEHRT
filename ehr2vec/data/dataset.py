@@ -26,6 +26,9 @@ class BaseEHRDataset(IterableDataset):
         
         self.vocabulary = vocabulary or torch.load(join(data_dir, 'vocabulary.pt'))
 
+        self.initialize_dataset(pids)
+        
+    def initialize_dataset(self, pids):
         self.tokenized_files = self._get_all_tokenized_files()
         self.file_ids = self.get_file_ids_from_files(self.tokenized_files)
         self.pid_files = self.get_pid_files_from_file_ids(self.file_ids)

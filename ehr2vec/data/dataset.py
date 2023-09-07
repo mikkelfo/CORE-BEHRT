@@ -338,23 +338,47 @@ class CensorDataset(BaseEHRDataset):
         outcomes is a list of the outcome timestamps to predict
         censor_outcomes is a list of the censor timestamps to use
     """
-    def __init__(self, data_dir:str, mode:str, outcomes:list, censor_outcomes: list, n_hours: int, outcome_pids: list, num_patients=None, pids=None, seed=None, n_procs=None, tokenized_dir_name='tokenized_no_truncation'):
+    def __init__(self, data_dir:str, mode:str, outcomes:list, censor_outcomes: list, n_hours: int, outcome_pids: list, num_patients=None, pids=None, seed=None, n_procs=None, 
+                 tokenized_dir_name='tokenized_no_truncation', truncation_len=512):
         super().__init__(data_dir, mode, num_patients=num_patients, pids=pids, seed=seed, n_procs=n_procs, tokenized_dir_name=tokenized_dir_name)
         self.outcomes = outcomes
         self.censor_outcomes = censor_outcomes
         self.n_hours = n_hours
         self.outcome_pids = self.validate_outcome_pids(outcome_pids)
+        self.trunctation_len = truncation_len
 
     def get_patient(self, file_name: str):
         """Loads a single patient from a file"""
         features = torch.load(file_name)
+        sep_token = self.vocabulary['[SEP]']
         for patient_index, pid in self.patient_integer_ids[self.extract_file_id(file_name)].items():
             patient = self.get_patient_dic(features, patient_index)
             outcome_patient_index = self.outcome_pids.index(pid)
             censor_timestamp = self.censor_outcomes[outcome_patient_index]
             patient = self._censor(patient, censor_timestamp)
+            patient = self._truncate_patient(patient, self.trunctation_len, sep_token)
             patient['target'] = float(pd.notna(self.outcomes[outcome_patient_index]))
             yield patient
+
+    def _truncate_patient(self, patient, max_len, sep_token):
+        # Do not truncate if patient is shorter than max_len
+        
+        if len(patient["concept"]) <= max_len:
+            return patient
+
+        # Get index of first [SEP] token (when background sentence ends)
+        background_length = (patient["concept"] == sep_token).nonzero()[0][0]
+        background_length += 1  # Adjust for 0-indexing
+        truncation_length = max_len - background_length
+
+        # Do not start seq with [SEP] token (SEP token is included in background sentence)
+        if patient["concept"][-truncation_length] == sep_token:
+            truncation_length -= 1
+
+        return {
+            key: torch.cat((value[:background_length], value[-truncation_length:]))
+            for key, value in patient.items()
+        }
 
     def _censor(self, patient: dict, event_timestamp: float) -> dict:
         if pd.isna(event_timestamp):

@@ -108,7 +108,8 @@ def get_datasets(cfg, outcomes, censor_outcomes, pids):
         'outcome_pids': pids,
         'pids': pids,
         'n_hours': cfg.outcome.n_hours,
-        'n_procs': cfg.train_data.get('n_procs', None)
+        'n_procs': cfg.train_data.get('n_procs', None),
+        'truncation_len': cfg.get('truncation_len', None),
     }
     train_dataset = CensorDataset(mode='train', num_patients=cfg.train_data.num_patients, **kwargs)
     val_dataset = CensorDataset(mode='val', num_patients=cfg.val_data.num_patients, **kwargs)

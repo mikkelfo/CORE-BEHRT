@@ -1,8 +1,8 @@
-import pandas as pd
-from datetime import datetime
+import os
 import glob
 import dateutil
-import os
+import pandas as pd
+from datetime import datetime
 
 
 class ConceptLoader:
@@ -27,7 +27,7 @@ class ConceptLoader:
         path = glob.glob(concept_paths)
 
         # Filter out concepts files
-        path = [p for p in path if p.split(".")[1] in concepts]
+        path = [p for p in path if p.split(".")[-2] in concepts]
 
         # Load concepts
         concepts = pd.concat(

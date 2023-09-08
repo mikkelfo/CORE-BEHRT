@@ -18,11 +18,18 @@ class AgeCreator(BaseCreator):
         birthdates = pd.Series(
             patients_info["BIRTHDATE"].values, index=patients_info["PID"]
         ).to_dict()
+        birthdates_series = concepts["PID"].map(birthdates)
         # Calculate approximate age
-        ages = (
-            ((concepts["TIMESTAMP"] - concepts["PID"].map(birthdates)).dt.days / 365.25)
-            + 0.5
-        ).round()
+        try:
+            ages = (
+                ((concepts["TIMESTAMP"] - birthdates_series).dt.days / 365.25) + 0.5
+            ).round()
+        except OverflowError:  # Convert to datetime if overflow (less memory usage)
+            ages = (
+                (concepts["TIMESTAMP"].dt.date - birthdates_series.dt.date)
+                .map(lambda x: (x.days / 365.25))
+                .round()
+            )
 
         concepts["AGE"] = ages
         return concepts

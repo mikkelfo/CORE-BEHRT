@@ -23,9 +23,14 @@ class EHRTrainer:
         sampler=None,
         cfg=None,
     ):
-        self.device = (
-            torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-        )
+        if torch.cuda.is_available():
+            self.device = torch.device("cuda")
+        elif torch.backends.mps.is_available():
+            self.device = torch.device("mps")
+        else:
+            self.device = torch.device("cpu")
+
+        print("Running on:", self.device)
 
         self.model = model.to(self.device)
         self.train_dataset = train_dataset
@@ -172,12 +177,13 @@ class EHRTrainer:
         val_loop.set_description("Validation")
         val_loss = 0
         metric_values = {name: [] for name in self.metrics}
-        for batch in val_loop:
-            outputs = self.forward_pass(batch)
-            val_loss += outputs.loss.item()
+        with torch.no_grad():
+            for batch in val_loop:
+                outputs = self.forward_pass(batch)
+                val_loss += outputs.loss.item()
 
-            for name, func in self.metrics.items():
-                metric_values[name].append(func(outputs, batch))
+                for name, func in self.metrics.items():
+                    metric_values[name].append(func(outputs, batch))
 
         self.model.train()
         return val_loss / len(val_loop), {

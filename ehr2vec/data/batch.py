@@ -76,7 +76,7 @@ class BatchTokenize:
         self.cfg = cfg
         self.tokenized_dir_name = tokenized_dir_name
         os.makedirs(join(cfg.output_dir, self.tokenized_dir_name), exist_ok=True)
-
+        self.pids = {}
     def tokenize(self, batches: Batches)-> Tuple[List[str]]:
         train_files = self.batch_tokenize(batches.train.file_ids, mode='train')
         self.tokenizer.freeze_vocabulary()
@@ -94,7 +94,10 @@ class BatchTokenize:
             features_dir = join(self.cfg.output_dir, 'features')
         for batch in tqdm(batches, desc=f'Tokenizing {mode} batches', file=TqdmToLogger(logger)):
             features = torch.load(join(features_dir, f'features_{batch}.pt'))
+            pids = torch.load(join(features_dir, f'pids_features_{batch}.pt'))
             train_encoded = self.tokenizer(features)
             torch.save(train_encoded, join(self.cfg.output_dir, self.tokenized_dir_name, f'tokenized_{mode}_{batch}.pt'))
             files.append(f'tokenized_{mode}_{batch}.pt')
+            self.pids[f'tokenized_{mode}_{batch}.pt'] = pids
+        torch.save(self.pids, join(self.cfg.output_dir, self.tokenized_dir_name, f'pids_{mode}.pt'))
         return files

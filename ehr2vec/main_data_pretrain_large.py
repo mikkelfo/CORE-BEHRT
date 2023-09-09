@@ -72,6 +72,7 @@ def main_data(config_path):
     batch_tokenize.tokenize(batches)
     logger.info('Finished tokenizing')
 
+    check_and_clear_directory(cfg, logger, tokenized_dir_name='tokenized_no_truncation')
     logger.info('Tokenizing without truncation')
     cfg.tokenizer.truncation = False
     tokenizer = EHRTokenizer(config=cfg.tokenizer, vocabulary=tokenizer.vocabulary)
@@ -92,8 +93,8 @@ def main_data(config_path):
         mount_context.stop()
     logger.info('Finished')
 
-def check_and_clear_directory(cfg, logger):
-    tokenized_dir = join(cfg.output_dir, 'tokenized')
+def check_and_clear_directory(cfg, logger, tokenized_dir_name='tokenized'):
+    tokenized_dir = join(cfg.output_dir, tokenized_dir_name)
     tokenized_files = os.listdir(tokenized_dir) 
     if len(tokenized_files)>0:
         logger.warning(f"The directory {tokenized_dir} is not empty.")

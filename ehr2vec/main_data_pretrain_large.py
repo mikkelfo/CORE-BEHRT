@@ -74,7 +74,8 @@ def main_data(config_path):
 
     logger.info('Tokenizing without truncation')
     cfg.tokenizer.truncation = False
-    tokenizer = EHRTokenizer(config=cfg.tokenizer)
+    tokenizer = EHRTokenizer(config=cfg.tokenizer, vocabulary=tokenizer.vocabulary)
+    tokenizer.freeze_vocabulary()
     batch_tokenize = BatchTokenize(tokenizer, cfg, tokenized_dir_name='tokenized_no_truncation')
     batch_tokenize.tokenize(batches)
     logger.info('Finished tokenizing without truncation')

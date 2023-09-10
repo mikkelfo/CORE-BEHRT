@@ -87,17 +87,25 @@ class BatchTokenize:
 
     def batch_tokenize(self, batches, mode='train'):
         """Tokenizes batches and saves them"""
-        files = []
         if check_directory_for_features(self.cfg.loader.data_dir):
             features_dir = join(self.cfg.loader.data_dir, 'features')
         else:
             features_dir = join(self.cfg.output_dir, 'features')
+        encoded = {}
+        pids = []
         for batch in tqdm(batches, desc=f'Tokenizing {mode} batches', file=TqdmToLogger(logger)):
             features = torch.load(join(features_dir, f'features_{batch}.pt'))
-            pids = torch.load(join(features_dir, f'pids_features_{batch}.pt'))
-            train_encoded = self.tokenizer(features)
-            torch.save(train_encoded, join(self.cfg.output_dir, self.tokenized_dir_name, f'tokenized_{mode}_{batch}.pt'))
-            files.append(f'tokenized_{mode}_{batch}.pt')
-            self.pids[f'tokenized_{mode}_{batch}.pt'] = pids
-        torch.save(self.pids, join(self.cfg.output_dir, self.tokenized_dir_name, f'pids_{mode}.pt'))
-        return files
+            pids_batch = torch.load(join(features_dir, f'pids_features_{batch}.pt'))
+            encoded_batch = self.tokenizer(features)
+            self.merge_dicts(encoded, encoded_batch)
+            pids = pids + pids_batch 
+        torch.save(encoded, join(self.cfg.output_dir, self.tokenized_dir_name, f'tokenized_{mode}.pt'))
+        torch.save(pids, join(self.cfg.output_dir, self.tokenized_dir_name, f'pids_{mode}.pt'))
+        assert len(pids) == len(encoded['concept']), f"Length of pids ({len(pids)}) does not match length of encoded ({len(encoded['concept'])})"
+        
+    @staticmethod
+    def merge_dicts(dict1:dict, dict2:dict):
+        """Merges two dictionaries"""
+        for key, value in dict2.items():
+            dict1.setdefault(key, []).extend(value)
+        

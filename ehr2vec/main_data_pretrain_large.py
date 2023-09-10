@@ -71,15 +71,6 @@ def main_data(config_path):
     batch_tokenize = BatchTokenize(tokenizer, cfg)
     batch_tokenize.tokenize(batches)
     logger.info('Finished tokenizing')
-
-    check_and_clear_directory(cfg, logger, tokenized_dir_name='tokenized_no_truncation')
-    logger.info('Tokenizing without truncation')
-    cfg.tokenizer.truncation = False
-    tokenizer = EHRTokenizer(config=cfg.tokenizer, vocabulary=tokenizer.vocabulary)
-    tokenizer.freeze_vocabulary()
-    batch_tokenize = BatchTokenize(tokenizer, cfg, tokenized_dir_name='tokenized_no_truncation')
-    batch_tokenize.tokenize(batches)
-    logger.info('Finished tokenizing without truncation')
     
     logger.info('Saving file ids')
     torch.save(batches.train.file_ids, join(cfg.output_dir, 'train_file_ids.pt'))

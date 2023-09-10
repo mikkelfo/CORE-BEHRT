@@ -1,13 +1,15 @@
 """Pretrain BERT model on EHR data. Use config_template pretrain.yaml. Run main_data_pretrain.py first to create the dataset and vocabulary."""
 import os
 from os.path import join
+import torch
 
 from common.azure import setup_azure
 from common.config import load_config
-from common.loader import create_datasets
+from common.loader import load_tokenized_data, select_patient_subset, save_pids
 from common.setup import setup_run_folder, get_args
 from model.model import BertEHRModel
 from torch.optim import AdamW
+from data.dataset import MLMDataset
 from trainer.trainer import EHRTrainer
 from transformers import BertConfig, get_linear_schedule_with_warmup
 
@@ -24,12 +26,18 @@ def main_train(config_path):
         cfg.paths.data_path = join(mount_context.mount_point, cfg.paths.data_path)
 
     logger = setup_run_folder(cfg)
-    logger.info(f"Access data from {cfg.paths.data_path}")
-    logger.info('Loading data')
-    logger.info(f"Using {cfg.train_data.get('num_patients', 'all')} patients for training")
-    logger.info(f"Using {cfg.val_data.get('num_patients', 'all')} patients for validation")
-    train_dataset, val_dataset = create_datasets(cfg)
     
+    
+    logger.info(f"Loading data from {cfg.paths.data_path} with {cfg.train_data.get('num_patients', 'all')} train patients and {cfg.val_data.get('num_patients', 'all')} val patients")
+    train_features, train_pids, val_features, val_pids, vocabulary = load_tokenized_data(cfg)
+    train_features, train_pids, val_features, val_pids = select_patient_subset(train_features, train_pids, val_features, val_pids, cfg.train_data.num_patients, cfg.val_data.num_patients)
+    run_folder = join(cfg.paths.output_path, cfg.paths.run_name)
+    save_pids(run_folder, train_pids, val_pids)
+    torch.save(vocabulary, join(run_folder, 'vocabulary.pt'))
+    train_dataset = MLMDataset(train_features, vocabulary, **cfg.dataset)
+    val_dataset = MLMDataset(val_features, vocabulary, **cfg.dataset)
+
+
     logger.info('Initializing model')
     model = BertEHRModel(
         BertConfig(
@@ -38,6 +46,8 @@ def main_train(config_path):
 
         )
     )
+
+
     logger.info('Initializing optimizer')
     optimizer = AdamW(
         model.parameters(),
@@ -47,6 +57,8 @@ def main_train(config_path):
     )
     if cfg.scheduler:
         scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=cfg.scheduler.num_warmup_steps, num_training_steps=cfg.scheduler.num_training_steps)
+
+
     logger.info('Initialize trainer')
     trainer = EHRTrainer( 
         model=model, 

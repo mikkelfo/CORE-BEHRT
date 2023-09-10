@@ -154,7 +154,6 @@ class EHRTrainer():
     def setup_training(self) -> DataLoader:
         self.model.train()
         self.save_setup()
-        self.save_pids()
         dataloader = DataLoader(self.train_dataset, batch_size=self.args['batch_size'], shuffle=False, collate_fn=self.args['collate_fn'])
         return dataloader
 
@@ -219,24 +218,7 @@ class EHRTrainer():
         self.model.config.save_pretrained(self.run_folder)  
         with open(os.path.join(self.run_folder, 'pretrain_config.yaml'), 'w') as file:
             yaml.dump(self.cfg.to_dict(), file)
-        self.log(f'Saved config to {self.run_folder}')
-       
-        self.train_dataset.save_vocabulary(self.run_folder)
-        self.log(f'Saved vocabulary to {self.run_folder}')
-       
-    def save_pids(self):
-        """Saves the pids of the train, val and test datasets"""
-        try:
-            torch.save(self.train_dataset.pids, os.path.join(self.run_folder, 'train_pids.pt'))
-            torch.save(self.val_dataset.pids, os.path.join(self.run_folder, 'val_pids.pt'))
-            torch.save(self.train_dataset.file_ids, os.path.join(self.run_folder, 'train_file_ids.pt'))
-            torch.save(self.val_dataset.file_ids, os.path.join(self.run_folder, 'val_file_ids.pt'))            
-            if self.test_dataset:
-                torch.save(self.test_dataset.pids, os.path.join(self.run_folder, 'test_pids.pt'))
-            self.log(f'Copied pids to {self.run_folder}')
-        except AttributeError:
-            self.log("Failed to save pids")
-            
+        self.log(f'Saved config to {self.run_folder}')  
 
     def save_checkpoint(self, id, **kwargs):
         """Saves a checkpoint"""

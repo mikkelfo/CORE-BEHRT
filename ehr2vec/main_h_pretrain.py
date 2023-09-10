@@ -2,10 +2,13 @@
 import os
 from os.path import join
 
+import torch
 from common.azure import setup_azure
 from common.config import load_config
-from common.loader import create_datasets
-from common.setup import setup_run_folder, get_args
+from common.loader import (load_tokenized_data, load_tree, save_pids,
+                           select_patient_subset)
+from common.setup import get_args, setup_run_folder
+from data.dataset import HierarchicalMLMDataset
 from model.model import HierarchicalBertForPretraining
 from torch.optim import AdamW
 from trainer.trainer import EHRTrainer
@@ -24,12 +27,19 @@ def main_train(config_path):
     
     logger = setup_run_folder(cfg)
     
-    logger.info(f'Loading data from {cfg.paths.data_path}')
-    logger.info(f"Using {cfg.train_data.get('num_patients', 'all')} patients for training")
-    logger.info(f"Using {cfg.val_data.get('num_patients', 'all')} patients for validation")
-    train_dataset, val_dataset = create_datasets(cfg, hierarchical=True)
-    if logger:
-        logger.info(f"Using {type(train_dataset).__name__} for training")
+    logger.info(f"Loading data from {cfg.paths.data_path} with {cfg.train_data.get('num_patients', 'all')} train patients and {cfg.val_data.get('num_patients', 'all')} val patients")
+
+    train_features, train_pids, val_features, val_pids, vocabulary = load_tokenized_data(cfg)
+    train_features, train_pids, val_features, val_pids = select_patient_subset(train_features, train_pids, val_features, val_pids, cfg.train_data.num_patients, cfg.val_data.num_patients)
+    tree, tree_matrix, h_vocabulary = load_tree(cfg, hierarchical_dir=cfg.paths.hierarchical_dir)
+    run_folder = join(cfg.paths.output_path, cfg.paths.run_name)
+    save_pids(run_folder, train_pids, val_pids)
+    torch.save(vocabulary, join(run_folder, 'vocabulary.pt'))
+    torch.save(h_vocabulary, join(run_folder, 'h_vocabulary.pt'))
+
+    train_dataset = HierarchicalMLMDataset(train_features, vocabulary, h_vocabulary, tree, tree_matrix, **cfg.dataset)
+    val_dataset = HierarchicalMLMDataset(val_features, vocabulary, h_vocabulary, tree, tree_matrix, **cfg.dataset)
+
     logger.info("Setup model")
     bertconfig = BertConfig(leaf_size=len(train_dataset.leaf_counts), 
                             vocab_size=len(train_dataset.vocabulary),

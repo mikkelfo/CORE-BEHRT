@@ -3,12 +3,13 @@ import logging
 import os
 from os.path import join
 
-logger = logging.getLogger(__name__)  # Get the logger for this module
+import numpy as np
 import pandas as pd
 import torch
 from data.dataset import CensorDataset, HierarchicalMLMDataset, MLMDataset
 from transformers import BertConfig
 
+logger = logging.getLogger(__name__)  # Get the logger for this module
 
 def load_model(model_class, cfg, add_config={}):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -112,3 +113,40 @@ def check_directory_for_features(dir_):
         return True
     else:
         return False
+    
+# New setup with map-style datasets
+def load_tokenized_data(cfg, tokenized_dir='tokenized'):
+    tokenized_data_path = join(cfg.paths.data_path, tokenized_dir)
+    train_features  = torch.load(join(tokenized_data_path, 'tokenized_train.pt'))
+    train_pids = torch.load(join(tokenized_data_path,  'pids_train.pt'))
+    val_features = torch.load(join(tokenized_data_path, 'tokenized_val.pt'))
+    val_pids = torch.load(join(tokenized_data_path, 'pids_val.pt'))
+    vocabulary = torch.load(join(cfg.paths.data_path, 'vocabulary.pt'))
+    return train_features, train_pids, val_features, val_pids, vocabulary
+    
+def load_tree(cfg, hierarchical_dir='hierarchical'):
+    hierarchical_path = join(cfg.paths.data_path, hierarchical_dir)
+    tree = torch.load(join(hierarchical_path, 'tree.pt'))
+    tree_matrix = torch.load(join(hierarchical_path, 'tree_matrix.pt'))
+    h_vocabulary = torch.load(join(hierarchical_path, 'vocabulary.pt'))
+    return tree, tree_matrix, h_vocabulary
+
+def select_patient_subset(train_features, train_pids, val_features, val_pids, train_num_patients=None, val_num_patients=None):
+    if train_num_patients is not None:
+        train_features, train_pids = select_subset(train_features, train_pids, train_num_patients)
+    if val_num_patients is not None:
+        val_features, val_pids = select_subset(val_features, val_pids, val_num_patients)
+    return train_features, train_pids, val_features, val_pids
+
+def select_subset(features, pids, num_patients):
+    indices = np.arange(len(pids))
+    np.random.shuffle(indices)
+    indices = indices[:num_patients]
+    pids = [pid for i, pid in enumerate(pids) if i in indices]
+    for k, v in features.items():
+        features[k] = [v[i] for i in indices]
+    return features, pids
+
+def save_pids(folder, train_pids, val_pids):
+    torch.save(train_pids, join(folder, 'pids_train.pt'))
+    torch.save(val_pids, join(folder, 'pids_val.pt'))

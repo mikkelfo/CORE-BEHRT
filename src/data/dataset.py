@@ -135,6 +135,44 @@ class CensorDataset(BaseDataset):
         return patient
 
 
+class VisitDataset(BaseDataset):
+    def __init__(
+        self, features: dict, vocabulary: dict, category: str, min_visits: int = 3
+    ):
+        super().__init__(features)
+        self.category = category
+        self.vocabulary = vocabulary
+        self.min_visits = min_visits
+
+        self.category_mask = [concept.startswith(category) for concept in vocabulary]
+
+    def __getitem__(self, index):
+        patient = super().__getitem__(index)
+
+        n_visits = len(patient["segment"].unique())
+        # Select j where min_visits < j < n_visits
+        j = torch.randint(self.min_visits, n_visits, (1,))
+
+        patient = self._censor_visit(patient, j)
+        return patient
+
+    def _censor_visit(self, patient: dict, j: int) -> dict:
+        # Select all visits before j
+        input_mask = patient["segment"] < j
+        input_patient = {key: value[input_mask] for key, value in patient.items()}
+
+        # Select target visit j
+        target_mask = patient["segment"] == j
+        patient_targets = patient["concept"][target_mask]
+
+        # Create target tensor
+        target = torch.zeros(len(self.vocabulary), dtype=torch.long)
+        target[patient_targets.unique()] = 1
+        input_patient["target"] = target[self.category_mask]
+
+        return input_patient
+
+
 class HierarchicalDataset(MLMDataset):
     def __init__(
         self,

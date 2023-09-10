@@ -12,7 +12,7 @@ from src.data_fixes.handle import Handler
 from src.data_fixes.exclude import Excluder
 
 
-@hydra.main(config_path="../../configs/data", config_name="pretrain")
+@hydra.main(config_path="../../configs/data", config_name="mimic")
 def main_data(cfg):
     # Save config
     with open(os.path.join(cfg.paths.data_dir, "data_config.json"), "w") as f:
@@ -28,7 +28,7 @@ def main_data(cfg):
     features = FeatureMaker(cfg)(concepts, patients_info)
 
     # Overwrite/drop nans and other incorrect values
-    features = Handler(cfg)(features)
+    features = Handler()(features)
 
     # Exclude patients
     features = Excluder(cfg)(features)
@@ -36,23 +36,27 @@ def main_data(cfg):
     # Save final features
     torch.save(features, os.path.join(cfg.paths.data_dir, "features.pt"))
 
-    # Split features
-    ## Pretrain split
-    pretrain_splits = Splitter(
-        cfg,
-        split_name="pretrain_splits.pt",
-    )(features, mode="random")
+    # Split features (test is optional)
+    train_features, val_features, *test_features = Splitter(
+        cfg, split_name="pretrain_splits.pt", mode="random"
+    )(features)
 
     # Tokenize
     tokenizer = EHRTokenizer(cfg.tokenizer)
-    train_encoded = tokenizer(pretrain_splits["train"])  # Re-do for ease of use
+    train_encoded = tokenizer(train_features)
     tokenizer.freeze_vocabulary(
         vocab_name=os.path.join(cfg.paths.data_dir, cfg.paths.vocabulary)
     )
+    val_encoded = tokenizer(val_features)
+
+    feature_set = [("train", train_encoded), ("val", val_encoded)]
+
+    if test_features:
+        test_encoded = tokenizer(test_features[0])
+        feature_set.append(("test", test_encoded))
 
     # Save features
-    for set, data in pretrain_splits.items():
-        encoded = tokenizer(data)
+    for set, encoded in feature_set:
         torch.save(
             encoded,
             os.path.join(cfg.paths.data_dir, f"{set}_{cfg.paths.encoded_suffix}.pt"),

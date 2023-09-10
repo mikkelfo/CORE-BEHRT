@@ -102,14 +102,16 @@ class HierarchicalBertForPretraining(BertEHRModel):
         self,
         batch: dict,
     ):
+        target = batch.pop('target', None)
         outputs = super().forward(batch)
+
 
         sequence_output = outputs[0]    # Last hidden state
         logits = self.cls(sequence_output)
         outputs.logits = logits
 
-        if batch.get('target', None) is not None:
-            outputs.loss = self.get_loss(logits, batch['target'], batch['attention_mask'])
+        if target is not None:
+            outputs.loss = self.get_loss(logits, target, batch['attention_mask'])
 
         return outputs
 

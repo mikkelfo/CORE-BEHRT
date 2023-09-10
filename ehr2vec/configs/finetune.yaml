@@ -8,7 +8,8 @@ paths:
   output_path: "outputs/finetuning"
   run_name: "finetune"
 
-truncation_len: 10
+dataset:
+  truncation_len: 10
 train_data:
   num_patients: 150
 val_data:

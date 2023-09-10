@@ -5,7 +5,8 @@ import pandas as pd
 import torch
 from common.azure import setup_azure
 from common.config import load_config
-from common.loader import load_model, retrieve_outcomes
+from common.loader import (load_model, load_tokenized_data, retrieve_outcomes,
+                           select_patient_subset)
 from common.setup import get_args, setup_run_folder
 from data.dataset import CensorDataset
 from model.model import BertForFineTuning
@@ -29,17 +30,31 @@ def main_finetune():
         cfg.paths.output_path = join("outputs")
     # Finetune specific
     logger = setup_run_folder(cfg)
-    logger.info(f"Access data from {cfg.paths.data_path}")
-    logger.info(f'Outcome file: {cfg.paths.outcome}, Outcome name: {cfg.outcome.type}')
-    logger.info(f'Censor file: {cfg.paths.censor}, Censor name: {cfg.outcome.censor_type}')
-    logger.info(f"Censoring {cfg.outcome.n_hours} hours after censor_outcome")
-    all_outcomes = torch.load(join(cfg.paths.data_path, cfg.paths.outcome))
+    logger.info(f"Access data from {cfg.paths.data_path}, Outcome file: {cfg.paths.outcome}, Outcome name: {cfg.outcome.type}")
+    logger.info(f'Censor file: {cfg.paths.censor}, Censoring {cfg.outcome.n_hours} hours after {cfg.outcome.censor_type}')
+     
+    train_features, train_pids, val_features, val_pids, vocabulary = load_tokenized_data(cfg)
+    train_features, train_pids = exclude_pretrain_patients(train_features, train_pids, cfg, 'train')
+    val_features, val_pids = exclude_pretrain_patients(val_features, val_pids, cfg, 'val')
+    train_features, train_pids, val_features, val_pids = select_patient_subset(train_features, train_pids, val_features, val_pids, cfg.train_data.num_patients, cfg.val_data.num_patients)
+    
+    outcomes = torch.load(join(cfg.paths.data_path, cfg.paths.outcome))
+    outcomes_train = select_outcomes_for_patients(outcomes, train_pids)
+    outcomes_val = select_outcomes_for_patients(outcomes, val_pids)
+    outcome_train, censor_outcome_train, _ = retrieve_outcomes(outcomes_train, cfg)
+    outcome_val, censor_outcome_val, _ = retrieve_outcomes(outcomes_val, cfg)
 
-    outcomes, censor_outcomes, pids = retrieve_outcomes(all_outcomes, cfg)
-    # TODO: that should be configurable
-    pids = filter_pids(cfg.paths.model_path, pids, logger)
-    train_dataset, val_dataset = get_datasets(cfg, outcomes, censor_outcomes, pids)
-
+    train_dataset = CensorDataset(
+            features=train_features, outcomes=outcome_train, 
+            censor_outcomes=censor_outcome_train, vocabulary=vocabulary, 
+            n_hours=cfg.outcome.n_hours,
+            truncation_len=cfg.dataset.get('truncation_len', None))
+    val_dataset = CensorDataset(
+        features=val_features, outcomes=outcome_val, 
+        censor_outcomes=censor_outcome_val, vocabulary=vocabulary, 
+        n_hours=cfg.outcome.n_hours,
+        truncation_len=cfg.dataset.get('truncation_len', None))
+   
     logger.info('Initializing model')
     model = load_model(BertForFineTuning, cfg, {'pos_weight':get_pos_weight(cfg, outcomes)})
     optimizer = AdamW(
@@ -100,20 +115,17 @@ def filter_pids(model_path, pids, logger):
     ft_pids = [pid for pid in pids if pid not in pt_pids]
     return ft_pids
 
-def get_datasets(cfg, outcomes, censor_outcomes, pids):
-    kwargs = {
-        'data_dir': cfg.paths.data_path,
-        'outcomes': outcomes,
-        'censor_outcomes': censor_outcomes,
-        'outcome_pids': pids,
-        'pids': pids,
-        'n_hours': cfg.outcome.n_hours,
-        'n_procs': cfg.train_data.get('n_procs', None),
-        'truncation_len': cfg.get('truncation_len', None),
-    }
-    train_dataset = CensorDataset(mode='train', num_patients=cfg.train_data.num_patients, **kwargs)
-    val_dataset = CensorDataset(mode='val', num_patients=cfg.val_data.num_patients, **kwargs)
-    return train_dataset, val_dataset
+def select_outcomes_for_patients(all_outcomes, pids):
+    pids = set(pids)
+    return {k:[v[i] for i, pid in enumerate(all_outcomes['PID']) if pid in pids] for k, v in all_outcomes.items()}
+
+def exclude_pretrain_patients(features, pids, cfg, mode):
+    pretrain_pids = set(torch.load(join(cfg.paths.model_path, f'pids_{mode}.pt')))
+    kept_indices = [i for i, pid in enumerate(pids) if pid not in pretrain_pids]
+    pids = [pid for i, pid in enumerate(pids) if i in kept_indices]
+    for k, v in features.items():
+        features[k] = [v[i] for i in kept_indices]
+    return features, pids
 
 if __name__ == '__main__':
     main_finetune()

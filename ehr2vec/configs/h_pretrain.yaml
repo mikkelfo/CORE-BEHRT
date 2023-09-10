@@ -10,6 +10,7 @@ paths:
 dataset:
   masked_ratio: 0.15
   ignore_special_tokens: true
+  truncation_len: 30
   
 train_data:  
   num_patients: 400

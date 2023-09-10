@@ -13,10 +13,10 @@ logger = logging.getLogger(__name__)  # Get the logger for this module
 
 
 class BaseEHRDataset(Dataset):
-    def __init__(self, features:dict, vocabulary:dict):
+    def __init__(self, features:dict, vocabulary:dict, truncation_len=512):
         self.features = features
         self.vocabulary = vocabulary
-        self.features = self.truncate(self.features)
+        self.features = self.truncate(self.features, truncation_len)
 
     def truncate(self, features: dict, max_len: int = 512):
         """Truncates the features to max_len"""
@@ -70,10 +70,11 @@ class MLMDataset(BaseEHRDataset):
         self,
         features: dict,
         vocabulary: dict,
-        masked_ratio=0.3,
-        ignore_special_tokens=True,
+        masked_ratio:float=0.3,
+        ignore_special_tokens:bool=True,
+        truncation_len:int=512,
     ):
-        super().__init__(features, vocabulary)
+        super().__init__(features, vocabulary, truncation_len)
 
         self.masked_ratio = masked_ratio
         if ignore_special_tokens:
@@ -149,8 +150,9 @@ class HierarchicalMLMDataset(MLMDataset):
         tree_matrix=None,
         masked_ratio=0.3,
         ignore_special_tokens=True,
+        truncation_len=512,
     ):
-        super().__init__(features, vocabulary, masked_ratio, ignore_special_tokens)
+        super().__init__(features, vocabulary, masked_ratio, ignore_special_tokens, truncation_len)
 
         self.h_vocabulary = h_vocabulary
         self.tree_matrix = tree_matrix
@@ -252,14 +254,14 @@ class CensorDataset(BaseEHRDataset):
 
     def __init__(
         self, features: dict, outcomes: list, censor_outcomes: list, n_hours: int,
-        vocabulary: dict, pids: list,
+        vocabulary: dict, truncation_len: int = 512
     ):
         self.features = features
         self.n_hours = n_hours
         self.outcomes = outcomes
         censored_features = self.censor(censor_outcomes)
 
-        super().__init__(censored_features, vocabulary=vocabulary, pids=pids)
+        super().__init__(censored_features, vocabulary=vocabulary, truncation_len=truncation_len)
 
     def __getitem__(self, index: int) -> dict:
         patient = super().__getitem__(index)

@@ -133,12 +133,12 @@ def load_tree(cfg, hierarchical_dir='hierarchical'):
 
 def select_patient_subset(train_features, train_pids, val_features, val_pids, train_num_patients=None, val_num_patients=None):
     if train_num_patients is not None:
-        train_features, train_pids = select_subset(train_features, train_pids, train_num_patients)
+        train_features, train_pids = select_random_subset(train_features, train_pids, train_num_patients)
     if val_num_patients is not None:
-        val_features, val_pids = select_subset(val_features, val_pids, val_num_patients)
+        val_features, val_pids = select_random_subset(val_features, val_pids, val_num_patients)
     return train_features, train_pids, val_features, val_pids
 
-def select_subset(features, pids, num_patients):
+def select_random_subset(features, pids, num_patients):
     indices = np.arange(len(pids))
     np.random.shuffle(indices)
     indices = indices[:num_patients]

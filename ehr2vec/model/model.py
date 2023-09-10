@@ -14,56 +14,42 @@ class BertEHREncoder(BertModel):
             self.embeddings = instantiate(config.embedding, config)
     def forward(
         self,
-        input_ids=None,
-        attention_mask=None, 
-        token_type_ids=None,
-        position_ids=None,
-        inputs_embeds=None,
-        labels=None,
+        batch: dict,
     ):
+        position_ids={
+            'age': batch.get('age', None),
+            'abspos': batch.get('abspos', None),
+            'dosage': batch.get('dosage', None),
+            'unit': batch.get('unit', None)
+        },
         outputs = super().forward(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            token_type_ids=token_type_ids,
+            input_ids=batch['concept'],
+            attention_mask=batch.get('attention_mask', None),
+            token_type_ids=batch.get('segment', None),
             position_ids=position_ids,
-            inputs_embeds=inputs_embeds,
+            inputs_embeds=batch.get('embeddings', None),
         )
         return outputs
 
-class BertEHRModel(BertModel):
+class BertEHRModel(BertEHREncoder):
     def __init__(self, config):
         super().__init__(config)
-        if not config.to_dict().get('embedding', None):
-            self.embeddings = EhrEmbeddings(config)
-        else:
-            self.embeddings = instantiate(config.embedding, config)
         self.loss_fct = nn.CrossEntropyLoss()
         
         self.cls = MLMHead(config)
 
     def forward(
         self,
-        input_ids=None,
-        attention_mask=None, 
-        token_type_ids=None,
-        position_ids=None,
-        inputs_embeds=None,
-        labels=None,
+        batch: dict,
     ):
-        outputs = super().forward(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            token_type_ids=token_type_ids,
-            position_ids=position_ids,
-            inputs_embeds=inputs_embeds,
-        )
+        outputs = super().forward(batch)
 
         sequence_output = outputs[0]    # Last hidden state
         logits = self.cls(sequence_output)
         outputs.logits = logits
 
-        if labels is not None:
-            outputs.loss = self.get_loss(logits, labels)
+        if batch.get('target', None) is not None:
+            outputs.loss = self.get_loss(logits, batch['target'])
 
         return outputs
 
@@ -114,26 +100,16 @@ class HierarchicalBertForPretraining(BertEHRModel):
 
     def forward(
         self,
-        input_ids=None,
-        attention_mask=None,
-        token_type_ids=None,
-        position_ids=None,
-        inputs_embeds=None,
-        labels=None,
+        batch: dict,
     ):
-        outputs = super().forward(
-            input_ids=input_ids,
-            token_type_ids=token_type_ids,
-            position_ids=position_ids,
-            inputs_embeds=inputs_embeds,
-        )
+        outputs = super().forward(batch)
 
         sequence_output = outputs[0]    # Last hidden state
         logits = self.cls(sequence_output)
         outputs.logits = logits
 
-        if labels is not None:
-            outputs.loss = self.get_loss(logits, labels, attention_mask)
+        if batch.get('target', None) is not None:
+            outputs.loss = self.get_loss(logits, batch['target'], batch['attention_mask'])
 
         return outputs
 

@@ -23,7 +23,7 @@ tokenizer:
   sep_tokens: true
   cls_token: true
   padding: false
-  truncation: 128
+  truncation: null
   max_concept_length: false
 
 excluder:

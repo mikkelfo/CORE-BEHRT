@@ -1,15 +1,16 @@
 env: local
 paths:
   # data_path: 'pretrain_datasets/diagnosis_medication/070623/outputs/data' # inside mounted datastore
-  data_path: "..\\outputs\\data_icd10_l" # C:\Users\fjn197\PhD\projects\PHAIR\pipelines\ehr2vec-azure-std\ehr2vec\outputs\data_icd10 # inside mounted datastore
+  data_path: "..\\outputs\\data_icd10" # C:\Users\fjn197\PhD\projects\PHAIR\pipelines\ehr2vec-azure-std\ehr2vec\outputs\data_icd10 # inside mounted datastore
   output_path: "outputs/h_pretraining"
+  hierarchical_dir: hierarchical
   type: med_diag
   run_name: test
   
 dataset:
   masked_ratio: 0.15
   ignore_special_tokens: true
-  hierarchical_dir: hierarchical
+  
 train_data:  
   num_patients: 400
 val_data:

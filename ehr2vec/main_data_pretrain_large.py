@@ -64,7 +64,7 @@ def main_data(config_path):
     batches = Batches(cfg, pids)
     batches.split_and_save()
     
-    check_and_clear_directory(cfg, logger)
+    check_and_clear_directory(cfg, logger, tokenized_dir_name=cfg.get('tokenized_dir_name','tokenized'))
     logger.info('Tokenizing')
     tokenizer = EHRTokenizer(config=cfg.tokenizer)
     batch_tokenize = BatchTokenize(tokenizer, cfg, tokenized_dir_name=cfg.get('tokenized_dir_name','tokenized'))

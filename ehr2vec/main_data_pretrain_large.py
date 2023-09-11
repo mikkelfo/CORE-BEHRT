@@ -60,7 +60,6 @@ def main_data(config_path):
     else:
         pids = torch.load(join(cfg.loader.data_dir, 'features', 'pids_features.pt'))
     logger.info('Finished feature creation and processing')
-    
     logger.info('Splitting batches')
     batches = Batches(cfg, pids)
     batches.split_and_save()
@@ -68,7 +67,7 @@ def main_data(config_path):
     check_and_clear_directory(cfg, logger)
     logger.info('Tokenizing')
     tokenizer = EHRTokenizer(config=cfg.tokenizer)
-    batch_tokenize = BatchTokenize(tokenizer, cfg)
+    batch_tokenize = BatchTokenize(tokenizer, cfg, tokenized_dir_name=cfg.get('tokenized_dir_name','tokenized'))
     batch_tokenize.tokenize(batches)
     logger.info('Finished tokenizing')
     

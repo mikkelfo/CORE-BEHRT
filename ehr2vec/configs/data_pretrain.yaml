@@ -1,8 +1,9 @@
 env: local
 output_dir: ../outputs/data_icd10
+tokenized_dir_name: "tokenized"
 run_name: "icd10"
 loader:
-  data_dir: ../data/formatted/synthea500_icd10 
+  data_dir: ../outputs/data_icd10 #../data/formatted/synthea500_icd10 
   patients_info: patients_info.csv
   concepts: [
     diagnose

@@ -138,7 +138,8 @@ def select_patient_subset(train_features, train_pids, val_features, val_pids, tr
         val_features, val_pids = select_random_subset(val_features, val_pids, val_num_patients)
     return train_features, train_pids, val_features, val_pids
 
-def select_random_subset(features, pids, num_patients):
+def select_random_subset(features, pids, num_patients, seed=0):#
+    np.random.seed(seed)
     indices = np.arange(len(pids))
     np.random.shuffle(indices)
     indices = indices[:num_patients]

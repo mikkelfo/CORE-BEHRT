@@ -43,7 +43,6 @@ def main_train(config_path):
         BertConfig(
             **cfg.model,
             vocab_size=len(train_dataset.vocabulary),
-
         )
     )
 
@@ -51,9 +50,7 @@ def main_train(config_path):
     logger.info('Initializing optimizer')
     optimizer = AdamW(
         model.parameters(),
-        lr=cfg.optimizer.lr,
-        weight_decay=cfg.optimizer.weight_decay,
-        eps=cfg.optimizer.epsilon,
+        **cfg.optimizer
     )
     if cfg.scheduler:
         scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=cfg.scheduler.num_warmup_steps, num_training_steps=cfg.scheduler.num_training_steps)

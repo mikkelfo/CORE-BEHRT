@@ -59,9 +59,7 @@ def main_finetune():
     model = load_model(BertForFineTuning, cfg, {'pos_weight':get_pos_weight(cfg, outcomes)})
     optimizer = AdamW(
         model.parameters(),
-        lr=cfg.optimizer.lr,
-        weight_decay=cfg.optimizer.weight_decay,
-        eps=cfg.optimizer.epsilon,
+        **cfg.optimizer
     )
 
     trainer = EHRTrainer( 

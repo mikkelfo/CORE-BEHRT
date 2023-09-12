@@ -33,8 +33,7 @@ trainer_args:
 
 optimizer:
   lr: 5e-4
-  weight_decay: 0
-  epsilon: 1e-6
+  eps: 1e-6
 
 scheduler:
   num_warmup_steps: 10

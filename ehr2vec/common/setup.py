@@ -24,8 +24,9 @@ def prepare_directory(config_path: str, cfg: Config):
     """Creates output directory and copies config file"""
     os.makedirs(cfg.output_dir, exist_ok=True)
     os.makedirs(join(cfg.output_dir, 'features'), exist_ok=True)
-    os.makedirs(join(cfg.output_dir, 'tokenized'), exist_ok=True)
+    os.makedirs(join(cfg.output_dir, cfg.tokenized_dir_name), exist_ok=True)
     copyfile(config_path, join(cfg.output_dir, 'data_config.yaml'))
+    copyfile(config_path, join(cfg.output_dir, cfg.tokenized_dir_name, 'data_config.yaml'))
     
     return setup_logger(cfg.output_dir)
 

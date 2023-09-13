@@ -62,7 +62,13 @@ def main_data(config_path):
     logger.info('Finished feature creation and processing')
     logger.info('Splitting batches')
     batches = Batches(cfg, pids)
-    batches.split_and_save()
+    logger.info("Check for existing splits")
+    if not batches.check_existing_splits(cfg.loader.data_dir):
+        logger.info("No existing splits found. Creating new splits")
+        batches.split_and_save()
+    else:
+        logger.info(f"Existing splits found. Loading splits from {cfg.loader.data_dir}")
+        batches.load_splits(cfg.loader.data_dir)
     
     check_and_clear_directory(cfg, logger, tokenized_dir_name=cfg.get('tokenized_dir_name','tokenized'))
     logger.info('Tokenizing')
@@ -72,9 +78,7 @@ def main_data(config_path):
     logger.info('Finished tokenizing')
     
     logger.info('Saving file ids')
-    torch.save(batches.train.file_ids, join(cfg.output_dir, 'train_file_ids.pt'))
-    torch.save(batches.val.file_ids, join(cfg.output_dir, 'val_file_ids.pt'))
-    torch.save(batches.test.file_ids, join(cfg.output_dir, 'test_file_ids.pt'))
+    
     
     if cfg.env=='azure':
         from azure_run import file_dataset_save

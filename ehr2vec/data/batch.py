@@ -34,6 +34,9 @@ class Batches:
         torch.save(self.train.pids, join(self.cfg.output_dir, 'train_pids.pt'))
         torch.save(self.val.pids, join(self.cfg.output_dir, 'val_pids.pt'))
         torch.save(self.test.pids, join(self.cfg.output_dir, 'test_pids.pt'))
+        torch.save(self.train.file_ids, join(self.cfg.output_dir, 'train_file_ids.pt'))
+        torch.save(self.val.file_ids, join(self.cfg.output_dir, 'val_file_ids.pt'))
+        torch.save(self.test.file_ids, join(self.cfg.output_dir, 'test_file_ids.pt'))
     
     def split_batches(self)-> None:
         """Splits the batches into train, validation and test sets"""
@@ -66,6 +69,25 @@ class Batches:
             raise ValueError(f'Invalid set {set_}')
         return self.flatten([self.pids[i] for i in file_ids])
         
+    def check_existing_splits(self, data_dir)-> bool:
+        if os.path.exists(join(data_dir, 'train_pids.pt')) and\
+            os.path.exists(join(data_dir, 'val_pids.pt')) and\
+            os.path.exists(join(data_dir, 'test_pids.pt')) and\
+            os.path.exists(join(data_dir, 'train_file_ids.pt')) and\
+            os.path.exists(join(data_dir, 'val_file_ids.pt')) and\
+            os.path.exists(join(data_dir, 'test_file_ids.pt')):
+            return True
+        else:
+            return False
+    
+    def load_splits(self, data_dir)-> None:
+        self.train.pids = torch.load(join(data_dir, 'train_pids.pt'))
+        self.val.pids = torch.load(join(data_dir, 'val_pids.pt'))
+        self.test.pids = torch.load(join(data_dir, 'test_pids.pt'))
+        self.train.file_ids = torch.load(join(data_dir, 'train_file_ids.pt'))
+        self.val.file_ids = torch.load(join(data_dir, 'val_file_ids.pt'))
+        self.test.file_ids = torch.load(join(data_dir, 'test_file_ids.pt'))
+
     @staticmethod
     def flatten(ls_of_ls: List[List])-> List:
         return [item for sublist in ls_of_ls for item in sublist] 

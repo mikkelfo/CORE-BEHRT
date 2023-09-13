@@ -19,7 +19,8 @@ class EHRTokenizer():
             self.vocabulary = vocabulary
         self.truncation = config.get('truncation', None)
         self.padding = config.get('padding', False)
-
+        self.cutoffs = config.get('cutoffs', None)
+        
     def __call__(self, features: dict, padding=None, truncation=None):
         if not padding:
             padding = self.padding
@@ -52,8 +53,8 @@ class EHRTokenizer():
         return BatchEncoding(data, tensor_type='pt' if padding else None)
 
     def encode(self, concepts: list):
-        if self.config.max_concept_length:
-            concepts = self.limit_concepts_length(concepts, max_len=self.config.max_concept_length) # Truncate concepts to max_concept_length
+        if self.cutoffs:
+            concepts = self.limit_concepts_length(concepts) # Truncate concepts to max_concept_length
         if self.new_vocab:
             for concept in concepts:
                 if concept not in self.vocabulary:
@@ -134,9 +135,8 @@ class EHRTokenizer():
             patient[key] = [token] + values
         return patient
 
-    @staticmethod
-    def limit_concepts_length(concepts: list, max_len: int, categories=('D', 'M')):
-        return [concept[:max_len] if concept.startswith(categories) else concept for concept in concepts]
+    def limit_concepts_length(self, concepts: list):
+        return [concept[:self.cutoffs.get(concept[0], None)] for concept in concepts]
 
     @staticmethod
     def _patient_iterator(features: dict):

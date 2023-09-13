@@ -26,6 +26,9 @@ tokenizer:
   padding: false
   truncation: null
   max_concept_length: false
+  cutoffs:
+    D: 2 # diagnosis
+    M: 3 # medication
 
 excluder:
   min_len: 2

@@ -121,7 +121,10 @@ def load_tokenized_data(cfg, tokenized_dir='tokenized'):
     train_pids = torch.load(join(tokenized_data_path,  'pids_train.pt'))
     val_features = torch.load(join(tokenized_data_path, 'tokenized_val.pt'))
     val_pids = torch.load(join(tokenized_data_path, 'pids_val.pt'))
-    vocabulary = torch.load(join(cfg.paths.data_path, 'vocabulary.pt'))
+    try:
+        vocabulary = torch.load(join(tokenized_data_path, 'vocabulary.pt'))
+    except:
+        vocabulary = torch.load(join(cfg.paths.data_path, 'vocabulary.pt'))
     return train_features, train_pids, val_features, val_pids, vocabulary
     
 def load_tree(cfg, hierarchical_dir='hierarchical'):

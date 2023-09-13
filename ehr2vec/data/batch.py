@@ -80,7 +80,7 @@ class BatchTokenize:
     def tokenize(self, batches: Batches)-> Tuple[List[str]]:
         train_files = self.batch_tokenize(batches.train.file_ids, mode='train')
         self.tokenizer.freeze_vocabulary()
-        self.tokenizer.save_vocab(join(self.cfg.output_dir, 'vocabulary.pt'))
+        self.tokenizer.save_vocab(join(self.cfg.output_dir, self.tokenized_dir_name, 'vocabulary.pt'))
         val_files = self.batch_tokenize(batches.val.file_ids, mode='val')
         test_files = self.batch_tokenize(batches.test.file_ids, mode='test')
         return train_files, val_files, test_files

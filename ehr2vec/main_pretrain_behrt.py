@@ -87,6 +87,7 @@ def adapt_to_behrt(features):
     return features
 
 def convert_to_int(ages: list):
+    """Convert ages to int and replace negative values with 0"""
     converted_ages = []
     for age in ages:
         if age<0:
@@ -96,6 +97,7 @@ def convert_to_int(ages: list):
     return converted_ages
 
 def convert_segment(segments: list):
+    """From segment AABBCC to segment 001100111"""
     converted_segments = []
     flag = 0
     for i, segment in enumerate(segments):
@@ -106,6 +108,7 @@ def convert_segment(segments: list):
     return converted_segments
 
 def convert_segment_to_position(segments: list):
+    """From segment AABBCC to position 001122"""
     converted_segments = []
     flag = 0
     for i, segment in enumerate(segments):

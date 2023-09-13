@@ -66,12 +66,7 @@ def model(model_class, cfg, vocabulary=None, tree=None, **model_kwargs):
         cfg.model.leaf_size = tree.num_children_leaves()
 
     model = model_class(BertConfig(**cfg.model, **model_kwargs))
-    optimizer = AdamW(
-        model.parameters(),
-        lr=cfg.optimizer.lr,
-        weight_decay=cfg.optimizer.weight_decay,
-        eps=cfg.optimizer.epsilon,
-    )
+    optimizer = AdamW(model.parameters(), **cfg.optimizer)
 
     return model, optimizer
 

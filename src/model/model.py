@@ -15,16 +15,20 @@ class BertEHRModel(BertModel):
 
         self.cls = MLMHead(config)
 
-    def forward(
-        self,
-        input_ids=None,
-        attention_mask=None,
-        token_type_ids=None,
-        position_ids=None,
-        inputs_embeds=None,
-        labels=None,
-        labels_mask=None,
-    ):
+    def forward(self, batch):
+        # Unpack batch
+        input_ids = batch["concept"]
+        attention_mask = batch["attention_mask"]
+        token_type_ids = batch["segment"] if "segment" in batch else None
+        position_ids = {
+            "age": batch["age"] if "age" in batch else None,
+            "abspos": batch["abspos"] if "abspos" in batch else None,
+        }
+        labels = batch["target"] if "target" in batch else None
+        labels_mask = batch["target_mask"] if "target_mask" in batch else None
+        inputs_embeds = batch["inputs_embeds"] if "inputs_embeds" in batch else None
+
+        # Forward pass
         outputs = super().forward(
             input_ids=input_ids,
             attention_mask=attention_mask,

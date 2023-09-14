@@ -1,12 +1,12 @@
-import torch
-from torch.utils.data import Dataset, DataLoader
-from tqdm import tqdm
 import os
-import uuid
 import json
-from src.dataloader.collate_fn import dynamic_padding
-from hydra.utils import instantiate
+import uuid
+import torch
+from tqdm import tqdm
 from omegaconf import OmegaConf
+from hydra.utils import instantiate
+from torch.utils.data import Dataset, DataLoader
+from src.dataloader.collate_fn import dynamic_padding
 
 
 class EHRTrainer:
@@ -143,17 +143,7 @@ class EHRTrainer:
 
     def forward_pass(self, batch: dict):
         self.to_device(batch)  # Moves batch to device in-place
-        return self.model(
-            input_ids=batch["concept"],
-            attention_mask=batch["attention_mask"],
-            token_type_ids=batch["segment"] if "segment" in batch else None,
-            position_ids={
-                "age": batch["age"] if "age" in batch else None,
-                "abspos": batch["abspos"] if "abspos" in batch else None,
-            },
-            labels=batch["target"] if "target" in batch else None,
-            labels_mask=batch["target_mask"] if "target_mask" in batch else None,
-        )
+        return self.model(batch)
 
     def backward_pass(self, loss):
         loss.backward()

@@ -17,5 +17,11 @@ setup(
         "src.tree",
         "src.behrt",
     ],
-    install_requires=["torch", "pandas", "transformers", "hydra-core", "pytorch-pretrained-bert"],
+    install_requires=[
+        "torch",
+        "pandas",
+        "transformers",
+        "hydra-core",
+        "pytorch-pretrained-bert",
+    ],
 )

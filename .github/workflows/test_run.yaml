@@ -6,8 +6,5 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
-      - name: Install dependencies
-        run: 
-          pip install -r requirements.txt
       - name: Run test_run.sh
         run: bash test_run.sh

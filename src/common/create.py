@@ -4,6 +4,8 @@ from src.data.dataset import MLMDataset, HierarchicalDataset, CensorDataset
 from transformers import BertConfig
 from torch.optim import AdamW
 from torch.utils.data import WeightedRandomSampler
+from src.data.truncator import Truncator
+from src.data.censor import Censor
 
 
 def mlm_dataset(cfg):
@@ -11,8 +13,13 @@ def mlm_dataset(cfg):
     vocabulary = loading.vocabulary(cfg)
 
     for enc in [train_encoded, val_encoded]:
+        truncated_enc = Truncator()(
+            features=enc,
+            max_len=cfg.model.max_position_embeddings,
+            sep_token=vocabulary["[SEP]"],
+        )
         yield MLMDataset(
-            enc,
+            truncated_enc,
             vocabulary=vocabulary,
             ignore_special_tokens=cfg.ignore_special_tokens,
         )
@@ -24,8 +31,13 @@ def hierarchical_dataset(cfg):
     tree = loading.tree(cfg)
 
     for enc in [train_encoded, val_encoded]:
+        truncated_enc = Truncator()(
+            features=enc,
+            max_len=cfg.model.max_position_embeddings,
+            sep_token=vocabulary["[SEP]"],
+        )
         yield HierarchicalDataset(
-            enc,
+            truncated_enc,
             tree=tree,
             vocabulary=vocabulary,
             ignore_special_tokens=cfg.ignore_special_tokens,
@@ -35,6 +47,7 @@ def hierarchical_dataset(cfg):
 def censor_dataset(cfg):
     train_encoded, val_encoded = loading.encoded(cfg)
     train_outcomes, val_outcomes = loading.outcomes(cfg)
+    vocabulary = loading.vocabulary(cfg)
 
     n_hours, outcome_type, censor_type = (
         cfg.outcome.n_hours,
@@ -43,11 +56,18 @@ def censor_dataset(cfg):
     )
 
     for enc, out in zip([train_encoded, val_encoded], [train_outcomes, val_outcomes]):
-        yield CensorDataset(
-            enc,
-            outcomes=out[outcome_type],
+        censored_enc = Censor(n_hours=n_hours)(
+            features=enc,
             censor_outcomes=out[censor_type],
-            n_hours=n_hours,
+        )
+        truncated_enc = Truncator()(
+            features=censored_enc,
+            max_len=cfg.model.max_position_embeddings,
+            sep_token=vocabulary["[SEP]"],
+        )
+        yield CensorDataset(
+            truncated_enc,
+            outcomes=out[outcome_type],
         )
 
 

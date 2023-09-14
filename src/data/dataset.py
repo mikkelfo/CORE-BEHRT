@@ -7,53 +7,29 @@ from src.tree.helpers import build_tree
 class BaseDataset(Dataset):
     def __init__(self, features: dict):
         self.features = features
-        self.features = self.truncate(features)
 
-    def truncate(self, features: dict, max_len: int = 512, sep_token: int = 2):
-        truncated_features = {key: [] for key in features}
-        for patient in self:  # Calls __iter__ method
-            patient = self._truncate_patient(patient, max_len, sep_token)
-
-            for key, value in patient.items():
-                truncated_features[key].append(value)
-
-        return truncated_features
-
-    @staticmethod
-    def _truncate_patient(patient, max_len, sep_token):
-        # Do not truncate if patient is shorter than max_len
-        if len(patient["concept"]) <= max_len:
-            return patient
-
-        # Get index of first [SEP] token (when background sentence ends)
-        background_length = (patient["concept"] == sep_token).nonzero()[0][0]
-        background_length += 1  # Adjust for 0-indexing
-        truncation_length = max_len - background_length
-
-        # Do not start seq with [SEP] token (SEP token is included in background sentence)
-        if patient["concept"][-truncation_length] == sep_token:
-            truncation_length -= 1
-
-        return {
-            key: torch.cat((value[:background_length], value[-truncation_length:]))
-            for key, value in patient.items()
+        dtypes = {
+            "abspos": torch.float,
+            "age": torch.float,
         }
 
-    def _getpatient(self, index):
-        return {
-            key: torch.as_tensor(values[index]) for key, values in self.features.items()
-        }
+        self.features = self._to_tensors(features, dtypes)
 
     def __len__(self):
         return len(self.features["concept"])
 
     def __getitem__(self, index):
-        return self._getpatient(index)
+        return {
+            key: values[index] for key, values in self.features.items()
+        }
 
-    def __iter__(self):
-        for i in range(len(self)):
-            yield self._getpatient(i)
+    def _to_tensors(self, features: dict, dtypes: dict = None):
+        tensor_features = {key: [] for key in features}
+        for key, values in features.items():
+            for value in values:
+                tensor_features[key].append(torch.as_tensor(value, dtype=dtypes.get(key, torch.long)))
 
+        return tensor_features
 
 class MLMDataset(BaseDataset):
     def __init__(
@@ -142,52 +118,18 @@ class MLMDataset(BaseDataset):
 
 class CensorDataset(BaseDataset):
     """
-    n_hours can be both negative and positive (indicating before/after censor token)
     outcomes is a list of the outcome timestamps to predict
-    censor_outcomes is a list of the censor timestamps to use
     """
 
-    def __init__(
-        self, features: dict, outcomes: list, censor_outcomes: list, n_hours: int
-    ):
+    def __init__(self, features: dict, outcomes: list):
         self.features = features
-        self.n_hours = n_hours
         self.outcomes = outcomes
-        censored_features = self.censor(censor_outcomes)
 
-        super().__init__(censored_features)
+        super().__init__(features)
 
     def __getitem__(self, index: int) -> dict:
         patient = super().__getitem__(index)
         patient["target"] = float(pd.notna(self.outcomes[index]))
-
-        return patient
-
-    def censor(self, censor_outcomes: list) -> dict:
-        censored_features = {key: [] for key in self.features}
-        for i, patient in enumerate(self):  # Calls BaseDataset __iter__
-            censor_timestamp = censor_outcomes[i]
-            censored_patient = self._censor(patient, censor_timestamp)
-
-            for key, value in censored_patient.items():
-                censored_features[key].append(value)
-
-        return censored_features
-
-    def _censor(self, patient: dict, event_timestamp: float) -> dict:
-        if pd.isna(event_timestamp):
-            return patient
-        else:
-            # Only required when padding
-            mask = patient["attention_mask"]
-            N_nomask = torch.sum(mask)
-            pos = patient["abspos"][:N_nomask]
-
-            # censor the last n_hours
-            dont_censor = (pos - event_timestamp - self.n_hours) <= 0
-
-            for key, value in patient.items():
-                patient[key] = value[dont_censor]
 
         return patient
 

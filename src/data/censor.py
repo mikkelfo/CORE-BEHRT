@@ -1,5 +1,6 @@
 import torch
 import pandas as pd
+from src.data_fixes.exclude import Excluder
 
 
 class Censor:
@@ -18,6 +19,11 @@ class Censor:
             # Append to censored features
             for key, value in censored_patient.items():
                 censored_features[key].append(value)
+
+        # Re-exclude short sequences after truncation
+        censored_features = Excluder.exclude_short_sequences(
+            censored_features, name="censor_kept_indices"
+        )
 
         return censored_features
 

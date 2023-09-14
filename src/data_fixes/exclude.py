@@ -29,13 +29,15 @@ class Excluder:
         return features
 
     @staticmethod
-    def exclude_short_sequences(features: dict, k: int = 2, dir: str = "") -> tuple:
+    def exclude_short_sequences(
+        features: dict, k: int = 2, dir: str = "", name: str = "excluder_kept_indices"
+    ) -> tuple:
         kept_indices = []
         for i, concepts in enumerate(features["concept"]):
             unique_codes = set([code for code in concepts if not code.startswith("[")])
             if len(unique_codes) >= k:
                 kept_indices.append(i)
-        torch.save(kept_indices, os.path.join(dir, "excluder_kept_indices.pt"))
+        torch.save(kept_indices, os.path.join(dir, f"{name}.pt"))
 
         for key, values in features.items():
             features[key] = [values[i] for i in kept_indices]

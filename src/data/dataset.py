@@ -19,17 +19,18 @@ class BaseDataset(Dataset):
         return len(self.features["concept"])
 
     def __getitem__(self, index):
-        return {
-            key: values[index] for key, values in self.features.items()
-        }
+        return {key: values[index] for key, values in self.features.items()}
 
     def _to_tensors(self, features: dict, dtypes: dict = None):
         tensor_features = {key: [] for key in features}
         for key, values in features.items():
             for value in values:
-                tensor_features[key].append(torch.as_tensor(value, dtype=dtypes.get(key, torch.long)))
+                tensor_features[key].append(
+                    torch.as_tensor(value, dtype=dtypes.get(key, torch.long))
+                )
 
         return tensor_features
+
 
 class MLMDataset(BaseDataset):
     def __init__(

@@ -4,7 +4,7 @@ import os
 
 
 class Excluder:
-    def __call__(self, features: dict, k: int = 2, dir: str = "") -> pd.DataFrame:
+    def __call__(self, features: dict, k: int = 3, dir: str = "") -> pd.DataFrame:
         # Exclude patients with few concepts
         features = self.exclude_short_sequences(features, k=k, dir=dir)
         return features
@@ -30,7 +30,7 @@ class Excluder:
 
     @staticmethod
     def exclude_short_sequences(
-        features: dict, k: int = 2, dir: str = "", name: str = "excluder_kept_indices"
+        features: dict, k: int = 3, dir: str = "", name: str = "excluder_kept_indices"
     ) -> tuple:
         kept_indices = []
         for i, concepts in enumerate(features["concept"]):

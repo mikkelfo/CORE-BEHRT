@@ -115,12 +115,16 @@ def check_directory_for_features(dir_):
         return False
     
 # New setup with map-style datasets
-def load_tokenized_data(cfg, tokenized_dir='tokenized'):
+def load_tokenized_data(cfg):
+    tokenized_dir = cfg.paths.get('tokenized_dir', 'tokenized')
     tokenized_data_path = join(cfg.paths.data_path, tokenized_dir)
+    logger.info("Loading tokenized data train")
     train_features  = torch.load(join(tokenized_data_path, 'tokenized_train.pt'))
     train_pids = torch.load(join(tokenized_data_path,  'pids_train.pt'))
+    logger.info("Loading tokenized data val")
     val_features = torch.load(join(tokenized_data_path, 'tokenized_val.pt'))
     val_pids = torch.load(join(tokenized_data_path, 'pids_val.pt'))
+    logger.info("Loading vocabulary")
     try:
         vocabulary = torch.load(join(tokenized_data_path, 'vocabulary.pt'))
     except:

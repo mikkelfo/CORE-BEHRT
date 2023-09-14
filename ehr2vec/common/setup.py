@@ -69,7 +69,12 @@ def setup_run_folder(cfg):
         os.makedirs(run_folder) 
     if not os.path.exists(join(run_folder,'checkpoints')):
         os.makedirs(join(run_folder,'checkpoints')) 
-    copyfile(join(cfg.paths.data_path, 'data_config.yaml'), join(run_folder, 'data_config.yaml'))
+    tokenized_dir_name = cfg.paths.get('tokenized_dir', 'tokenized')
+    try:
+        copyfile(join(cfg.paths.data_path, tokenized_dir_name, 'data_config.yaml'), join(run_folder, 'data_config.yaml'))
+    except:
+        copyfile(join(cfg.paths.data_path, 'data_config.yaml'), join(run_folder, 'data_config.yaml'))
+    
     logger = setup_logger(run_folder)
     logger.info(f'Run folder: {run_folder}')
     return logger

@@ -1,10 +1,11 @@
 env: local
 paths:
   # data_path: 'pretrain_datasets/diagnosis_medication/070623/outputs/data' # inside mounted datastore
-  data_path: "..\\outputs\\data_icd10"
+  data_path: "..\\outputs\\data_test"
   output_path: 'outputs/pretraining'
   type: med_diag
   run_name: pt_ft_test
+  tokenized_dir: tokenized
   
 dataset:
   masked_ratio: 0.15
@@ -51,6 +52,3 @@ metrics:
   top10:
     _target_: evaluation.metrics.PrecisionAtK
     topk: 10
-  top100:
-    _target_: evaluation.metrics.PrecisionAtK
-    topk: 100

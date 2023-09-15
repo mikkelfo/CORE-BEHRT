@@ -33,18 +33,18 @@ class Censor:
         else:
             # Only required when padding
             mask = patient["attention_mask"]
-            N_nomask = torch.sum(mask)
+            N_nomask = sum(mask)
             pos = patient["abspos"][:N_nomask]
 
             # censor the last n_hours
-            dont_censor = (pos - event_timestamp - self.n_hours) <= 0
+            dont_censor = [p - event_timestamp - self.n_hours <= 0 for p in pos]
 
             for key, value in patient.items():
-                patient[key] = value[dont_censor].tolist()
+                patient[key] = [v for i, v in enumerate(value) if dont_censor[i]]
 
         return patient
 
     @staticmethod
     def _iter_patients(features: dict) -> dict:
         for i in range(len(features["concept"])):
-            yield {key: torch.as_tensor(values[i]) for key, values in features.items()}
+            yield {key: values[i] for key, values in features.items()}

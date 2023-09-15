@@ -13,9 +13,9 @@ from os.path import join
 import torch
 from common import azure
 from common.config import load_config
-from common.loader import check_directory_for_features
 from common.logger import TqdmToLogger
-from common.setup import prepare_directory, get_args
+from common.setup import get_args, prepare_directory
+from common.utils import check_directory_for_features, check_existing_splits
 from data.batch import Batches, BatchTokenize
 from data.concept_loader import ConceptLoaderLarge
 from data.featuremaker import FeatureMaker
@@ -63,7 +63,7 @@ def main_data(config_path):
     logger.info('Splitting batches')
     batches = Batches(cfg, pids)
     logger.info("Check for existing splits")
-    if not batches.check_existing_splits(cfg.loader.data_dir):
+    if not check_existing_splits(cfg.loader.data_dir):
         logger.info("No existing splits found. Creating new splits")
         batches.split_and_save()
     else:
@@ -76,8 +76,6 @@ def main_data(config_path):
     batch_tokenize = BatchTokenize(tokenizer, cfg, tokenized_dir_name=cfg.get('tokenized_dir_name','tokenized'))
     batch_tokenize.tokenize(batches)
     logger.info('Finished tokenizing')
-    
-    logger.info('Saving file ids')
     
     
     if cfg.env=='azure':

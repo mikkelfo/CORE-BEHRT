@@ -5,15 +5,15 @@ paths:
   output_path: 'outputs/pretraining'
   type: med_diag
   run_name: pt_ft_test
+  tokenized_dir: tokenized
   
-dataset:
-  masked_ratio: 0.15
-  ignore_special_tokens: true
-  truncation_len: 512
-train_data:  
-  num_patients: 100
-val_data:
-  num_patients: 20
+data:
+  dataset:
+    masked_ratio: 0.15
+    ignore_special_tokens: true
+  truncation_len: 20
+  num_train_patients: 100
+  num_val_patients: 20
 
 trainer_args:
   batch_size: 16

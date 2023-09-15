@@ -1,4 +1,3 @@
-import glob
 import logging
 import os
 from os.path import join
@@ -7,9 +6,15 @@ import numpy as np
 import pandas as pd
 import torch
 from data.dataset import CensorDataset, HierarchicalMLMDataset, MLMDataset
+from data_fixes.adapt import BehrtAdapter
+from data_fixes.censor import Censorer
+from data_fixes.truncate import Truncator
 from transformers import BertConfig
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
+
+PID_KEY = 'PID'
+VOCABULARY_FILE = 'vocabulary.pt'
 
 def load_model(model_class, cfg, add_config={}):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -19,14 +24,14 @@ def load_model(model_class, cfg, add_config={}):
     config.update(add_config)
     model = model_class(config)
     load_result = model.load_state_dict(torch.load(checkpoint_path, map_location=device)['model_state_dict'], strict=False)
-    print("missing state dict keys", load_result.missing_keys)
+    logger.info("missing state dict keys", load_result.missing_keys)
     return model
 
 def create_binary_outcome_datasets(all_outcomes, cfg):
     """
     This function is used to create outcome datasets based on the configuration provided.
     """
-    outcomes, censor_outcomes, pids = retrieve_outcomes(all_outcomes, cfg)
+    outcomes, censor_outcomes, pids = DatasetPreparer._retrieve_outcomes(all_outcomes, cfg)
     if cfg.get("encode_pos_only", False):
         outcomes, censor_outcomes, pids = select_positives(outcomes, censor_outcomes, pids)
         cfg.train_data.num_patients = None
@@ -65,96 +70,194 @@ def select_positives(outcomes, censor_outcomes, pids):
     pids = [pids[i] for i in select_indices]
     return outcomes, censor_outcomes, pids
 
-def get_val_test_pids(cfg):
-    """Gets the pretrain validation pids and splits into train and test pids for finetuning."""
-    # !Currently unused
-    val_pids = torch.load(join(cfg.paths.data_path, 'val_pids.pt'))
-    val_pids = val_pids[:cfg.val_data.num_patients]
-    test_cutoff = int(len(val_pids)*cfg.test_data.split)
-    test_pids = val_pids[:test_cutoff]
-    val_pids = val_pids[test_cutoff:]
-    return val_pids, test_pids
 
-def retrieve_outcomes(all_outcomes, cfg):
-    """From the configuration, load the outcomes and censor outcomes.
-    Access pids, the outcome of interest and the censoring outcome."""
     
-    outcomes = all_outcomes.get(cfg.outcome.type, [None]*len(all_outcomes['PID']))
-    censor_outcomes = all_outcomes.get(cfg.outcome.get('censor_type', None), [None]*len(outcomes))
-    pids = all_outcomes['PID']
-    return outcomes, censor_outcomes, pids
+class DatasetPreparer:
 
-def create_datasets(cfg, hierarchical:bool=False):
-    """
-    This function is used to create datasets based on the configuration provided.
-    """
-    if hierarchical:
-        DatasetClass = HierarchicalMLMDataset
-    else:
-        DatasetClass = MLMDataset
-    train_dataset, val_dataset = load_datasets(cfg, DatasetClass)
-    return train_dataset, val_dataset
+    def __init__(self, cfg):
+        self.cfg = cfg
+        self.run_folder = join(self.cfg.paths.output_path, self.cfg.paths.run_name)
+        os.makedirs(self.run_folder, exist_ok=True)
 
-def load_datasets(cfg, DS):
-    """
-    This function is used to load datasets based on the given DatasetClass and configuration.
-    """
-    data_path = cfg.paths.data_path
-    train_dataset = DS(data_path, 'train', **cfg.dataset, **cfg.train_data)
-    val_dataset = DS(data_path, 'val', **cfg.dataset, **cfg.val_data)
-    return train_dataset, val_dataset
-
-def check_directory_for_features(dir_):
-    features_dir = join(dir_, 'features')
-    if os.path.exists(features_dir):
-        if len(glob.glob(join(features_dir, 'features_*.pt')))>0:
-            logger.warning(f"Features already exist in {features_dir}.")
-            logger.warning(f"Skipping feature creation.")
-        return True
-    else:
-        return False
+    def prepare_mlm_dataset(self):
+        """Load data, truncate, adapt features, create dataset"""
+        train_features, val_features, vocabulary = self._prepare_mlm_features()    
+        train_dataset = MLMDataset(train_features, vocabulary, **self.cfg.data.dataset)
+        val_dataset = MLMDataset(val_features, vocabulary, **self.cfg.data.dataset)
+        
+        return train_dataset, val_dataset
     
-# New setup with map-style datasets
-def load_tokenized_data(cfg):
-    tokenized_dir = cfg.paths.get('tokenized_dir', 'tokenized')
-    tokenized_data_path = join(cfg.paths.data_path, tokenized_dir)
-    logger.info("Loading tokenized data train")
-    train_features  = torch.load(join(tokenized_data_path, 'tokenized_train.pt'))
-    train_pids = torch.load(join(tokenized_data_path,  'pids_train.pt'))
-    logger.info("Loading tokenized data val")
-    val_features = torch.load(join(tokenized_data_path, 'tokenized_val.pt'))
-    val_pids = torch.load(join(tokenized_data_path, 'pids_val.pt'))
-    logger.info("Loading vocabulary")
-    try:
-        vocabulary = torch.load(join(tokenized_data_path, 'vocabulary.pt'))
-    except:
-        vocabulary = torch.load(join(cfg.paths.data_path, 'vocabulary.pt'))
-    return train_features, train_pids, val_features, val_pids, vocabulary
+    def prepare_mlm_dataset_for_behrt(self):
+        """Load data, truncate, adapt features, create dataset"""
+        train_features, val_features, vocabulary = self._prepare_mlm_features()
+        train_features = BehrtAdapter().adapt_features(train_features)
+        val_features = BehrtAdapter().adapt_features(val_features)
+        train_dataset = MLMDataset(train_features, vocabulary, **self.cfg.data.dataset)
+        val_dataset = MLMDataset(val_features, vocabulary, **self.cfg.data.dataset)
+        
+        return train_dataset, val_dataset
+
+    def prepare_hmlm_dataset(self):
+        train_features, val_features, vocabulary = self._prepare_mlm_features()
+        tree, tree_matrix, h_vocabulary = self._load_tree()
+        
+        torch.save(h_vocabulary, join(self.run_folder, 'h_vocabulary.pt'))
+
+        train_dataset = HierarchicalMLMDataset(train_features, vocabulary, 
+                                            h_vocabulary, tree, tree_matrix, 
+                                            **self.cfg.data.dataset)
+        val_dataset = HierarchicalMLMDataset(val_features, vocabulary, 
+                                            h_vocabulary, tree, tree_matrix, 
+                                            **self.cfg.data.dataset)
+        return train_dataset, val_dataset
+
+    def prepare_finetune_dataset(self):
+        """
+        Prepare the dataset for fine-tuning. 
+        The process includes:
+        1. Loading tokenized data
+        2. Excluding pretrain patients
+        3. Loading and processing outcomes
+        4. Data censoring
+        5. Patient selection
+        6. Truncating data
+        7. Creating the dataset
+        """
+        
+        # 1. Loading tokenized data
+        train_features, train_pids, val_features, val_pids, vocabulary = self._load_tokenized_data()
+        
+        # 2. Excluding pretrain patients
+        logger.info('Exclude pretrain patients')
+        train_features, train_pids = self._exclude_pretrain_patients(train_features, train_pids, 'train')
+        val_features, val_pids = self._exclude_pretrain_patients(val_features, val_pids, 'val')
+        
+        # 3. Loading and processing outcomes
+        logger.info('Load outcomes')
+        outcomes = torch.load(join(self.cfg.paths.data_path, self.cfg.paths.outcome))
+        train_outcome, train_outcome_censor = self._process_outcomes(outcomes, train_pids)
+        val_outcome, val_outcome_censor = self._process_outcomes(outcomes, val_pids)
+        
+        # 4. Data censoring
+        logger.info('Censoring')
+        train_features, train_pids = self._censor_data(train_features, train_pids,
+                                                       train_outcome_censor, vocabulary)
+        val_features, val_pids = self._censor_data(val_features, val_pids,
+                                                    val_outcome_censor, vocabulary)
+        
+        # 5. Patient selection
+        logger.info('Selecting patients')
+        train_features, train_pids = DatasetPreparer._select_random_subset(
+            train_features, train_pids, self.cfg.data.num_train_patients)
+        val_features, val_pids = DatasetPreparer._select_random_subset(
+            val_features, val_pids, self.cfg.data.num_val_patients)
+        self._save_pids(train_pids, val_pids) # this has to be moved to after patient exclusion, once short sequences are removed
+
+        # 6. Truncation
+        logger.info('Truncating')
+        truncator = Truncator(max_len=self.cfg.data.truncation_len, sep_token=vocabulary['[SEP]'])
+        train_features = truncator(train_features)
+        val_features = truncator(val_features)
+
+        # 7. Censoring
+        train_dataset = CensorDataset(train_features, outcomes=train_outcome)
+        val_dataset = CensorDataset(val_features, outcomes=val_outcome)
+        return train_dataset, val_dataset
     
-def load_tree(cfg, hierarchical_dir='hierarchical'):
-    hierarchical_path = join(cfg.paths.data_path, hierarchical_dir)
-    tree = torch.load(join(hierarchical_path, 'tree.pt'))
-    tree_matrix = torch.load(join(hierarchical_path, 'tree_matrix.pt'))
-    h_vocabulary = torch.load(join(hierarchical_path, 'vocabulary.pt'))
-    return tree, tree_matrix, h_vocabulary
+    def _censor_data(self, features, pids, outcome_censor, vocabulary):
+        censorer = Censorer(self.cfg.outcome.n_hours, vocabulary=vocabulary)
+        features, kept_ids = censorer(features, outcome_censor)
+        pids = [pid for i, pid in enumerate(pids) if i in kept_ids]
+        return features, pids
 
-def select_patient_subset(train_features, train_pids, val_features, val_pids, train_num_patients=None, val_num_patients=None):
-    if train_num_patients is not None:
-        train_features, train_pids = select_random_subset(train_features, train_pids, train_num_patients)
-    if val_num_patients is not None:
-        val_features, val_pids = select_random_subset(val_features, val_pids, val_num_patients)
-    return train_features, train_pids, val_features, val_pids
+    def _process_outcomes(self, outcomes, pids):
+        self._select_outcomes_for_patients(outcomes, pids)
+        outcomes, censor_outcomes, pids = self._retrieve_outcomes(outcomes)
+        return outcomes, censor_outcomes
+        
+    def _prepare_mlm_features(self):
+        """Load data, truncate"""
 
-def select_random_subset(features, pids, num_patients, seed=0):#
-    np.random.seed(seed)
-    indices = np.arange(len(pids))
-    np.random.shuffle(indices)
-    indices = indices[:num_patients]
-    pids = [pid for i, pid in enumerate(pids) if i in indices]
-    for k, v in features.items():
-        features[k] = [v[i] for i in indices]
-    return features, pids
+        train_features, train_pids, val_features, val_pids, vocabulary = self._load_tokenized_data()
+        torch.save(vocabulary, join(self.run_folder, VOCABULARY_FILE))
+        
+        # Patient Selection
+        train_features, train_pids = DatasetPreparer._select_random_subset(
+            train_features, train_pids, self.cfg.data.num_train_patients)
+        val_features, val_pids = DatasetPreparer._select_random_subset(
+            val_features, val_pids, self.cfg.data.num_val_patients)
+        self._save_pids(train_pids, val_pids)
 
-def save_pids(folder, train_pids, val_pids):
-    torch.save(train_pids, join(folder, 'pids_train.pt'))
-    torch.save(val_pids, join(folder, 'pids_val.pt'))
+        # Truncation
+        logger.info(f"Truncating data to {self.cfg.data.truncation_len} tokens")
+        truncator = Truncator(max_len=self.cfg.data.truncation_len, 
+                              sep_token=vocabulary['[SEP]'])
+        train_features = truncator(train_features)
+        val_features = truncator(val_features)
+        return train_features, val_features, vocabulary
+
+    def _load_tokenized_data(self):
+        tokenized_dir = self.cfg.paths.get('tokenized_dir', 'tokenized')
+        logger.info('Loading tokenized data from %s', tokenized_dir)
+        tokenized_data_path = join(self.cfg.paths.data_path, tokenized_dir)
+        logger.info("Loading tokenized data train")
+        train_features  = torch.load(join(tokenized_data_path, 'tokenized_train.pt'))
+        train_pids = torch.load(join(tokenized_data_path,  'pids_train.pt'))
+        logger.info("Loading tokenized data val")
+        val_features = torch.load(join(tokenized_data_path, 'tokenized_val.pt'))
+        val_pids = torch.load(join(tokenized_data_path, 'pids_val.pt'))
+        logger.info("Loading vocabulary")
+        try:
+            vocabulary = torch.load(join(tokenized_data_path, VOCABULARY_FILE))
+        except:
+            vocabulary = torch.load(join(self.cfg.paths.data_path, VOCABULARY_FILE))
+        return train_features, train_pids, val_features, val_pids, vocabulary
+
+    def _load_tree(self):
+        hierarchical_path = join(self.cfg.paths.data_path, 
+                                 self.cfg.paths.hierarchical_dir)
+        tree = torch.load(join(hierarchical_path, 'tree.pt'))
+        tree_matrix = torch.load(join(hierarchical_path, 'tree_matrix.pt'))
+        h_vocabulary = torch.load(join(hierarchical_path, VOCABULARY_FILE))
+        return tree, tree_matrix, h_vocabulary 
+
+    def _exclude_pretrain_patients(self, features, pids,  mode):
+        pretrain_pids = set(torch.load(join(self.cfg.paths.model_path, f'pids_{mode}.pt')))
+        kept_indices = [i for i, pid in enumerate(pids) if pid not in pretrain_pids]
+        pids = [pid for i, pid in enumerate(pids) if i in kept_indices]
+        for k, v in features.items():
+            features[k] = [v[i] for i in kept_indices]
+        return features, pids
+    
+    def _retrieve_outcomes(self, all_outcomes):
+        """From the configuration, load the outcomes and censor outcomes.
+        Access pids, the outcome of interest and the censoring outcome."""
+        
+        outcomes = all_outcomes.get(self.cfg.outcome.type, [None]*len(all_outcomes[PID_KEY]))
+        censor_outcomes = all_outcomes.get(self.cfg.outcome.get('censor_type', None), [None]*len(outcomes))
+        pids = all_outcomes[PID_KEY]
+        return outcomes, censor_outcomes, pids
+
+    @staticmethod
+    def _select_random_subset(features, pids, num_patients, seed=0):#
+        np.random.seed(seed)
+        indices = np.arange(len(pids))
+        np.random.shuffle(indices)
+        indices = indices[:num_patients]
+        pids = [pid for i, pid in enumerate(pids) if i in indices]
+        for k, v in features.items():
+            features[k] = [v[i] for i in indices]
+        return features, pids
+
+    def _save_pids(self, train_pids, val_pids):
+        torch.save(train_pids, join(self.run_folder, 'pids_train.pt'))
+        torch.save(val_pids, join(self.run_folder, 'pids_val.pt'))
+    
+    @staticmethod
+    def _select_outcomes_for_patients(all_outcomes, pids):
+        pids = set(pids)
+        return {k:[v[i] for i, pid in enumerate(all_outcomes[PID_KEY]) if pid in pids] for k, v in all_outcomes.items()}
+
+
+
+

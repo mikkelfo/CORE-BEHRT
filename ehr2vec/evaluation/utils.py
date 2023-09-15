@@ -1,5 +1,8 @@
 import numpy as np
 from sklearn.utils import resample
+import pandas as pd
+from torch.utils.data import WeightedRandomSampler
+
 
 def get_mean_std(Results_dic:dict)->dict:
     """Takes a nested dict with methods as outer dict and metrics as inner dict which contains lists os metrics,
@@ -71,3 +74,24 @@ def validate_outcomes(all_outcomes, cfg):
             assert cfg.outcome.type in all_outcomes, f"Outcome {cfg.outcome.type} not found in outcomes."
         if cfg.outcome.get('censor_type', False):
             assert cfg.outcome.censor_type in all_outcomes, f"Censor type {cfg.outcome.censor_type} not found in outcomes."
+
+def get_sampler(cfg, train_dataset, outcomes, logger):
+    if cfg.trainer_args['sampler']:
+        logger.warning('Sampler does not work with IterableDataset. Use positive weight instead')
+        labels = pd.Series(outcomes).notna().astype(int)
+        label_weight = 1 / labels.value_counts()
+        weights = labels.map(label_weight).values
+        sampler = WeightedRandomSampler(
+            weights=weights,
+            num_samples=len(train_dataset),
+            replacement=True
+        )
+        return sampler
+    else:
+        return None
+
+def get_pos_weight(cfg, outcomes):
+    if cfg.trainer_args['pos_weight']:
+        return sum(pd.isna(outcomes)) / sum(pd.notna(outcomes))
+    else:
+        return None

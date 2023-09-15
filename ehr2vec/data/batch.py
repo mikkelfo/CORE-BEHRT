@@ -5,8 +5,8 @@ from typing import List, Tuple
 
 import numpy as np
 import torch
-from common.loader import check_directory_for_features
 from common.logger import TqdmToLogger
+from common.utils import check_directory_for_features
 from tqdm import tqdm
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
@@ -68,17 +68,6 @@ class Batches:
         else:
             raise ValueError(f'Invalid set {set_}')
         return self.flatten([self.pids[i] for i in file_ids])
-        
-    def check_existing_splits(self, data_dir)-> bool:
-        if os.path.exists(join(data_dir, 'train_pids.pt')) and\
-            os.path.exists(join(data_dir, 'val_pids.pt')) and\
-            os.path.exists(join(data_dir, 'test_pids.pt')) and\
-            os.path.exists(join(data_dir, 'train_file_ids.pt')) and\
-            os.path.exists(join(data_dir, 'val_file_ids.pt')) and\
-            os.path.exists(join(data_dir, 'test_file_ids.pt')):
-            return True
-        else:
-            return False
     
     def load_splits(self, data_dir)-> None:
         self.train.pids = torch.load(join(data_dir, 'train_pids.pt'))

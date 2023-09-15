@@ -6,6 +6,7 @@ paths:
   hierarchical_dir: hierarchical_filtered
   type: med_diag
   run_name: test
+  tokenized_dir: tokenized
   
 data:
   dataset:

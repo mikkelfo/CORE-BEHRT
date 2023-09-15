@@ -11,7 +11,7 @@ import os
 from os.path import join
 
 import torch
-from common import azure
+from common.azure import setup_azure
 from common.config import load_config
 from common.logger import TqdmToLogger
 from common.setup import get_args, prepare_directory
@@ -41,7 +41,7 @@ def main_data(config_path):
     """
     cfg = load_config(config_path)
     if cfg.env=='azure':
-        _, mount_context = azure.setup_azure(cfg.run_name)
+        _, mount_context = setup_azure(cfg.run_name)
         mount_dir = mount_context.mount_point
         cfg.loader.data_dir = join(mount_dir, cfg.loader.data_dir) # specify paths here
 

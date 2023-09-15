@@ -70,7 +70,7 @@ def select_positives(outcomes, censor_outcomes, pids):
     pids = [pids[i] for i in select_indices]
     return outcomes, censor_outcomes, pids
 
-
+# TODO: Add option to load test set only!
     
 class DatasetPreparer:
 
@@ -153,17 +153,31 @@ class DatasetPreparer:
             val_features, val_pids, self.cfg.data.num_val_patients)
         self._save_pids(train_pids, val_pids) # this has to be moved to after patient exclusion, once short sequences are removed
 
-        # 6. Truncation
+        # 6. Optionally Remove Background Tokens
+        if self.cfg.data.get("remove_background", False):
+            logger.info("Removing background tokens")
+            train_features = self._remove_background(train_features, vocabulary)
+            val_features = self._remove_background(val_features, vocabulary)
+
+        # 7. Truncation
         logger.info('Truncating')
         truncator = Truncator(max_len=self.cfg.data.truncation_len, sep_token=vocabulary['[SEP]'])
         train_features = truncator(train_features)
         val_features = truncator(val_features)
 
-        # 7. Censoring
+        # 8. Censoring
         train_dataset = CensorDataset(train_features, outcomes=train_outcome)
         val_dataset = CensorDataset(val_features, outcomes=val_outcome)
         return train_dataset, val_dataset
-    
+
+    # def prepare_onehot_dataset(self):
+    #     train_features, train_pids, val_features, val_pids, vocabulary = self._load_tokenized_data()
+    #     # extend by test!
+    #     censorer = Censorer(n_hours=cfg.outcomes.n_hours, min_len=cfg.excluder.min_len, vocabulary=vocabulary)
+    #     outcomes = torch.load(join(cfg.paths.data_path, cfg.paths.outcome))
+    #     tokenized_features_train = censorer(tokenized_features_train, outcome, vocabulary, cfg)
+    #     pass
+
     def _censor_data(self, features, pids, outcome_censor, vocabulary):
         censorer = Censorer(self.cfg.outcome.n_hours, vocabulary=vocabulary)
         features, kept_ids = censorer(features, outcome_censor)
@@ -187,7 +201,10 @@ class DatasetPreparer:
         val_features, val_pids = DatasetPreparer._select_random_subset(
             val_features, val_pids, self.cfg.data.num_val_patients)
         self._save_pids(train_pids, val_pids)
-
+        if self.cfg.data.get("remove_background", False):
+            logger.info("Removing background tokens")
+            train_features = self._remove_background(train_features, vocabulary)
+            val_features = self._remove_background(val_features, vocabulary)
         # Truncation
         logger.info(f"Truncating data to {self.cfg.data.truncation_len} tokens")
         truncator = Truncator(max_len=self.cfg.data.truncation_len, 
@@ -195,6 +212,20 @@ class DatasetPreparer:
         train_features = truncator(train_features)
         val_features = truncator(val_features)
         return train_features, val_features, vocabulary
+
+    def _remove_background(self, features, vocabulary):
+        """Remove background tokens from features and the first sep token following it"""
+        background_tokens = set([v for k, v in vocabulary.items() if k.startswith('BG_')])
+        example_concepts = features['concept'][0] # Assume that all patients have the same background length
+        remove_indices = set([i for i, concept in enumerate(example_concepts) if concept in background_tokens])
+        if vocabulary['[SEP]'] in example_concepts:
+            remove_indices.add(len(remove_indices)+1)
+
+        new_features = {}
+        for k, token_lists in features.items():
+            new_features[k] = [[token for idx, token in enumerate(tokens) if idx not in remove_indices] 
+                           for tokens in token_lists]
+        return new_features
 
     def _load_tokenized_data(self):
         tokenized_dir = self.cfg.paths.get('tokenized_dir', 'tokenized')

@@ -14,6 +14,7 @@ data:
   truncation_len: 20
   num_train_patients: 100
   num_val_patients: 20
+  remove_background: true
 
 trainer_args:
   batch_size: 8

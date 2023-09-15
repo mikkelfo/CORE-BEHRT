@@ -1,18 +1,15 @@
-import pandas as pd
-import torch
 import os
+import torch
 
 
 class Excluder:
-    def __call__(self, features: dict, k: int = 3, dir: str = "") -> pd.DataFrame:
+    def __call__(self, features: dict, k: int = 3, dir: str = "") -> dict:
         # Exclude patients with few concepts
         features = self.exclude_short_sequences(features, k=k, dir=dir)
         return features
 
     @staticmethod  # Currently unused
-    def exclude_rare_concepts(
-        features: dict, k: int = 2, dir: str = ""
-    ) -> pd.DataFrame:
+    def exclude_rare_concepts(features: dict, k: int = 2, dir: str = "") -> dict:
         unique_codes = {}
         for patient in features["concept"]:
             for code in patient:
@@ -30,11 +27,26 @@ class Excluder:
 
     @staticmethod
     def exclude_short_sequences(
-        features: dict, k: int = 3, dir: str = "", name: str = "excluder_kept_indices"
-    ) -> tuple:
+        features: dict,
+        k: int = 3,
+        dir: str = "data/extra",
+        name: str = "excluder_kept_indices",
+        vocabulary: dict = None,
+    ) -> dict:
+        if vocabulary is not None:
+            vocabulary = {v: k for k, v in vocabulary.items()}
+
         kept_indices = []
         for i, concepts in enumerate(features["concept"]):
-            unique_codes = set([code for code in concepts if not code.startswith("[")])
+            if vocabulary is not None:
+                unique_codes = set(
+                    [code for code in concepts if not vocabulary[code].startswith("[")]
+                )
+            else:
+                unique_codes = set(
+                    [code for code in concepts if not code.startswith("[")]
+                )
+
             if len(unique_codes) >= k:
                 kept_indices.append(i)
         torch.save(kept_indices, os.path.join(dir, f"{name}.pt"))

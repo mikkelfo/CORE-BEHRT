@@ -1,11 +1,11 @@
-import torch
 import pandas as pd
 from src.data_fixes.exclude import Excluder
 
 
 class Censor:
-    def __init__(self, n_hours: int) -> None:
+    def __init__(self, n_hours: int, vocabulary: dict = None) -> None:
         self.n_hours = n_hours
+        self.vocabulary = vocabulary
 
     def __call__(self, features: dict, censor_outcomes: list) -> dict:
         return self.censor(features, censor_outcomes)
@@ -22,7 +22,7 @@ class Censor:
 
         # Re-exclude short sequences after truncation
         censored_features = Excluder.exclude_short_sequences(
-            censored_features, name="censor_kept_indices"
+            censored_features, name="censor_kept_indices", vocabulary=self.vocabulary
         )
 
         return censored_features

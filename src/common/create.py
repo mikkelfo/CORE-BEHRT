@@ -57,7 +57,7 @@ def censor_dataset(cfg):
     )
 
     for enc, out in zip([train_encoded, val_encoded], [train_outcomes, val_outcomes]):
-        censored_enc = Censor(n_hours=n_hours)(
+        censored_enc = Censor(n_hours=n_hours, vocabulary=vocabulary)(
             features=enc,
             censor_outcomes=out[censor_type],
         )

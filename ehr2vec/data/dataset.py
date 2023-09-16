@@ -189,7 +189,6 @@ class HierarchicalMLMDataset(MLMDataset):
             A dictionary mapping values of vocabulary to values from the tree's target mapping.
         """
         tree_target_mapping = self.tree.create_target_mapping()
-        torch.save(tree_target_mapping, 'tree_target_mapping.pt')
         target_mapping_temp = {
             self.h_vocabulary[k]: v for k, v in tree_target_mapping.items()
         }  

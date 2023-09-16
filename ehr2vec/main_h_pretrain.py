@@ -2,6 +2,7 @@
 import os
 from os.path import join
 
+import torch
 from common.azure import setup_azure
 from common.config import load_config
 from common.loader import DatasetPreparer
@@ -26,6 +27,7 @@ def main_train(config_path):
     
     logger.info(f"Loading data from {cfg.paths.data_path}")
     train_dataset, val_dataset = DatasetPreparer(cfg).prepare_hmlm_dataset()
+    torch.save(train_dataset.target_mapping, join(cfg.paths.output_path, cfg.paths.run_name, 'target_mapping.pt'))
     logger.info("Setup model")
     bertconfig = BertConfig(leaf_size=len(train_dataset.leaf_counts), 
                             vocab_size=len(train_dataset.vocabulary),

@@ -24,7 +24,16 @@ class BehrtEmbeddings(torch.nn.Module):
         self.LayerNorm = torch.nn.LayerNorm(config.hidden_size, eps=1e-12)
         self.dropout = torch.nn.Dropout(config.hidden_dropout_prob)
 
-    def forward(self, input_ids=None, age_ids=None, seg_ids=None, posi_ids=None, inputs_embeds=None, age=True, **kwargs):
+    def forward(
+        self,
+        input_ids=None,
+        age_ids=None,
+        seg_ids=None,
+        posi_ids=None,
+        inputs_embeds=None,
+        age=True,
+        **kwargs
+    ):
         if inputs_embeds is not None:
             return inputs_embeds
 

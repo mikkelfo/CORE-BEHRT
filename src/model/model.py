@@ -140,10 +140,8 @@ class BehrtModel(BertEHRModel):
         # Pass to regular forward, using embeddings as inputs
         return super().forward(
             batch={
-                'inputs_embeds': embedding_output,
-                'attention_mask': attention_mask,
-                'target': batch['target'],
+                "inputs_embeds": embedding_output,
+                "attention_mask": attention_mask,
+                "target": batch["target"],
             }
         )
-
-    

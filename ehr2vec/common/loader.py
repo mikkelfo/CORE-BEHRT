@@ -81,7 +81,7 @@ class DatasetPreparer:
 
     def prepare_mlm_dataset(self):
         """Load data, truncate, adapt features, create dataset"""
-        train_features, val_features, vocabulary = self._prepare_mlm_features()    
+        train_features, val_features, vocabulary = self._prepare_mlm_features()
         train_dataset = MLMDataset(train_features, vocabulary, **self.cfg.data.dataset)
         val_dataset = MLMDataset(val_features, vocabulary, **self.cfg.data.dataset)
         

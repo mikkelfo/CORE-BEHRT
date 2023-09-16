@@ -24,14 +24,14 @@ def process_data(loader, cfg, features_cfg, logger):
 def main_data(config_path):
     cfg = load_config(config_path)
     outcome_dir = join(cfg.features_dir, 'outcomes')
-    features_cfg = load_config(join(cfg.features_dir, 'data_config.yaml'))
+    
     if cfg.env=='azure':
         _, mount_context = setup_azure(cfg.run_name)
         mount_dir = mount_context.mount_point
         cfg.loader.data_dir = join(mount_dir, cfg.loader.data_dir) # specify paths here
-        cfg.features_path = join(mount_dir, cfg.features_path)
+        cfg.features_dir = join(mount_dir, cfg.features_dir)
         outcome_dir = 'output/outcomes'
-    
+    features_cfg = load_config(join(cfg.features_dir, 'data_config.yaml'))
     logger = prepare_directory_outcomes(config_path, outcome_dir, cfg.outcomes_name)
     logger.info('Mount Dataset')
     logger.info('Starting outcomes creation')

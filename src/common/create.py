@@ -4,7 +4,6 @@ from src.data.dataset import MLMDataset, HierarchicalDataset, CensorDataset
 from transformers import BertConfig
 from torch.optim import AdamW
 from torch.utils.data import WeightedRandomSampler
-from src.behrt.BEHRT import BehrtForMaskedLM, BehrtModel, BehrtConfig
 from src.data.truncator import Truncator
 from src.data.censor import Censor
 
@@ -86,12 +85,7 @@ def model(model_class, cfg, vocabulary=None, tree=None, **model_kwargs):
         tree = loading.tree(cfg)
         cfg.model.leaf_size = tree.num_children_leaves()
 
-    if model_class == BehrtForMaskedLM or model_class == BehrtModel:
-        model_config = BehrtConfig(cfg.model)
-    else:
-        model_config = BertConfig(**cfg.model, **model_kwargs)
-
-    model = model_class(model_config)
+    model = model_class(BertConfig(**cfg.model, **model_kwargs))
     optimizer = AdamW(model.parameters(), **cfg.optimizer)
 
     return model, optimizer

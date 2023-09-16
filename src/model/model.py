@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from transformers import BertModel
 from src.embeddings.ehr import EhrEmbeddings
+from src.embeddings.behrt import BehrtEmbeddings
 from src.model.heads import MLMHead, FineTuneHead, HMLMHead
 import src.common.loading as loading
 
@@ -17,8 +18,8 @@ class BertEHRModel(BertModel):
 
     def forward(self, batch):
         # Unpack batch
-        input_ids = batch["concept"]
-        attention_mask = batch["attention_mask"]
+        input_ids = batch["concept"] if "concept" in batch else None
+        attention_mask = batch["attention_mask"] if "attention_mask" in batch else None
         token_type_ids = batch["segment"] if "segment" in batch else None
         position_ids = {
             "age": batch["age"] if "age" in batch else None,
@@ -106,3 +107,43 @@ class HierarchicalBertForPretraining(BertEHRModel):
             acc_loss += (loss * self.linear_combination[i]).mean()
 
         return acc_loss / self.num_levels
+
+
+class BehrtModel(BertEHRModel):
+    def __init__(self, config):
+        super().__init__(config)
+
+        self.embeddings = BehrtEmbeddings(config)
+
+    def forward(self, batch):
+        # Unpack batch
+        input_ids = batch["concept"]
+        age_ids = batch["age"]
+        seg_ids = batch["segment"]
+        posi_ids = batch["position_ids"]
+        attention_mask = batch["attention_mask"]
+
+        if attention_mask is None:
+            attention_mask = torch.ones_like(input_ids)
+        if age_ids is None:
+            age_ids = torch.zeros_like(input_ids)
+        if seg_ids is None:
+            seg_ids = torch.zeros_like(input_ids)
+        if posi_ids is None:
+            posi_ids = torch.zeros_like(input_ids)
+
+        # Manually calculate embeddings to comply with BehrtEmbeddings
+        embedding_output = self.embeddings(
+            input_ids=input_ids, age_ids=age_ids, seg_ids=seg_ids, posi_ids=posi_ids
+        )
+
+        # Pass to regular forward, using embeddings as inputs
+        return super().forward(
+            batch={
+                'inputs_embeds': embedding_output,
+                'attention_mask': attention_mask,
+                'target': batch['target'],
+            }
+        )
+
+    

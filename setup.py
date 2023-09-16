@@ -15,7 +15,6 @@ setup(
         "src.model",
         "src.trainer",
         "src.tree",
-        "src.behrt",
     ],
     install_requires=[
         "torch",

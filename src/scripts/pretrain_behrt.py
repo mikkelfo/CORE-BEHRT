@@ -2,7 +2,7 @@ import hydra
 import src.common.loading as loading
 import src.common.create as create
 from src.trainer.trainer import EHRTrainer
-from src.behrt.BEHRT import BehrtForMaskedLM
+from src.model.model import BehrtModel
 from src.data.adapter import DataAdapter
 
 
@@ -22,7 +22,11 @@ def main_train(cfg):
 
     # Initialize model and optimizer
     model, optimizer = create.model(
-        BehrtForMaskedLM, cfg, vocabulary=train_dataset.vocabulary
+        BehrtModel,
+        cfg,
+        vocabulary=train_dataset.vocabulary,
+        seg_vocab_size=2,
+        age_vocab_size=120,
     )
 
     # Override state_dicts if checkpoint

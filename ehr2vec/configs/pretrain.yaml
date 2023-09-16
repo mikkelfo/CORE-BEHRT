@@ -4,7 +4,7 @@ paths:
   data_path: "..\\outputs\\data_test"
   output_path: 'outputs/pretraining'
   type: med_diag
-  run_name: pt_ft_test
+  run_name: behrt_test
   tokenized_dir: tokenized
   
 data:
@@ -33,9 +33,7 @@ model:
   num_hidden_layers: 3
   num_attention_heads: 3
   intermediate_size: 64
-  type_vocab_size: 600
-  pool_type: mean
-  
+  type_vocab_size: 512
 
 optimizer:
   lr: 5e-4

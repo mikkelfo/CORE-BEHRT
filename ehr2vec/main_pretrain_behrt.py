@@ -6,11 +6,11 @@ from common.azure import setup_azure
 from common.config import load_config
 from common.loader import DatasetPreparer
 from common.setup import get_args, setup_run_folder
-from model.behrt import BertConfig, BertForMaskedLM
+from model.config import adjust_cfg_for_behrt
+from model.model import BertEHRModel
 from torch.optim import AdamW
 from trainer.trainer import EHRTrainer
-from transformers import get_linear_schedule_with_warmup
-
+from transformers import BertConfig, get_linear_schedule_with_warmup
 
 args = get_args('pretrain.yaml')
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
@@ -26,15 +26,14 @@ def main_train(config_path):
     logger = setup_run_folder(cfg)
     
     train_dataset, val_dataset = DatasetPreparer(cfg).prepare_mlm_dataset_for_behrt()
-    
-    cfg.model.vocab_size = len(train_dataset.vocabulary)
-    logger.info('Initializing model')
-    model = BertForMaskedLM(
-        BertConfig(
-            cfg.model
-        )
-    )
 
+    
+    cfg = adjust_cfg_for_behrt(cfg)
+    logger.info('Initializing model')
+
+    model = BertEHRModel(
+        BertConfig(**cfg.model, vocab_size=len(train_dataset.vocabulary))
+    )
 
     logger.info('Initializing optimizer')
     optimizer = AdamW(

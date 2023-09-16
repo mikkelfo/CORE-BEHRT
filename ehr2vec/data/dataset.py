@@ -201,7 +201,7 @@ class HierarchicalMLMDataset(MLMDataset):
         return target_maping   
     
     
-class CensorDataset(BaseEHRDataset):
+class BinaryOutcomeDataset(BaseEHRDataset):
     """
     outcomes: absolute position when outcome occured for each patient 
     outcomes is a list of the outcome timestamps to predict

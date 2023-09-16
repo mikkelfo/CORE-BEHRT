@@ -58,7 +58,7 @@ class EHRTrainer():
             default_args['collate_fn'] = get_function(default_args['collate_fn'])
 
         self.args = {**default_args, **args}
-
+        
     def update_attributes(self, **kwargs):
         for key, value in kwargs.items():
             if key == 'args':
@@ -72,6 +72,7 @@ class EHRTrainer():
         assert self.optimizer is not None, 'No optimizer provided'
 
     def train(self, **kwargs):
+        self.log(f"Torch version {torch.__version__}")
         self.update_attributes(**kwargs)
         self.validate_training()
 
@@ -116,11 +117,13 @@ class EHRTrainer():
             loss = outputs.loss
 
         self.backward_pass(loss)
-
+        torch.cuda.empty_cache()
+        del outputs
         return loss
 
     def update_and_log(self, i, step_loss, train_loop, epoch_loss):
         """Updates the model and logs the loss"""
+        self.log("Updating model")
         if self.scaler is not None:
             self.scaler.step(self.optimizer)
             self.scaler.update()

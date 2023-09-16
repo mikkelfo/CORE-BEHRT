@@ -5,7 +5,8 @@ from os.path import join
 import numpy as np
 import pandas as pd
 import torch
-from data.dataset import CensorDataset, HierarchicalMLMDataset, MLMDataset
+from data.dataset import (BinaryOutcomeDataset, HierarchicalMLMDataset,
+                          MLMDataset)
 from data_fixes.adapt import BehrtAdapter
 from data_fixes.censor import Censorer
 from data_fixes.truncate import Truncator
@@ -24,7 +25,7 @@ def load_model(model_class, cfg, add_config={}):
     config.update(add_config)
     model = model_class(config)
     load_result = model.load_state_dict(torch.load(checkpoint_path, map_location=device)['model_state_dict'], strict=False)
-    logger.info("missing state dict keys", load_result.missing_keys)
+    logger.info("missing state dict keys: %s", load_result.missing_keys)
     return model
 
 def create_binary_outcome_datasets(all_outcomes, cfg):
@@ -39,7 +40,7 @@ def create_binary_outcome_datasets(all_outcomes, cfg):
     if cfg.train_data.num_patients == 0:
         train_dataset = None
     else:
-        train_dataset = CensorDataset(cfg.paths.data_path, 'train', outcomes, 
+        train_dataset = BinaryOutcomeDataset(cfg.paths.data_path, 'train', outcomes, 
                                     censor_outcomes=censor_outcomes, 
                                     outcome_pids=pids,
                                     num_patients=cfg.train_data.num_patients,
@@ -50,7 +51,7 @@ def create_binary_outcome_datasets(all_outcomes, cfg):
     if cfg.val_data.num_patients == 0:
         val_dataset = None
     else:
-        val_dataset = CensorDataset(cfg.paths.data_path, 'val',  outcomes, 
+        val_dataset = BinaryOutcomeDataset(cfg.paths.data_path, 'val',  outcomes, 
                                     censor_outcomes=censor_outcomes, 
                                     outcome_pids=pids,
                                     num_patients=cfg.val_data.num_patients,
@@ -110,8 +111,26 @@ class DatasetPreparer:
                                             h_vocabulary, tree, tree_matrix, 
                                             **self.cfg.data.dataset)
         return train_dataset, val_dataset
-
+    
     def prepare_finetune_dataset(self):
+        train_features, val_features, train_outcome, val_outcome = self.prepare_finetune_features()
+        # Censoring
+        train_dataset = BinaryOutcomeDataset(train_features, outcomes=train_outcome)
+        val_dataset = BinaryOutcomeDataset(val_features, outcomes=val_outcome)
+        return train_dataset, val_dataset
+    
+    def prepare_finetune_dataset_for_behrt(self):
+        train_features, val_features, train_outcome, val_outcome = self.prepare_finetune_features()
+
+        # Adapt features for Behrt
+        train_features = BehrtAdapter().adapt_features(train_features)
+        val_features = BehrtAdapter().adapt_features(val_features)
+        # 8. Censoring
+        train_dataset = BinaryOutcomeDataset(train_features, outcomes=train_outcome)
+        val_dataset = BinaryOutcomeDataset(val_features, outcomes=val_outcome)
+        return train_dataset, val_dataset
+    
+    def prepare_finetune_features(self):
         """
         Prepare the dataset for fine-tuning. 
         The process includes:
@@ -121,9 +140,7 @@ class DatasetPreparer:
         4. Data censoring
         5. Patient selection
         6. Truncating data
-        7. Creating the dataset
         """
-        
         # 1. Loading tokenized data
         train_features, train_pids, val_features, val_pids, vocabulary = self._load_tokenized_data()
         
@@ -164,11 +181,9 @@ class DatasetPreparer:
         truncator = Truncator(max_len=self.cfg.data.truncation_len, sep_token=vocabulary['[SEP]'])
         train_features = truncator(train_features)
         val_features = truncator(val_features)
-
-        # 8. Censoring
-        train_dataset = CensorDataset(train_features, outcomes=train_outcome)
-        val_dataset = CensorDataset(val_features, outcomes=val_outcome)
-        return train_dataset, val_dataset
+        return train_features, val_features, train_outcome, val_outcome
+    
+    
 
     # def prepare_onehot_dataset(self):
     #     train_features, train_pids, val_features, val_pids, vocabulary = self._load_tokenized_data()

@@ -1,13 +1,16 @@
 env: local
 paths:
   data_path: "../outputs/data_icd10"
-  model_path: "outputs/pretraining/pt_ft_test"
+  model_path: "outputs/pretraining/behrt_plus_test"
   checkpoint_epoch: 2
   outcome: "outcomes/TEST.pt"
   censor: "outcomes/TEST.pt"
   output_path: "outputs/finetuning"
-  run_name: "finetune"
+  run_name: "finetune_behrt_plus"
   tokenized_dir: "tokenized"
+
+model:
+  pool_type: "mean"
 
 data:
   num_train_patients: 150

@@ -25,11 +25,12 @@ def main_finetune():
         cfg.paths.output_path = join("outputs")
     logger = setup_run_folder(cfg)
 
-    train_dataset, val_dataset = DatasetPreparer(cfg).prepare_finetune_dataset()
+    train_dataset, val_dataset = DatasetPreparer(cfg).prepare_finetune_dataset_for_behrt()
    
     logger.info('Initializing model')
-    model = load_model(BertForFineTuning, cfg, 
+    model = load_model(BertForFineTuning, cfg, add_config = 
                        {'pos_weight':get_pos_weight(cfg, train_dataset.outcomes),
+                        'embedding':'original_behrt',
                         'pool_type': cfg.model.get('pool_type', 'mean')})
     optimizer = AdamW(
         model.parameters(),

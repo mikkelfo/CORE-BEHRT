@@ -1,17 +1,19 @@
 import torch
 import torch.nn as nn
-from embeddings.ehr import EhrEmbeddings
+from embeddings.ehr import BehrtEmbeddings, EhrEmbeddings
 from model.heads import FineTuneHead, HMLMHead, MLMHead
 from transformers import BertModel
-from common.config import instantiate
+
 
 class BertEHREncoder(BertModel):
     def __init__(self, config):
         super().__init__(config)
         if not config.to_dict().get('embedding', None):
             self.embeddings = EhrEmbeddings(config)
+        elif config.embedding == 'original_behrt':
+            self.embeddings = BehrtEmbeddings(config)
         else:
-            self.embeddings = instantiate(config.embedding, config)
+            raise ValueError(f"Unknown embedding type: {config.embedding}")
     def forward(
         self,
         batch: dict,
@@ -21,7 +23,7 @@ class BertEHREncoder(BertModel):
             'abspos': batch.get('abspos', None),
             'dosage': batch.get('dosage', None),
             'unit': batch.get('unit', None)
-        },
+        }
         outputs = super().forward(
             input_ids=batch['concept'],
             attention_mask=batch.get('attention_mask', None),
@@ -152,3 +154,14 @@ class HierarchicalBertForPretraining(BertEHRModel):
             result.pop(f'tree_matrix_{i}', None)
         result.pop('tree_mask', None)
         return result
+
+
+
+
+
+
+
+
+
+
+

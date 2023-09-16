@@ -3,7 +3,7 @@ import src.common.loading as loading
 import src.common.create as create
 from src.trainer.trainer import EHRTrainer
 from src.behrt.BEHRT import BehrtForMaskedLM
-from src.behrt.adapt_to_behrt import adapt_to_behrt
+from src.data.adapter import DataAdapter
 
 
 @hydra.main(config_path="../../configs/train", config_name="pretrain")
@@ -17,7 +17,7 @@ def main_train(cfg):
     # Adapt to BEHRT data format
     for dataset in [train_dataset, val_dataset]:
         dataset.features = dataset._to_tensors(
-            adapt_to_behrt(dataset.features), dtypes={}
+            DataAdapter().adapt_to_behrt(dataset.features), dtypes={}
         )
 
     # Initialize model and optimizer

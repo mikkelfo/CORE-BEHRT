@@ -19,6 +19,17 @@ class DataAdapter:
         return features
 
     @staticmethod
+    def one_hot(features: dict, vocabulary: dict) -> list:
+        X = []
+        for patient in features["concept"]:
+            x = [0] * len(vocabulary)
+            for code in set(patient):
+                x[code] = 1
+            X.append(x)
+
+        return X
+
+    @staticmethod
     def convert_to_int(ages: list):
         return [int(age) if age > 0 else 0 for age in ages]
 

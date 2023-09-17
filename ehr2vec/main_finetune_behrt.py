@@ -1,11 +1,11 @@
 import os
-from os.path import join, split
+from os.path import join
 
 import torch
-from common.azure import setup_azure
 from common.config import load_config
 from common.loader import DatasetPreparer, load_model
-from common.setup import get_args, setup_run_folder
+from common.setup import (add_pretrain_info_to_cfg, adjust_paths_for_finetune,
+                          azure_finetune_setup, get_args, setup_run_folder)
 from evaluation.utils import get_pos_weight, get_sampler
 from model.model import BertForFineTuning
 from torch.optim import AdamW
@@ -17,19 +17,12 @@ config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.conf
 
 def main_finetune():
     cfg = load_config(config_path)
-    run = None
 
-    if cfg.env=='azure':
-        run, mount_context = setup_azure(cfg.paths.run_name)
-        cfg.paths.data_path = join(mount_context.mount_point, cfg.paths.data_path)
-        cfg.paths.model_path = join(mount_context.mount_point, cfg.paths.model_path)
-        cfg.paths.output_path = join("outputs")
+    cfg = adjust_paths_for_finetune(cfg)
+    run, mount_context = azure_finetune_setup(cfg)
+    cfg = add_pretrain_info_to_cfg(cfg)
     logger = setup_run_folder(cfg)
-    
-    # Get settings from pretraining
-    pretrain_cfg = load_config(join(cfg.paths.model_path, 'pretrain_config.yaml'))
-    cfg.data.remove_background = pretrain_cfg.data.remove_background
-    cfg.paths.tokenized_dir = pretrain_cfg.paths.tokenized_dir
+    cfg.save_to_yaml(join(cfg.paths.output_path, cfg.paths.run_name, 'finetune_config.yaml'))
     
     train_dataset, val_dataset = DatasetPreparer(cfg).prepare_finetune_dataset_for_behrt()
    
@@ -64,7 +57,7 @@ def main_finetune():
     if cfg.env=='azure':
         from azure_run import file_dataset_save
         file_dataset_save(local_path=join('outputs', cfg.paths.run_name), datastore_name = "workspaceblobstore",
-                    remote_path = join("PHAIR", 'models', split(cfg.paths.model_path)[-1], "finetune_"+cfg.run_name))
+                    remote_path = join("PHAIR", cfg.paths.model_path, cfg.paths.run_name))
         mount_context.stop()
     logger.info('Done')
 

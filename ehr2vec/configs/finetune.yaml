@@ -5,9 +5,9 @@ paths:
   checkpoint_epoch: 2
   outcome: "outcomes/TEST.pt"
   censor: "outcomes/TEST.pt"
-  output_path: "outputs/finetuning"
-  run_name: "finetune_behrt_plus"
-  tokenized_dir: "tokenized"
+  #output_path: "outputs/finetuning"
+  run_name: "test"
+  # tokenized_dir: "tokenized"
 
 model:
   pool_type: "mean"

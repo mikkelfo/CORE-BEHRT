@@ -54,6 +54,10 @@ class Config(dict):
         result = dict(self)  # Start with the underlying dictionary
         result.update(self.__dict__)  # Add the attributes
         return result
+    
+    def save_to_yaml(config, file_name):
+        with open(file_name, 'w') as file:
+            yaml.dump(config.to_dict(), file)
 
 
 def instantiate(config):

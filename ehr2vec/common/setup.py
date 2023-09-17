@@ -5,7 +5,8 @@ import uuid
 from os.path import join
 from shutil import copyfile
 
-from common.config import Config
+from common.azure import setup_azure
+from common.config import Config, load_config
 
 
 def get_args(default_config_name, default_run_name=None):
@@ -55,26 +56,48 @@ def prepare_encodings_directory(config_path: str, cfg: Config):
     copyfile(config_path, join(cfg.output_dir, 'encodings_config.yaml'))
     return setup_logger(cfg.output_dir)
 
-def setup_run_folder(cfg):
+def setup_run_folder(cfg, run_folder=None):
     """Creates a run folder"""
     # Generate unique run_name if not provided
-    if hasattr(cfg.paths, 'run_name'):
-        run_name = cfg.paths.run_name
-    else:
-        run_name = uuid.uuid4().hex
-       
-    run_folder = join(cfg.paths.output_path, run_name)
+    run_name = cfg.paths.run_name if hasattr(cfg.paths, 'run_name') else uuid.uuid4().hex
+    if run_folder is None:
+        run_folder = join(cfg.paths.output_path, run_name)
 
-    if not os.path.exists(run_folder):
-        os.makedirs(run_folder) 
-    if not os.path.exists(join(run_folder,'checkpoints')):
-        os.makedirs(join(run_folder,'checkpoints')) 
+    os.makedirs(run_folder, exist_ok=True)
+    os.makedirs(join(run_folder,'checkpoints'), exist_ok=True)
+    
     tokenized_dir_name = cfg.paths.get('tokenized_dir', 'tokenized')
     try:
         copyfile(join(cfg.paths.data_path, tokenized_dir_name, 'data_config.yaml'), join(run_folder, 'data_config.yaml'))
     except:
         copyfile(join(cfg.paths.data_path, 'data_config.yaml'), join(run_folder, 'data_config.yaml'))
-    
     logger = setup_logger(run_folder)
     logger.info(f'Run folder: {run_folder}')
     return logger
+
+def azure_finetune_setup(cfg):
+    if cfg.env=='azure':
+        run, mount_context = setup_azure(cfg.paths.run_name)
+        cfg.paths.data_path = join(mount_context.mount_point, cfg.paths.data_path)
+        cfg.paths.model_path = join(mount_context.mount_point, cfg.paths.model_path)
+        cfg.paths.output_path = join("outputs", cfg.paths.run_name)
+        return run, mount_context
+    return None, None
+
+def adjust_paths_for_finetune(cfg):
+    cfg.paths.output_path = cfg.paths.model_path
+    cfg.paths.run_name = construct_finetune_model_dir_name(cfg)
+    return cfg
+
+def add_pretrain_info_to_cfg(cfg):
+    pretrain_cfg = load_config(join(cfg.paths.model_path, 'pretrain_config.yaml'))
+    cfg.data.remove_background = pretrain_cfg.data.remove_background
+    cfg.paths.tokenized_dir = pretrain_cfg.paths.tokenized_dir
+    return cfg
+
+def construct_finetune_model_dir_name(cfg):
+    days = True if abs(cfg.outcome.n_hours)>48 else False
+    window = int(abs(cfg.outcome.n_hours/24)) if days else abs(cfg.outcome.n_hours)
+    days_hours = 'days' if days else 'hours'
+    pre_post = 'pre' if cfg.outcome.n_hours<0 else 'post'
+    return f"finetune_{cfg.outcome.type}_censored_{window}_{days_hours}_{pre_post}_{cfg.outcome.censor_type}_{cfg.paths.run_name}"

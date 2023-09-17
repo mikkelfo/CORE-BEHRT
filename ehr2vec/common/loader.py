@@ -88,6 +88,7 @@ class DatasetPreparer:
         
         return train_dataset, val_dataset
     
+
     def prepare_mlm_dataset_for_behrt(self):
         """Load data, truncate, adapt features, create dataset"""
         train_features, val_features, vocabulary = self._prepare_mlm_features()
@@ -196,7 +197,7 @@ class DatasetPreparer:
     def _censor_data(self, features, pids, outcome_censor, vocabulary):
         censorer = Censorer(self.cfg.outcome.n_hours, vocabulary=vocabulary)
         features, kept_ids = censorer(features, outcome_censor)
-        pids = [pid for i, pid in enumerate(pids) if i in kept_ids]
+        pids = [pid for i, pid in enumerate(pids) if i in set(kept_ids)]
         return features, pids
 
     def _process_outcomes(self, outcomes, pids):
@@ -269,10 +270,10 @@ class DatasetPreparer:
 
     def _exclude_pretrain_patients(self, features, pids,  mode):
         pretrain_pids = set(torch.load(join(self.cfg.paths.model_path, f'pids_{mode}.pt')))
-        kept_indices = [i for i, pid in enumerate(pids) if pid not in pretrain_pids]
+        kept_indices = set([i for i, pid in enumerate(pids) if pid not in pretrain_pids])
         pids = [pid for i, pid in enumerate(pids) if i in kept_indices]
         for k, v in features.items():
-            features[k] = [v[i] for i in kept_indices]
+            features[k] = [v[i] for i in set(kept_indices)]
         return features, pids
     
     def _retrieve_outcomes(self, all_outcomes):
@@ -289,7 +290,7 @@ class DatasetPreparer:
         np.random.seed(seed)
         indices = np.arange(len(pids))
         np.random.shuffle(indices)
-        indices = indices[:num_patients]
+        indices = set(indices[:num_patients])
         pids = [pid for i, pid in enumerate(pids) if i in indices]
         for k, v in features.items():
             features[k] = [v[i] for i in indices]

@@ -26,16 +26,19 @@ class EHRTrainer():
         logger = None,
         run = None,
     ):
+        self.logger = logger
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-        if logger:
-            logger.info(f"Run on {self.device}")
+        self.log(f"Run on {self.device}")
         self.run_folder = os.path.join(cfg.paths.output_path, cfg.paths.run_name)
+        self.log(f"Run folder: {self.run_folder}")
+        self.log("Send model to device")
         self.model = model.to(self.device)
         self.train_dataset = train_dataset
         self.test_dataset = test_dataset
         self.val_dataset = val_dataset
         self.optimizer = optimizer
         self.scheduler = scheduler
+        self.log("Initialize metrics")
         if metrics:
             self.metrics = {k: instantiate(v) for k, v in metrics.items()}
         else:
@@ -43,7 +46,7 @@ class EHRTrainer():
         
         self.sampler = sampler
         self.cfg = cfg
-        self.logger = logger
+        
         self.run = run
         
         if self.cfg.trainer_args.get('mixed_precision', False):#

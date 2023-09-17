@@ -21,15 +21,15 @@ class BertEHREncoder(BertModel):
         position_ids={
             'age': batch.get('age', None),
             'abspos': batch.get('abspos', None),
+            'position_ids': batch.get('position_ids', None),
             'dosage': batch.get('dosage', None),
-            'unit': batch.get('unit', None)
+            'unit': batch.get('unit', None),
         }
         outputs = super().forward(
             input_ids=batch['concept'],
             attention_mask=batch.get('attention_mask', None),
             token_type_ids=batch.get('segment', None),
             position_ids=position_ids,
-            inputs_embeds=batch.get('embeddings', None),
         )
         return outputs
 

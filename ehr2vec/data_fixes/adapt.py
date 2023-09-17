@@ -13,6 +13,8 @@ class BehrtAdapter:
         for age in ages:
             if age<0:
                 converted_ages.append(0)
+            elif age>119:
+                converted_ages.append(119)
             else:
                 converted_ages.append(int(age))
         return converted_ages

@@ -40,7 +40,6 @@ class EhrEmbeddings(BaseEmbeddings):
         self.initialize_embeddings(config)
         self.initialize_linear_params(config)
 
-
     def initialize_embeddings(self, config):
         self.concept_embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
         self.age_embeddings = Time2Vec(1, config.hidden_size)
@@ -105,8 +104,8 @@ class BehrtEmbeddings(BaseEmbeddings):
     def forward(self, input_ids, token_type_ids=None, position_ids=None, inputs_embeds = None, **kwargs):
         if inputs_embeds is not None:
             return inputs_embeds
-        word_embed = self.word_embeddings(input_ids)
-        embeddings = word_embed
+        embeddings = self.word_embeddings(input_ids)
+        
         if position_ids is not None:
             if 'age' in position_ids:
                 age_embed = self.age_embeddings(position_ids['age'])
@@ -114,7 +113,6 @@ class BehrtEmbeddings(BaseEmbeddings):
             if 'position_ids' in position_ids:
                 posi_embed = self.posi_embeddings(position_ids['position_ids'])
                 embeddings += posi_embed
-                
         segment_embed = self.segment_embeddings(token_type_ids)
         embeddings += segment_embed
                 

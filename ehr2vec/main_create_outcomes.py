@@ -23,7 +23,7 @@ def process_data(loader, cfg, features_cfg, logger):
 
 def main_data(config_path):
     cfg = load_config(config_path)
-    outcome_dir = join(cfg.features_dir, 'outcomes')
+    outcome_dir = join('outputs', 'outcomes', cfg.outcomes_name)
     
     if cfg.env=='azure':
         _, mount_context = setup_azure(cfg.run_name)

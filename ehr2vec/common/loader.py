@@ -152,9 +152,13 @@ class DatasetPreparer:
         
         # 3. Loading and processing outcomes
         logger.info('Load outcomes')
-        outcomes = torch.load(join(self.cfg.paths.data_path, self.cfg.paths.outcome))
-        train_outcome, train_outcome_censor = self._process_outcomes(outcomes, train_pids)
-        val_outcome, val_outcome_censor = self._process_outcomes(outcomes, val_pids)
+        outcomes = torch.load(self.cfg.paths.outcome)
+        if self.cfg.paths.get('censor', None) is None:
+            censor_outcomes = outcomes
+        else:
+            censor_outcomes = torch.load(self.cfg.paths.censor)
+        train_outcome, train_outcome_censor = self._process_outcomes(outcomes, censor_outcomes, train_pids)
+        val_outcome, val_outcome_censor = self._process_outcomes(outcomes, censor_outcomes, val_pids)
         
         # 4. Data censoring
         logger.info('Censoring')
@@ -200,9 +204,11 @@ class DatasetPreparer:
         pids = [pid for i, pid in enumerate(pids) if i in set(kept_ids)]
         return features, pids
 
-    def _process_outcomes(self, outcomes, pids):
-        self._select_outcomes_for_patients(outcomes, pids)
-        outcomes, censor_outcomes, pids = self._retrieve_outcomes(outcomes)
+    def _process_outcomes(self, outcomes, censor_outcomes, pids):
+        outcomes = self._select_outcomes_for_patients(outcomes, pids)
+        censor_outcomes = self._select_outcomes_for_patients(censor_outcomes, pids)
+    
+        outcomes, censor_outcomes, pids = self._retrieve_outcomes(outcomes, censor_outcomes)
         return outcomes, censor_outcomes
         
     def _prepare_mlm_features(self):
@@ -276,13 +282,15 @@ class DatasetPreparer:
             features[k] = [v[i] for i in set(kept_indices)]
         return features, pids
     
-    def _retrieve_outcomes(self, all_outcomes):
+    def _retrieve_outcomes(self, all_outcomes, all_censor_outcomes):
         """From the configuration, load the outcomes and censor outcomes.
         Access pids, the outcome of interest and the censoring outcome."""
         
         outcomes = all_outcomes.get(self.cfg.outcome.type, [None]*len(all_outcomes[PID_KEY]))
-        censor_outcomes = all_outcomes.get(self.cfg.outcome.get('censor_type', None), [None]*len(outcomes))
+        censor_outcomes = all_censor_outcomes.get(self.cfg.outcome.get('censor_type', None), [None]*len(outcomes))
+        censor_pids = all_censor_outcomes[PID_KEY]
         pids = all_outcomes[PID_KEY]
+        assert censor_pids == pids, "PIDs in censoring and outcome files do not match"
         return outcomes, censor_outcomes, pids
 
     @staticmethod

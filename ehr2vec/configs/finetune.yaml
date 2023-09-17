@@ -3,8 +3,8 @@ paths:
   data_path: "../outputs/data_icd10"
   model_path: "outputs/pretraining/behrt_plus_test"
   checkpoint_epoch: 2
-  outcome: "outcomes/TEST.pt"
-  censor: "outcomes/TEST.pt"
+  outcome: "outputs/outcomes/TEST/TEST.pt"
+  # censor: "outputs/outcomes/TEST/TEST.pt"
   #output_path: "outputs/finetuning"
   run_name: "test"
   # tokenized_dir: "tokenized"
@@ -13,8 +13,8 @@ model:
   pool_type: "mean"
 
 data:
-  num_train_patients: 150
-  num_val_patients: 20
+  num_train_patients: 200
+  num_val_patients: 50
   truncation_len: 20
 
 outcome: 

@@ -81,7 +81,8 @@ def azure_finetune_setup(cfg):
         cfg.paths.data_path = join(mount_context.mount_point, cfg.paths.data_path)
         cfg.paths.model_path = join(mount_context.mount_point, cfg.paths.model_path)
         cfg.paths.outcome = join(mount_context.mount_point, cfg.paths.outcome)
-        cfg.paths.censor = join(mount_context.mount_point, cfg.paths.censor)
+        if cfg.paths.get('censor', None) is not None:
+            cfg.paths.censor = join(mount_context.mount_point, cfg.paths.censor)
         cfg.paths.output_path = "outputs"
         return cfg, run, mount_context
     return cfg, None, None

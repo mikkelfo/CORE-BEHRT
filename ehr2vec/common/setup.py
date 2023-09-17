@@ -80,9 +80,9 @@ def azure_finetune_setup(cfg):
         run, mount_context = setup_azure(cfg.paths.run_name)
         cfg.paths.data_path = join(mount_context.mount_point, cfg.paths.data_path)
         cfg.paths.model_path = join(mount_context.mount_point, cfg.paths.model_path)
-        cfg.paths.output_path = join("outputs", cfg.paths.run_name)
-        return run, mount_context
-    return None, None
+        cfg.paths.output_path = "outputs"
+        return cfg, run, mount_context
+    return cfg, None, None
 
 def adjust_paths_for_finetune(cfg):
     cfg.paths.output_path = cfg.paths.model_path

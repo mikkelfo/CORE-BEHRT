@@ -1,14 +1,15 @@
 import os
 from os.path import join, split
 
+import torch
 from common.azure import setup_azure
 from common.config import load_config
-from common.loader import load_model, DatasetPreparer
+from common.loader import DatasetPreparer, load_model
 from common.setup import get_args, setup_run_folder
+from evaluation.utils import get_pos_weight, get_sampler
 from model.model import BertForFineTuning
 from torch.optim import AdamW
 from trainer.trainer import EHRTrainer
-from evaluation.utils import get_pos_weight, get_sampler
 
 args = get_args('finetune.yaml')
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
@@ -31,6 +32,11 @@ def main_finetune():
     model = load_model(BertForFineTuning, cfg, 
                        {'pos_weight':get_pos_weight(cfg, train_dataset.outcomes),
                         'pool_type': cfg.model.get('pool_type', 'mean')})
+    try:
+        model = torch.compile(model)
+        logger.info('Model compiled')
+    except:
+        logger.info('Model not compiled')    
     optimizer = AdamW(
         model.parameters(),
         **cfg.optimizer

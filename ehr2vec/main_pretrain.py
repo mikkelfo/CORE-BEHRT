@@ -2,6 +2,7 @@
 import os
 from os.path import join
 
+import torch
 from common.azure import setup_azure
 from common.config import load_config
 from common.loader import DatasetPreparer
@@ -31,7 +32,11 @@ def main_train(config_path):
             vocab_size=len(train_dataset.vocabulary),
         )
     )
-
+    try:
+        model = torch.compile(model)
+        logger.info('Model compiled')
+    except:
+        logger.info('Model not compiled')
 
     logger.info('Initializing optimizer')
     optimizer = AdamW(
@@ -40,7 +45,6 @@ def main_train(config_path):
     )
     if cfg.scheduler:
         scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=cfg.scheduler.num_warmup_steps, num_training_steps=cfg.scheduler.num_training_steps)
-
 
     logger.info('Initialize trainer')
     trainer = EHRTrainer( 

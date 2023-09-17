@@ -35,6 +35,12 @@ def main_train(config_path):
                             **cfg.model)
     model = HierarchicalBertForPretraining(bertconfig, tree_matrix=train_dataset.tree_matrix)
 
+    try:
+        model = torch.compile(model)
+        logger.info('Model compiled')
+    except:
+        logger.info('Model not compiled')
+        
     logger.info("Setup optimizer")
     optimizer = AdamW(
         model.parameters(),

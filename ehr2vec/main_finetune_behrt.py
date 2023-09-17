@@ -25,7 +25,12 @@ def main_finetune():
         cfg.paths.model_path = join(mount_context.mount_point, cfg.paths.model_path)
         cfg.paths.output_path = join("outputs")
     logger = setup_run_folder(cfg)
-
+    
+    # Get settings from pretraining
+    pretrain_cfg = load_config(join(cfg.paths.model_path, 'pretrain_config.yaml'))
+    cfg.data.remove_background = pretrain_cfg.data.remove_background
+    cfg.paths.tokenized_dir = pretrain_cfg.paths.tokenized_dir
+    
     train_dataset, val_dataset = DatasetPreparer(cfg).prepare_finetune_dataset_for_behrt()
    
     logger.info('Initializing model')

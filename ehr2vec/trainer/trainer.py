@@ -60,7 +60,13 @@ class EHRTrainer():
 
         self.args = {**default_args, **args}
         if torch.cuda.is_available():
-            self.log(torch.cuda.get_device_properties(0).total_memory)
+            self.log(f"Memory on GPU: {torch.cuda.get_device_properties(0).total_memory/1e9} GB")
+        self.log(f"PyTorch version: {torch.__version__}" )
+        self.log(f"CUDA version: {torch.version.cuda}")
+
+        if not (self.args['effective_batch_size'] % self.args['batch_size'] == 0):
+            raise ValueError('effective_batch_size must be a multiple of batch_size')
+
     def update_attributes(self, **kwargs):
         for key, value in kwargs.items():
             if key == 'args':

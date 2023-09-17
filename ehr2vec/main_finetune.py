@@ -17,6 +17,7 @@ config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.conf
 
 def main_finetune():
     cfg = load_config(config_path)
+    
     run = None
 
     if cfg.env=='azure':
@@ -25,7 +26,9 @@ def main_finetune():
         cfg.paths.model_path = join(mount_context.mount_point, cfg.paths.model_path)
         cfg.paths.output_path = join("outputs")
     logger = setup_run_folder(cfg)
-
+    pretrain_cfg = load_config(join(cfg.paths.model_path, 'pretrain_config.yaml'))
+    cfg.data.remove_background = pretrain_cfg.data.remove_background
+    cfg.paths.tokenized_dir = pretrain_cfg.paths.tokenized_dir
     train_dataset, val_dataset = DatasetPreparer(cfg).prepare_finetune_dataset()
    
     logger.info('Initializing model')

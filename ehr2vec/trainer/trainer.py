@@ -24,7 +24,7 @@ class EHRTrainer():
         sampler = None,
         cfg = None,
         logger = None,
-        run = None
+        run = None,
     ):
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         if logger:
@@ -45,6 +45,7 @@ class EHRTrainer():
         self.cfg = cfg
         self.logger = logger
         self.run = run
+        
         if self.cfg.trainer_args.get('mixed_precision', False):#
             raise ValueError("Mixed precision produces unstable results (nan loss). Please use full precision.")
             self.scaler = GradScaler()
@@ -58,7 +59,8 @@ class EHRTrainer():
             default_args['collate_fn'] = get_function(default_args['collate_fn'])
 
         self.args = {**default_args, **args}
-        
+        if torch.cuda.is_available():
+            self.log(torch.cuda.get_device_properties(0).total_memory)
     def update_attributes(self, **kwargs):
         for key, value in kwargs.items():
             if key == 'args':
@@ -89,14 +91,14 @@ class EHRTrainer():
         step_loss = 0
         for i, batch in train_loop:
             step_loss += self.train_step(batch).item()
-            #if i<50:
-             #   self.run_log_gpu()
             if (i+1) % self.accumulation_steps == 0:
                 self.clip_gradients()
                 self.update_and_log(i, step_loss, train_loop, epoch_loss)
                 step_loss = 0
             if ((i+1) / self.accumulation_steps) % self.args['save_every_k_steps'] == 0:
                 self.save_checkpoint(id=f'epoch{epoch}_step{(i+1) // self.accumulation_steps}', train_loss=step_loss / self.accumulation_steps)
+            if i%100==0:
+                self.run_log_gpu()
         self.validate_and_log(epoch, epoch_loss, train_loop)
 
     def clip_gradients(self):
@@ -123,7 +125,6 @@ class EHRTrainer():
 
     def update_and_log(self, i, step_loss, train_loop, epoch_loss):
         """Updates the model and logs the loss"""
-        self.log("Updating model")
         if self.scaler is not None:
             self.scaler.step(self.optimizer)
             self.scaler.update()
@@ -136,7 +137,7 @@ class EHRTrainer():
         epoch_loss.append(step_loss / self.accumulation_steps)
 
         if self.args['info']:
-            self.log(f'Train loss {(i+1) // self.accumulation_steps}: {step_loss / self.accumulation_steps}')
+            #self.log(f'Train loss {(i+1) // self.accumulation_steps}: {step_loss / self.accumulation_steps}')
             for param_group in self.optimizer.param_groups:
                 current_lr = param_group['lr']
                 self.run_log('Learning Rate', current_lr)
@@ -202,15 +203,18 @@ class EHRTrainer():
             self.logger.info(message)
         else:
             print(message)
+
     def run_log_gpu(self):
         """Logs the GPU memory usage to the run"""
-        # Log the GPU memory usage
+        
+        memory_allocated = torch.cuda.memory_allocated(device=self.device)/1e9
+        memory_cached = torch.cuda.memory_cached(device=self.device)/1e9
         if self.run is not None:
-            memory_allocated = torch.cuda.memory_allocated(device=self.device)/1e9
-            self.run.log_metric("GPU Memory Allocated", memory_allocated)
-
-            memory_cached = torch.cuda.memory_cached(device=self.device)/1e9
-            self.run.log_metric("GPU Memory Cached", memory_cached)
+            self.run.log_metric("GPU Memory Allocated in GB", memory_allocated)
+            self.run.log_metric("GPU Memory Cached in GB", memory_cached)
+        else:
+            self.log(f"GPU Memory Allocated in GB: {memory_allocated}")
+            self.log(f"GPU Memory Cached in GB: {memory_cached}")
 
     def run_log(self, name, value):
         if self.run is not None:

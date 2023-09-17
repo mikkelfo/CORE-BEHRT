@@ -36,7 +36,7 @@ def main_data(config_path):
         mount_dir = mount_context.mount_point
         cfg.loader.data_dir = join(mount_dir, cfg.loader.data_dir) # specify paths here
         cfg.features_dir = join(mount_dir, cfg.features_dir)
-        outcome_dir = 'output/outcomes'
+        outcome_dir = 'outputs/outcomes'
     
     logger = prepare_directory_outcomes(config_path, outcome_dir, cfg.outcomes_name)
     logger.info('Mount Dataset')

@@ -149,7 +149,7 @@ class DatasetPreparer:
         logger.info('Exclude pretrain patients')
         train_features, train_pids = self._exclude_pretrain_patients(train_features, train_pids, 'train')
         val_features, val_pids = self._exclude_pretrain_patients(val_features, val_pids, 'val')
-        
+        logger.info(f"After excluding pretrain patients: {len(train_pids)} train patients, {len(val_pids)} val patients")
         # 3. Loading and processing outcomes
         logger.info('Load outcomes')
         outcomes = torch.load(self.cfg.paths.outcome)
@@ -160,34 +160,43 @@ class DatasetPreparer:
         train_outcome, train_outcome_censor = self._process_outcomes(outcomes, censor_outcomes, train_pids)
         val_outcome, val_outcome_censor = self._process_outcomes(outcomes, censor_outcomes, val_pids)
         
-        # 4. Data censoring
+        # 4. Optionally select patients of interest
+        if self.cfg.data.get("select_censored", False):
+            logger.info("Selecting only censored patients")
+            train_features, train_pids, train_outcome_censor = self._select_censored(train_features, train_pids, train_outcome_censor)
+            val_features, val_pids, val_outcome_censor = self._select_censored(val_features, val_pids, val_outcome_censor)
+            logger.info(f"After selecting only censored patients: {len(train_pids)} train patients, {len(val_pids)} val patients")
+
+        # 5. Data censoring
         logger.info('Censoring')
         train_features, train_pids = self._censor_data(train_features, train_pids,
                                                        train_outcome_censor, vocabulary)
         val_features, val_pids = self._censor_data(val_features, val_pids,
                                                     val_outcome_censor, vocabulary)
         
-        # 5. Patient selection
+        # 6. Patient selection
         logger.info('Selecting patients')
-        train_features, train_pids = DatasetPreparer._select_random_subset(
+        train_features, train_pids = self._select_random_subset(
             train_features, train_pids, self.cfg.data.num_train_patients)
-        val_features, val_pids = DatasetPreparer._select_random_subset(
+        val_features, val_pids = self._select_random_subset(
             val_features, val_pids, self.cfg.data.num_val_patients)
-        self._save_pids(train_pids, val_pids) # this has to be moved to after patient exclusion, once short sequences are removed
+        logger.info(f"After selecting a subset: {len(train_pids)} train patients, {len(val_pids)} val patients")
 
-        # 6. Optionally Remove Background Tokens
+        
+        self._save_pids(train_pids, val_pids) 
+
+        # 7. Optionally Remove Background Tokens
         if self.cfg.data.get("remove_background", False):
             logger.info("Removing background tokens")
             train_features = self._remove_background(train_features, vocabulary)
             val_features = self._remove_background(val_features, vocabulary)
 
-        # 7. Truncation
+        # 8. Truncation
         logger.info('Truncating')
         truncator = Truncator(max_len=self.cfg.data.truncation_len, sep_token=vocabulary['[SEP]'])
         train_features = truncator(train_features)
         val_features = truncator(val_features)
         return train_features, val_features, train_outcome, val_outcome
-    
     
 
     # def prepare_onehot_dataset(self):
@@ -197,6 +206,13 @@ class DatasetPreparer:
     #     outcomes = torch.load(join(cfg.paths.data_path, cfg.paths.outcome))
     #     tokenized_features_train = censorer(tokenized_features_train, outcome, vocabulary, cfg)
     #     pass
+    def _select_censored(self, features, pids, outcome_censor):
+        """Select only censored patients"""
+        select_indices = set([i for i, censor in enumerate(outcome_censor) if not pd.isna(censor)])
+        outcome_censor = [censor for i, censor in enumerate(outcome_censor) if i in select_indices]
+        features = {k: [v[i] for i in select_indices] for k, v in features.items()}
+        pids = [pid for i, pid in enumerate(pids) if i in select_indices]
+        return features, pids, outcome_censor
 
     def _censor_data(self, features, pids, outcome_censor, vocabulary):
         censorer = Censorer(self.cfg.outcome.n_hours, vocabulary=vocabulary)
@@ -218,9 +234,9 @@ class DatasetPreparer:
         torch.save(vocabulary, join(self.run_folder, VOCABULARY_FILE))
         
         # Patient Selection
-        train_features, train_pids = DatasetPreparer._select_random_subset(
+        train_features, train_pids = self._select_random_subset(
             train_features, train_pids, self.cfg.data.num_train_patients)
-        val_features, val_pids = DatasetPreparer._select_random_subset(
+        val_features, val_pids = self._select_random_subset(
             val_features, val_pids, self.cfg.data.num_val_patients)
         self._save_pids(train_pids, val_pids)
         if self.cfg.data.get("remove_background", False):

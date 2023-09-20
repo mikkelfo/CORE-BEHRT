@@ -24,6 +24,7 @@ trainer_args:
   gradient_clip: 
     clip_value: 1.0
   mixed_precision: false
+  shuffle: true
 
 model:
   # max_position_embeddings: 256 # is that still needed?

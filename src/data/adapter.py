@@ -19,10 +19,13 @@ class DataAdapter:
         return features
 
     @staticmethod
-    def one_hot(features: dict, vocabulary: dict) -> list:
+    def one_hot(features: dict, vocabulary: dict, prepend_age=True) -> list:
         X = []
-        for patient in features["concept"]:
-            x = [0] * len(vocabulary)
+        for i, patient in enumerate(features["concept"]):
+            x = []
+            if prepend_age:
+                x.append(features["age"][i][-1])  # First token is age
+            x.append([0] * len(vocabulary))  # second and forward is one-hot
             for code in set(patient):
                 x[code] = 1
             X.append(x)

@@ -221,15 +221,15 @@ class EHRTrainer():
         """Logs the GPU memory usage to the run"""
         
         memory_allocated = torch.cuda.memory_allocated(device=self.device)/1e9
-        max_memory_allocated = torch.cuda.max_memory_allocated(device=self.device)/1e9
+        max_memory_reserved = torch.cuda.max_memory_reserved(device=self.device)/1e9
         memory_cached = torch.cuda.memory_cached(device=self.device)/1e9
         if self.run is not None:
             self.run.log_metric("GPU Memory Allocated in GB", memory_allocated)
-            self.run.log_metric("GPU Max Memory Allocated in GB", max_memory_allocated)
+            self.run.log_metric("GPU Max Memory Allocated in GB", max_memory_reserved)
             self.run.log_metric("GPU Memory Cached in GB", memory_cached)
             
         else:
-            self.log(f"GPU Max Memory Allocated in GB: {max_memory_allocated}")
+            self.log(f"GPU Max Memory Allocated in GB: {max_memory_reserved}")
             self.log(f"GPU Memory Allocated in GB: {memory_allocated}")
             self.log(f"GPU Memory Cached in GB: {memory_cached}")
             

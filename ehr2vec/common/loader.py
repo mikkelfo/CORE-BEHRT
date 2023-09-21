@@ -1,6 +1,9 @@
 import logging
 import os
+from dataclasses import dataclass
+
 from os.path import join
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -16,6 +19,8 @@ logger = logging.getLogger(__name__)  # Get the logger for this module
 
 PID_KEY = 'PID'
 VOCABULARY_FILE = 'vocabulary.pt'
+MALE_KEY = 'BG_GENDER_M'
+FEMALE_KEY = 'BG_GENDER_F'
 
 def load_model(model_class, cfg, add_config={}):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -72,7 +77,27 @@ def select_positives(outcomes, censor_outcomes, pids):
     return outcomes, censor_outcomes, pids
 
 # TODO: Add option to load test set only!
+
+@dataclass
+class Data:
+    features: Dict
+    pids: List
+    outcomes: Optional[List] = None
+    censor_outcomes: Optional[List] = None
+    vocabulary: Optional[Dict] = None
     
+    def __len__(self):
+        return len(self.pids)
+
+    def check_lengths(self):
+        """Check that all features have the same length"""
+        for key, values in self.features.items():
+            assert len(values) == len(self.pids), f"Length of {key} does not match length of pids"
+        if self.outcomes is not None:
+            assert len(self.outcomes) == len(self.pids), "Length of outcomes does not match length of pids"
+        if self.censor_outcomes is not None:
+            assert len(self.censor_outcomes) == len(self.pids), "Length of censor outcomes does not match length of pids"
+
 class DatasetPreparer:
 
     def __init__(self, cfg):
@@ -88,7 +113,6 @@ class DatasetPreparer:
         
         return train_dataset, val_dataset
     
-
     def prepare_mlm_dataset_for_behrt(self):
         """Load data, truncate, adapt features, create dataset"""
         train_features, val_features, vocabulary = self._prepare_mlm_features()
@@ -133,70 +157,88 @@ class DatasetPreparer:
     
     def prepare_finetune_features(self):
         """
-        Prepare the dataset for fine-tuning. 
+        Prepare the features for fine-tuning. 
         The process includes:
         1. Loading tokenized data
         2. Excluding pretrain patients
-        3. Loading and processing outcomes
-        4. Data censoring
-        5. Patient selection
-        6. Truncating data
+        3. Optional: Select male/female
+        4. Loading and processing outcomes
+        5. Optional: Select only patients with a censoring outcome
+        6. Data censoring
+        7. Optional: Select patients by age
+        8. Optional: Select a random subset based on provided number of patients,
+        9. Optional: Remove background tokens
+        10. Truncation
+        
         """
+        data_cfg = self.cfg.data
+        paths_cfg = self.cfg.paths
+
         # 1. Loading tokenized data
         train_features, train_pids, val_features, val_pids, vocabulary = self._load_tokenized_data()
-        
+        train_data = Data(train_features, train_pids, vocabulary=vocabulary)
+        val_data = Data(val_features, val_pids, vocabulary=vocabulary)
+
         # 2. Excluding pretrain patients
         logger.info('Exclude pretrain patients')
-        train_features, train_pids = self._exclude_pretrain_patients(train_features, train_pids, 'train')
-        val_features, val_pids = self._exclude_pretrain_patients(val_features, val_pids, 'val')
-        logger.info(f"After excluding pretrain patients: {len(train_pids)} train patients, {len(val_pids)} val patients")
-        # 3. Loading and processing outcomes
+        train_data = self._exclude_pretrain_patients(train_data, 'train')
+        val_data = self._exclude_pretrain_patients(val_data, 'val')
+        self.log_patient_nums('excluding pretrain patients', train_data, val_data)
+       
+        # 3. Optinally select gender group
+        if data_cfg.get('gender', False):
+            train_data = self._select_by_gender(train_data)
+            val_data = self._select_by_gender(val_data)
+            self.log_patient_nums('selecting by gender', train_data, val_data)
+        
+        # 4. Loading and processing outcomes
         logger.info('Load outcomes')
-        outcomes = torch.load(self.cfg.paths.outcome)
-        if self.cfg.paths.get('censor', None) is None:
-            censor_outcomes = outcomes
-        else:
-            censor_outcomes = torch.load(self.cfg.paths.censor)
-        train_outcome, train_outcome_censor = self._process_outcomes(outcomes, censor_outcomes, train_pids)
-        val_outcome, val_outcome_censor = self._process_outcomes(outcomes, censor_outcomes, val_pids)
-        
-        # 4. Optionally select patients of interest
-        if self.cfg.data.get("select_censored", False):
-            logger.info("Selecting only censored patients")
-            train_features, train_pids, train_outcome_censor = self._select_censored(train_features, train_pids, train_outcome_censor)
-            val_features, val_pids, val_outcome_censor = self._select_censored(val_features, val_pids, val_outcome_censor)
-            logger.info(f"After selecting only censored patients: {len(train_pids)} train patients, {len(val_pids)} val patients")
+        outcomes = torch.load(paths_cfg.outcome)
+        censor_outcomes = torch.load(paths_cfg.censor) if paths_cfg.get('censor', False) else outcomes   
 
-        # 5. Data censoring
-        logger.info('Censoring')
-        train_features, train_pids = self._censor_data(train_features, train_pids,
-                                                       train_outcome_censor, vocabulary)
-        val_features, val_pids = self._censor_data(val_features, val_pids,
-                                                    val_outcome_censor, vocabulary)
-        
-        # 6. Patient selection
-        logger.info('Selecting patients')
-        train_features, train_pids = self._select_random_subset(
-            train_features, train_pids, self.cfg.data.num_train_patients)
-        val_features, val_pids = self._select_random_subset(
-            val_features, val_pids, self.cfg.data.num_val_patients)
-        logger.info(f"After selecting a subset: {len(train_pids)} train patients, {len(val_pids)} val patients")
+        train_data = self._retrieve_and_assign_outcomes(train_data, outcomes, censor_outcomes)
+        val_data = self._retrieve_and_assign_outcomes(val_data, outcomes, censor_outcomes)
 
-        
-        self._save_pids(train_pids, val_pids) 
+        # 5. Optionally select patients of interest
+        if data_cfg.get("select_censored", False):
+            train_data = self._select_censored(train_data)
+            val_data = self._select_censored(val_data)
+            self.log_patient_nums('selecting censored patients', train_data, val_data)
 
-        # 7. Optionally Remove Background Tokens
-        if self.cfg.data.get("remove_background", False):
+        # 6. Data censoring
+        train_data = self._censor_data(train_data)
+        val_data = self._censor_data(val_data)
+        self.log_patient_nums('censoring/excluding short sequences', train_data, val_data)
+
+        # 7. Select Patients By Age
+        if data_cfg.get('min_age', False) or data_cfg.get('max_age', False):
+            train_data = self._select_by_age(train_data)
+            val_data = self._select_by_age(val_data)
+            self.log_patient_nums('selecting by age', train_data, val_data)
+        
+        # 8. Patient selection
+        if data_cfg.get('num_train_patients', False) or data_cfg.get('num_val_patients', False):
+            train_data = self._select_random_subset(train_data, data_cfg.num_train_patients)
+            val_data = self._select_random_subset(val_data, data_cfg.num_val_patients)
+            self.log_patient_nums('selecting a random subset', train_data, val_data)
+        
+        # 9. Optionally Remove Background Tokens
+        if data_cfg.get("remove_background", False):
             logger.info("Removing background tokens")
-            train_features = self._remove_background(train_features, vocabulary)
-            val_features = self._remove_background(val_features, vocabulary)
+            train_data = self._remove_background(train_data)
+            val_data = self._remove_background(val_data)
 
-        # 8. Truncation
+        # 10. Truncation
         logger.info('Truncating')
-        truncator = Truncator(max_len=self.cfg.data.truncation_len, sep_token=vocabulary['[SEP]'])
-        train_features = truncator(train_features)
-        val_features = truncator(val_features)
-        return train_features, val_features, train_outcome, val_outcome
+        truncator = Truncator(max_len=data_cfg.truncation_len, sep_token=vocabulary['[SEP]'])
+        train_data.features = truncator(train_data.features)
+        val_data.features = truncator(val_data.features)
+
+        train_data.check_lengths()
+        val_data.check_lengths()
+        self._save_pids(train_data.pids, val_data.pids) 
+
+        return train_data.features, val_data.features, train_data.outcomes, val_data.outcomes
     
 
     # def prepare_onehot_dataset(self):
@@ -206,64 +248,71 @@ class DatasetPreparer:
     #     outcomes = torch.load(join(cfg.paths.data_path, cfg.paths.outcome))
     #     tokenized_features_train = censorer(tokenized_features_train, outcome, vocabulary, cfg)
     #     pass
-    def _select_censored(self, features, pids, outcome_censor):
+
+    def _select_censored(self, data):
         """Select only censored patients"""
-        select_indices = set([i for i, censor in enumerate(outcome_censor) if not pd.isna(censor)])
-        outcome_censor = [censor for i, censor in enumerate(outcome_censor) if i in select_indices]
-        features = {k: [v[i] for i in select_indices] for k, v in features.items()}
-        pids = [pid for i, pid in enumerate(pids) if i in select_indices]
-        return features, pids, outcome_censor
+        kept_indices = [i for i, censor in enumerate(data.censor_outcomes) if not pd.isna(censor)]
+        return self._select_entries(data, kept_indices)
 
-    def _censor_data(self, features, pids, outcome_censor, vocabulary):
-        censorer = Censorer(self.cfg.outcome.n_hours, vocabulary=vocabulary)
-        features, kept_ids = censorer(features, outcome_censor)
-        pids = [pid for i, pid in enumerate(pids) if i in set(kept_ids)]
-        return features, pids
+    def _censor_data(self, data):
+        """Censors data and removes patients with no data left"""
+        censorer = Censorer(self.cfg.outcome.n_hours, vocabulary=data.vocabulary)
+        _, kept_indices = censorer(data.features, data.censor_outcomes)
+        return self._select_entries(data, kept_indices)
 
-    def _process_outcomes(self, outcomes, censor_outcomes, pids):
-        outcomes = self._select_outcomes_for_patients(outcomes, pids)
-        censor_outcomes = self._select_outcomes_for_patients(censor_outcomes, pids)
-    
-        outcomes, censor_outcomes, pids = self._retrieve_outcomes(outcomes, censor_outcomes)
-        return outcomes, censor_outcomes
+    def _retrieve_and_assign_outcomes(self, data: Data, outcomes: Dict, censor_outcomes: Dict)->Data:
+        outcomes = self._select_and_order_outcomes_for_patients(outcomes, data.pids)
+        censor_outcomes = self._select_and_order_outcomes_for_patients(censor_outcomes, data.pids)
+        assert outcomes[PID_KEY] == data.pids, "PIDs in outcome file and data file do not match"
+        assert censor_outcomes[PID_KEY] == data.pids, "PIDs in censoring and data files do not match" 
+        outcomes_group, censor_outcomes_group = self._retrieve_outcomes(outcomes, censor_outcomes)
+        data.outcomes = outcomes_group
+        data.censor_outcomes = censor_outcomes_group
+        return data
         
     def _prepare_mlm_features(self):
         """Load data, truncate"""
 
         train_features, train_pids, val_features, val_pids, vocabulary = self._load_tokenized_data()
         torch.save(vocabulary, join(self.run_folder, VOCABULARY_FILE))
-        
+        train_data = Data(train_features, train_pids, vocabulary=vocabulary)
+        val_data = Data(val_features, val_pids, vocabulary=vocabulary)
         # Patient Selection
-        train_features, train_pids = self._select_random_subset(
-            train_features, train_pids, self.cfg.data.num_train_patients)
-        val_features, val_pids = self._select_random_subset(
-            val_features, val_pids, self.cfg.data.num_val_patients)
-        self._save_pids(train_pids, val_pids)
+        if self.cfg.data.get('num_train_patients', False) or self.cfg.data.get('num_val_patients', False):
+            train_data = self._select_random_subset(train_data, self.cfg.data.num_train_patients)
+            val_data = self._select_random_subset(val_data, self.cfg.data.num_val_patients)
+            self.log_patient_nums('selecting a random subset', train_data, val_data)
+
         if self.cfg.data.get("remove_background", False):
-            logger.info("Removing background tokens")
-            train_features = self._remove_background(train_features, vocabulary)
-            val_features = self._remove_background(val_features, vocabulary)
+            train_data = self._remove_background(train_data)
+            val_data = self._remove_background(val_data)
+            self.log_patient_nums('removing background tokens', train_data, val_data)
+        
         # Truncation
         logger.info(f"Truncating data to {self.cfg.data.truncation_len} tokens")
         truncator = Truncator(max_len=self.cfg.data.truncation_len, 
                               sep_token=vocabulary['[SEP]'])
-        train_features = truncator(train_features)
-        val_features = truncator(val_features)
-        return train_features, val_features, vocabulary
+        train_data.features = truncator(train_data.features)
+        val_data.features = truncator(val_data.features)
 
-    def _remove_background(self, features, vocabulary):
+        train_data.check_lengths()
+        val_data.check_lengths()
+        self._save_pids(train_data.pids, val_data.pids)
+
+        return train_data.features, val_data.features, train_data.vocabulary
+
+    def _remove_background(self, data: Data)->Data:
         """Remove background tokens from features and the first sep token following it"""
-        background_tokens = set([v for k, v in vocabulary.items() if k.startswith('BG_')])
-        example_concepts = features['concept'][0] # Assume that all patients have the same background length
-        remove_indices = set([i for i, concept in enumerate(example_concepts) if concept in background_tokens])
-        if vocabulary['[SEP]'] in example_concepts:
-            remove_indices.add(len(remove_indices)+1)
-
-        new_features = {}
-        for k, token_lists in features.items():
-            new_features[k] = [[token for idx, token in enumerate(tokens) if idx not in remove_indices] 
-                           for tokens in token_lists]
-        return new_features
+        background_tokens = set([v for k, v in data.vocabulary.items() if k.startswith('BG_')])
+        example_concepts = data.features['concept'][0] # Assume that all patients have the same background length
+        remove_indices = [i for i, concept in enumerate(example_concepts) if concept in background_tokens]
+        if data.vocabulary['[SEP]'] in example_concepts:
+            remove_indices.append(len(remove_indices)+1)
+        first_index, last_index = min(remove_indices), max(remove_indices)
+        for k, token_lists in data.features.items():
+            data.features[k] = [tokens[:first_index]+tokens[last_index+1:] \
+                               for tokens in token_lists]
+        return data
 
     def _load_tokenized_data(self):
         tokenized_dir = self.cfg.paths.get('tokenized_dir', 'tokenized')
@@ -290,45 +339,91 @@ class DatasetPreparer:
         h_vocabulary = torch.load(join(hierarchical_path, VOCABULARY_FILE))
         return tree, tree_matrix, h_vocabulary 
 
-    def _exclude_pretrain_patients(self, features, pids,  mode):
+    def _exclude_pretrain_patients(self, data: Data,  mode: str):
         pretrain_pids = set(torch.load(join(self.cfg.paths.model_path, f'pids_{mode}.pt')))
-        kept_indices = set([i for i, pid in enumerate(pids) if pid not in pretrain_pids])
-        pids = [pid for i, pid in enumerate(pids) if i in kept_indices]
-        for k, v in features.items():
-            features[k] = [v[i] for i in set(kept_indices)]
-        return features, pids
+        kept_indices = [i for i, pid in enumerate(data.pids) if pid not in pretrain_pids]
+        return self._select_entries(data, kept_indices)
     
-    def _retrieve_outcomes(self, all_outcomes, all_censor_outcomes):
-        """From the configuration, load the outcomes and censor outcomes.
-        Access pids, the outcome of interest and the censoring outcome."""
-        
+    def _retrieve_outcomes(self, all_outcomes: Dict, all_censor_outcomes: Dict)->Union[List, List]:
+        """From the configuration, load the outcomes and censor outcomes."""
         outcomes = all_outcomes.get(self.cfg.outcome.type, [None]*len(all_outcomes[PID_KEY]))
         censor_outcomes = all_censor_outcomes.get(self.cfg.outcome.get('censor_type', None), [None]*len(outcomes))
-        censor_pids = all_censor_outcomes[PID_KEY]
-        pids = all_outcomes[PID_KEY]
-        assert censor_pids == pids, "PIDs in censoring and outcome files do not match"
-        return outcomes, censor_outcomes, pids
+        return outcomes, censor_outcomes
 
-    @staticmethod
-    def _select_random_subset(features, pids, num_patients, seed=0):#
+    def _select_random_subset(self, data, num_patients, seed=0):
+        """Select a num_patients random patients"""
         np.random.seed(seed)
-        indices = np.arange(len(pids))
+        indices = np.arange(len(data.pids))
         np.random.shuffle(indices)
-        indices = set(indices[:num_patients])
-        pids = [pid for i, pid in enumerate(pids) if i in indices]
-        for k, v in features.items():
-            features[k] = [v[i] for i in indices]
-        return features, pids
+        indices = indices[:num_patients]
+        return self._select_entries(data, indices)
+
+    def _select_by_age(self, data: Data)->Data:
+        """
+        Assuming that age is given in days. 
+        We retrieve the last age of each patient and check whether it's within the range.
+        """
+        kept_indices = []
+        min_age = self.cfg.data.get('min_age', 0)
+        max_age = self.cfg.data.get('max_age', 120)
+        for i, ages in enumerate(data.features['age']):
+            patient_age = ages[-1] # last age
+            if (min_age<=patient_age) and (patient_age<=max_age):
+                kept_indices.append(i)
+        return self._select_entries(data, kept_indices)
+
+    def _select_by_gender(self, data):
+        """Select only patients of a certain gender"""
+        gender_token = self._get_gender_token(data.vocabulary, self.cfg.data.gender)
+        kept_indices = []
+        for i, concepts in enumerate(data.features['concept']):
+            if gender_token in concepts:
+                kept_indices.append(i)
+        return self._select_entries(data, kept_indices)
+    
+    def _get_gender_token(self, vocabulary, key):
+        """Get the token from the vocabulary corresponding to the gender provided in the config"""
+        male_list = ['M', 'male', 'Male', 'man', 'MAN']
+        female_list = ['W', 'F', 'female', 'woman', 'WOMAN']
+        if key in male_list:
+            gender_token = vocabulary[MALE_KEY]
+        elif key in female_list:
+            gender_token = vocabulary[FEMALE_KEY]
+        else:
+            raise ValueError(f"Unknown gender {key}, please select one of {male_list + female_list}")
+        return gender_token
+    
+    @staticmethod
+    def _select_entries(data:Data, indices:List)->Data:
+        """
+        Select entries based on indices. 
+        Optionally for outcomes and censor outcomes, if present returns dict of results.
+        """
+        indices = set(indices)
+        data.features = {k: [v[i] for i in indices] for k, v in data.features.items()}
+        data.pids = [data.pids[i] for i in indices]
+        if data.outcomes is not None:
+            data.outcomes = [data.outcomes[i] for i in indices]
+        if data.censor_outcomes is not None:
+            data.censor_outcomes = [data.censor_outcomes[i] for i in indices]
+        return data
 
     def _save_pids(self, train_pids, val_pids):
         torch.save(train_pids, join(self.run_folder, 'pids_train.pt'))
         torch.save(val_pids, join(self.run_folder, 'pids_val.pt'))
     
     @staticmethod
-    def _select_outcomes_for_patients(all_outcomes, pids):
-        pids = set(pids)
-        return {k:[v[i] for i, pid in enumerate(all_outcomes[PID_KEY]) if pid in pids] for k, v in all_outcomes.items()}
+    def _select_and_order_outcomes_for_patients(all_outcomes: Dict, pids: List) -> Dict:
+        """Select outcomes for patients and order them based on the order of pids"""
+        # Create a dictionary of positions for each PID for quick lookup
+        pid_to_index = {pid: idx for idx, pid in enumerate(all_outcomes[PID_KEY])}
+        
+        # Get the order of indices based on pids
+        ordered_indices = [pid_to_index[pid] for pid in pids if pid in set(pid_to_index)]
 
+        # order outcomes based on the indices
+        return {k: [v[idx] for idx in ordered_indices] for k, v in all_outcomes.items()}
 
-
-
+    @staticmethod
+    def log_patient_nums(operation:str, train_data:Data, val_data:Data):
+        logger.info(f"After {operation}: {len(train_data)} train patients, {len(val_data)} val patients")

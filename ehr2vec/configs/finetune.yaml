@@ -3,7 +3,7 @@ paths:
   data_path: "../outputs/data_icd10"
   model_path: "outputs/pretraining/behrt_plus_test"
   checkpoint_epoch: 2
-  outcome: "outputs/outcomes/TEST/TEST.pt"
+  outcome: "outputs/outcomes/TEST_CENSOR/TEST_CENSOR.pt"
   # censor: "outputs/outcomes/TEST/TEST.pt"
   #output_path: "outputs/finetuning"
   run_name: "test"
@@ -17,11 +17,14 @@ data:
   num_val_patients: 50
   truncation_len: 20
   select_censored: true
+  gender: M
+  min_age: 0
+  max_age: 100
 
 outcome: 
   type: TEST_OUTCOME
   n_hours: 12 # censor time
-  censor_type: TEST_OUTCOME
+  censor_type: TEST_CENSOR
 
 trainer_args:
   sampler: null

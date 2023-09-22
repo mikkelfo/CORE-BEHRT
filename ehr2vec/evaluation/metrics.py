@@ -1,4 +1,5 @@
 import torch
+import warnings
 from sklearn.metrics import (accuracy_score, average_precision_score,
                              precision_score, recall_score, roc_auc_score,
                              confusion_matrix)
@@ -47,8 +48,10 @@ class Accuracy:
         try:
             score = accuracy_score(batch['target'], predictions)
             return score
-        except Warning("Accuracy score could not be computed"):
+        except:
+            warnings.warn("Accuracy score could not be computed")
             return None
+        
 class Precision:
     def __call__(self, outputs, batch):
         probas = torch.sigmoid(outputs.logits)

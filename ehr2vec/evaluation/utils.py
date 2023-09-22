@@ -78,10 +78,8 @@ def validate_outcomes(all_outcomes, cfg):
 def get_sampler(cfg, train_dataset, outcomes):
     if cfg.trainer_args['sampler']:
         labels = pd.Series(outcomes).notna().astype(int)
-        print(labels)
         label_weight = 1 / labels.value_counts()
         weights = labels.map(label_weight).values
-        print(weights)
         sampler = WeightedRandomSampler(
             weights=weights,
             num_samples=len(train_dataset),

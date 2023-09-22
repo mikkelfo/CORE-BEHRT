@@ -1,8 +1,11 @@
+import logging
+
 import torch
-import warnings
 from sklearn.metrics import (accuracy_score, average_precision_score,
-                             precision_score, recall_score, roc_auc_score,
-                             confusion_matrix, f1_score)
+                             confusion_matrix, f1_score, precision_score,
+                             recall_score, roc_auc_score)
+
+logger = logging.getLogger(__name__)  # Get the logger for this module
 
 """Computes the precision@k for the specified value of k"""
 class PrecisionAtK:
@@ -60,7 +63,7 @@ class Accuracy(BaseMetric):
         try:
             return accuracy_score(targets, predictions)
         except:
-            warnings.warn("Accuracy score could not be computed")
+            logger.warn("Accuracy score could not be computed")
             return 0
         
 class Precision(BaseMetric):
@@ -79,7 +82,7 @@ class ROC_AUC(BaseMetric):
         try:
             return roc_auc_score(targets, probas)
         except:
-            warnings.warn("ROC AUC score could not be computed")
+            logger.warn("ROC AUC score could not be computed")
             return 0
         
 class PR_AUC(BaseMetric):
@@ -88,7 +91,7 @@ class PR_AUC(BaseMetric):
         try:
             return average_precision_score(targets, probas)
         except:
-            warnings.warn("PR AUC score could not be computed")
+            logger.warn("PR AUC score could not be computed")
             return 0
 
 class F1(BaseMetric):

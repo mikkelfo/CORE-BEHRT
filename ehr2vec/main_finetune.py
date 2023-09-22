@@ -40,6 +40,9 @@ def main_finetune():
         **cfg.optimizer
     )
 
+    sampler = get_sampler(cfg, train_dataset, train_dataset.outcomes)
+    if sampler:
+        cfg.trainer_args.shuffle = False
     trainer = EHRTrainer( 
         model=model, 
         optimizer=optimizer,
@@ -47,7 +50,7 @@ def main_finetune():
         val_dataset=val_dataset, 
         args=cfg.trainer_args,
         metrics=cfg.metrics,
-        sampler=get_sampler(cfg, train_dataset, train_dataset.outcomes, logger),
+        sampler=sampler,
         cfg=cfg,
         run=run,
         logger=logger,

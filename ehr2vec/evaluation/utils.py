@@ -75,12 +75,13 @@ def validate_outcomes(all_outcomes, cfg):
         if cfg.outcome.get('censor_type', False):
             assert cfg.outcome.censor_type in all_outcomes, f"Censor type {cfg.outcome.censor_type} not found in outcomes."
 
-def get_sampler(cfg, train_dataset, outcomes, logger):
+def get_sampler(cfg, train_dataset, outcomes):
     if cfg.trainer_args['sampler']:
-        logger.warning('Sampler does not work with IterableDataset. Use positive weight instead')
         labels = pd.Series(outcomes).notna().astype(int)
+        print(labels)
         label_weight = 1 / labels.value_counts()
         weights = labels.map(label_weight).values
+        print(weights)
         sampler = WeightedRandomSampler(
             weights=weights,
             num_samples=len(train_dataset),

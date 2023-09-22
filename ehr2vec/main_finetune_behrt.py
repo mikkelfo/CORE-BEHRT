@@ -40,6 +40,9 @@ def main_finetune():
         model.parameters(),
         **cfg.optimizer
     )
+    sampler = get_sampler(cfg, train_dataset, train_dataset.outcomes)
+    if sampler:
+        cfg.trainer_args.shuffle = False
 
     trainer = EHRTrainer( 
         model=model, 
@@ -48,7 +51,6 @@ def main_finetune():
         val_dataset=val_dataset, 
         args=cfg.trainer_args,
         metrics=cfg.metrics,
-        sampler=get_sampler(cfg, train_dataset, train_dataset.outcomes, logger),
         cfg=cfg,
         run=run,
         logger=logger,
@@ -60,10 +62,6 @@ def main_finetune():
                     remote_path = join("PHAIR", cfg.paths.model_path, cfg.paths.run_name))
         mount_context.stop()
     logger.info('Done')
-
-
-
-
 
 
 if __name__ == '__main__':

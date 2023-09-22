@@ -1,5 +1,6 @@
 import os
 
+import numpy as np
 import torch
 import yaml
 from common.config import Config, get_function, instantiate
@@ -203,8 +204,21 @@ class EHRTrainer():
                     metric_values[name].append(func(outputs, batch))
 
         self.model.train()
-        
-        return val_loss / len(val_loop), {name: sum(values) / len(values) for name, values in metric_values.items()}
+        avg_metrics = self._compute_avg_metrics(metric_values)
+        return val_loss / len(val_loop), avg_metrics
+
+    def _compute_avg_metrics(self, metric_values: dict):
+        """Computes the average of the metric values when metric is not zero"""
+        averages = {}
+        for name, values in metric_values.items():
+            values_array = np.array(values)
+            non_zero_values = values_array[values_array != 0]
+            
+            if non_zero_values.size:
+                averages[name] = np.mean(non_zero_values)
+            else:
+                averages[name] = 0
+        return averages
 
     def to_device(self, batch: dict) -> None:
         """Moves a batch to the device in-place"""

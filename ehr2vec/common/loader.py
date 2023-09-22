@@ -15,6 +15,9 @@ from data_fixes.censor import Censorer
 from data_fixes.truncate import Truncator
 from transformers import BertConfig
 
+
+import time
+
 logger = logging.getLogger(__name__)  # Get the logger for this module
 
 PID_KEY = 'PID'
@@ -103,6 +106,7 @@ class Data:
         """Apply a function to the data instance and returns the result"""
         return func(self, *args, **kwargs)
 
+
 class DatasetPreparer:
 
     def __init__(self, cfg):
@@ -166,14 +170,15 @@ class DatasetPreparer:
         The process includes:
         1. Loading tokenized data
         2. Excluding pretrain patients
-        3. Optional: Select patients by age
+        3. Optional select random subset
         4. Optional: Select male/female
         5. Loading and processing outcomes
         6. Optional: Select only patients with a censoring outcome
-        7. Data censoring
-        8. Optional: Select a random subset based on provided number of patients,
-        9. Optional: Remove background tokens
-        10. Truncation
+        7. Filter patients with outcome before censoring
+        8. Data censoring
+        9. Optional: Select patients by age
+        10. Optional: Remove background tokens
+        11. Truncation
         
         """
         data_cfg = self.cfg.data
@@ -273,16 +278,14 @@ class DatasetPreparer:
         censorer = Censorer(self.cfg.outcome.n_hours, vocabulary=data.vocabulary)
         _, kept_indices = censorer(data.features, data.censor_outcomes)
         return self._select_entries(data, kept_indices)
-
+    
     def _retrieve_and_assign_outcomes(self, data: Data, outcomes: Dict, censor_outcomes: Dict)->Data:
         """Retrieve outcomes and assign them to the data instance"""
-        outcomes = self._select_and_order_outcomes_for_patients(outcomes, data.pids)
-        censor_outcomes = self._select_and_order_outcomes_for_patients(censor_outcomes, data.pids)
-        assert outcomes[PID_KEY] == data.pids, "PIDs in outcome file and data file do not match"
-        assert censor_outcomes[PID_KEY] == data.pids, "PIDs in censoring and data files do not match" 
-        outcomes_group, censor_outcomes_group = self._retrieve_outcomes(outcomes, censor_outcomes)
-        data.outcomes = outcomes_group
-        data.censor_outcomes = censor_outcomes_group
+        data.outcomes = self._select_and_order_outcomes_for_patients(outcomes, data.pids, self.cfg.outcome.type)
+        if self.cfg.outcome.get('censor_type', None) is not None:
+            data.censor_outcomes = self._select_and_order_outcomes_for_patients(censor_outcomes, data.pids, self.cfg.outcome.censor_type)
+        else:
+            data.censor_outcomes = [None]*len(outcomes)
         return data
         
     def _prepare_mlm_features(self):
@@ -344,6 +347,7 @@ class DatasetPreparer:
             vocabulary = torch.load(join(tokenized_data_path, VOCABULARY_FILE))
         except:
             vocabulary = torch.load(join(self.cfg.paths.data_path, VOCABULARY_FILE))
+
         return train_features, train_pids, val_features, val_pids, vocabulary
 
     def _load_tree(self):
@@ -431,18 +435,17 @@ class DatasetPreparer:
         torch.save(val_pids, join(self.run_folder, 'pids_val.pt'))
     
     @staticmethod
-    def _select_and_order_outcomes_for_patients(all_outcomes: Dict, pids: List) -> Dict:
+    def _select_and_order_outcomes_for_patients(all_outcomes: Dict, pids: List, outcome: str) -> List:
         """Select outcomes for patients and order them based on the order of pids"""
         # Create a dictionary of positions for each PID for quick lookup
         pid_to_index = {pid: idx for idx, pid in enumerate(all_outcomes[PID_KEY])}
         
         outcome_pids = set(all_outcomes[PID_KEY])
-
+        assert set(pids).issubset(outcome_pids), "PIDs is not a subset of outcome PIDs"
         # Get the order of indices based on pids
         ordered_indices = [pid_to_index[pid] for pid in pids if pid in outcome_pids]
 
-        # order outcomes based on the indices
-        return {k: [v[idx] for idx in ordered_indices] for k, v in all_outcomes.items()}
+        return [all_outcomes[outcome][idx] for idx in ordered_indices]
 
     @staticmethod
     def log_patient_nums(operation:str, train_data:Data, val_data:Data):

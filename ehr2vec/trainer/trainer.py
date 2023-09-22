@@ -98,6 +98,8 @@ class EHRTrainer():
         train_loop.set_description(f'Train {epoch}')
         epoch_loss = []
         step_loss = 0
+        self.log(f'Test validation before starting training')
+        self.validate()
         for i, batch in train_loop:
             step_loss += self.train_step(batch).item()
             if (i+1) % self.accumulation_steps == 0:

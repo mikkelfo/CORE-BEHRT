@@ -15,9 +15,6 @@ from data_fixes.censor import Censorer
 from data_fixes.truncate import Truncator
 from transformers import BertConfig
 
-
-import time
-
 logger = logging.getLogger(__name__)  # Get the logger for this module
 
 PID_KEY = 'PID'
@@ -102,11 +99,6 @@ class Data:
         if self.censor_outcomes is not None:
             assert len(self.censor_outcomes) == len(self.pids), "Length of censor outcomes does not match length of pids"
 
-    def pipe(self, func, *args, **kwargs):
-        """Apply a function to the data instance and returns the result"""
-        return func(self, *args, **kwargs)
-
-
 class DatasetPreparer:
 
     def __init__(self, cfg):
@@ -114,19 +106,12 @@ class DatasetPreparer:
         self.run_folder = join(self.cfg.paths.output_path, self.cfg.paths.run_name)
         os.makedirs(self.run_folder, exist_ok=True)
 
-    def prepare_mlm_dataset(self):
+    def prepare_mlm_dataset(self, original_behrt=False):
         """Load data, truncate, adapt features, create dataset"""
         train_features, val_features, vocabulary = self._prepare_mlm_features()
-        train_dataset = MLMDataset(train_features, vocabulary, **self.cfg.data.dataset)
-        val_dataset = MLMDataset(val_features, vocabulary, **self.cfg.data.dataset)
-        
-        return train_dataset, val_dataset
-    
-    def prepare_mlm_dataset_for_behrt(self):
-        """Load data, truncate, adapt features, create dataset"""
-        train_features, val_features, vocabulary = self._prepare_mlm_features()
-        train_features = BehrtAdapter().adapt_features(train_features)
-        val_features = BehrtAdapter().adapt_features(val_features)
+        if original_behrt:
+            train_features = BehrtAdapter().adapt_features(train_features)
+            val_features = BehrtAdapter().adapt_features(val_features)
         train_dataset = MLMDataset(train_features, vocabulary, **self.cfg.data.dataset)
         val_dataset = MLMDataset(val_features, vocabulary, **self.cfg.data.dataset)
         
@@ -146,25 +131,16 @@ class DatasetPreparer:
                                             **self.cfg.data.dataset)
         return train_dataset, val_dataset
     
-    def prepare_finetune_dataset(self):
-        train_features, val_features, train_outcome, val_outcome = self.prepare_finetune_features()
-        # Censoring
-        train_dataset = BinaryOutcomeDataset(train_features, outcomes=train_outcome)
-        val_dataset = BinaryOutcomeDataset(val_features, outcomes=val_outcome)
-        return train_dataset, val_dataset
-    
-    def prepare_finetune_dataset_for_behrt(self):
-        train_features, val_features, train_outcome, val_outcome = self.prepare_finetune_features()
-
-        # Adapt features for Behrt
-        train_features = BehrtAdapter().adapt_features(train_features)
-        val_features = BehrtAdapter().adapt_features(val_features)
-        # 8. Censoring
+    def prepare_finetune_dataset(self, original_behrt=False):
+        train_features, val_features, train_outcome, val_outcome = self._prepare_finetune_features()
+        if original_behrt:
+            train_features = BehrtAdapter().adapt_features(train_features)
+            val_features = BehrtAdapter().adapt_features(val_features)
         train_dataset = BinaryOutcomeDataset(train_features, outcomes=train_outcome)
         val_dataset = BinaryOutcomeDataset(val_features, outcomes=val_outcome)
         return train_dataset, val_dataset
 
-    def prepare_finetune_features(self):
+    def _prepare_finetune_features(self):
         """
         Prepare the features for fine-tuning. 
         The process includes:
@@ -188,70 +164,48 @@ class DatasetPreparer:
         train_features, train_pids, val_features, val_pids, vocabulary = self._load_tokenized_data()
         train_data = Data(train_features, train_pids, vocabulary=vocabulary, mode='train')
         val_data = Data(val_features, val_pids, vocabulary=vocabulary, mode='val')
-
+        datasets = {'train': train_data, 'val': val_data}
         # 2. Excluding pretrain patients
-        train_data = self._exclude_pretrain_patients(train_data)
-        val_data = self._exclude_pretrain_patients(val_data)
-        self.log_patient_nums('excluding pretrain patients', train_data, val_data)
-       
+        datasets = self._process_datasets(datasets, self._exclude_pretrain_patients) 
         # 3. Patient selection
         if data_cfg.get('num_train_patients', False) or data_cfg.get('num_val_patients', False):
-            train_data = self._select_random_subset(train_data, data_cfg.num_train_patients)
-            val_data = self._select_random_subset(val_data, data_cfg.num_val_patients)
-            self.log_patient_nums('selecting a random subset', train_data, val_data)
-        
+            datasets = self._process_datasets(datasets, self._select_random_subset, 
+                                              {'train': {'num_patients':self.cfg.data.num_train_patients},
+                                               'val': {'num_patients':self.cfg.data.num_val_patients}})
         # 4. Optinally select gender group
         if data_cfg.get('gender', False):
-            train_data = self._select_by_gender(train_data)
-            val_data = self._select_by_gender(val_data)
-            self.log_patient_nums('selecting by gender', train_data, val_data)
-        
+            datasets = self._process_datasets(datasets, self._select_by_gender)
         # 5. Loading and processing outcomes
         logger.info('Load outcomes')
         outcomes = torch.load(paths_cfg.outcome)
         censor_outcomes = torch.load(paths_cfg.censor) if paths_cfg.get('censor', False) else outcomes   
-
         logger.info("Assigning outcomes to data")
-        train_data = self._retrieve_and_assign_outcomes(train_data, outcomes, censor_outcomes)
-        val_data = self._retrieve_and_assign_outcomes(val_data, outcomes, censor_outcomes)
-
+        datasets = self._process_datasets(datasets, self._retrieve_and_assign_outcomes, 
+                                          {'train': {'outcomes': outcomes, 'censor_outcomes': censor_outcomes},
+                                           'val': {'outcomes': outcomes, 'censor_outcomes': censor_outcomes}})
         # 6. Optionally select patients of interest
         if data_cfg.get("select_censored", False):
-            train_data = self._select_censored(train_data)
-            val_data = self._select_censored(val_data)
-            self.log_patient_nums('selecting censored patients', train_data, val_data)
-
+            datasets = self._process_datasets(datasets, self._select_censored)
         # 7. Filter patients with outcome before censoring
-        train_data = self._filter_outcome_before_censor(train_data)
-        val_data = self._filter_outcome_before_censor(val_data)
-        self.log_patient_nums('filtering outcome before censor', train_data, val_data)
-
+        datasets = self._process_datasets(datasets, self._filter_outcome_before_censor)
         # 8. Data censoring
-        train_data = self._censor_data(train_data)
-        val_data = self._censor_data(val_data)
-        self.log_patient_nums('censoring/excluding short sequences', train_data, val_data)
-
+        datasets = self._process_datasets(datasets, self._censor_data)
         # 9. Select Patients By Age
         if data_cfg.get('min_age', False) or data_cfg.get('max_age', False):
-            train_data = self._select_by_age(train_data)
-            val_data = self._select_by_age(val_data)
-            self.log_patient_nums('selecting by age', train_data, val_data)
-        
+            datasets = self._process_datasets(datasets, self._select_by_age)
         # 10. Optionally Remove Background Tokens
         if data_cfg.get("remove_background", False):
-            logger.info("Removing background tokens")
-            train_data = self._remove_background(train_data)
-            val_data = self._remove_background(val_data)
-
+            datasets = self._process_datasets(datasets, self._remove_background)
         # 11. Truncation
         logger.info('Truncating')
         truncator = Truncator(max_len=data_cfg.truncation_len, sep_token=vocabulary['[SEP]'])
+        train_data, val_data = datasets['train'], datasets['val']
         train_data.features = truncator(train_data.features)
         val_data.features = truncator(val_data.features)
 
         train_data.check_lengths()
         val_data.check_lengths()
-        # ! outcome before censor outcome??
+
         logger.info(f"Positive train patients: {len([t for t in train_data.outcomes if not pd.isna(t)])}")
         logger.info(f"Positive val patients: {len([t for t in val_data.outcomes if not pd.isna(t)])}")
 
@@ -259,6 +213,16 @@ class DatasetPreparer:
 
         return train_data.features, val_data.features, train_data.outcomes, val_data.outcomes
     
+    def _process_datasets(self, datasets: Dict, func: callable, args_for_func: Dict=None)->Dict:
+        """Apply a function to all datasets in a dictionary"""
+        if args_for_func is None:
+            args_for_func = {}
+        for split, data in datasets.items():
+            # Get mode-specific arguments, or an empty dictionary if they don't exist
+            mode_args = args_for_func.get(split, {})
+            datasets[split] = func(data, **mode_args)
+        self._log_patient_nums(func.__name__, datasets)
+        return datasets
 
     # def prepare_onehot_dataset(self):
     #     train_features, train_pids, val_features, val_pids, vocabulary = self._load_tokenized_data()
@@ -290,26 +254,24 @@ class DatasetPreparer:
         
     def _prepare_mlm_features(self):
         """Load data, truncate"""
-
         train_features, train_pids, val_features, val_pids, vocabulary = self._load_tokenized_data()
         torch.save(vocabulary, join(self.run_folder, VOCABULARY_FILE))
-        train_data = Data(train_features, train_pids, vocabulary=vocabulary)
-        val_data = Data(val_features, val_pids, vocabulary=vocabulary)
+        datasets = {'train': Data(train_features, train_pids, vocabulary=vocabulary, mode='train'),
+                    'val': Data(val_features, val_pids, vocabulary=vocabulary, mode='val')}
         # Patient Selection
         if self.cfg.data.get('num_train_patients', False) or self.cfg.data.get('num_val_patients', False):
-            train_data = self._select_random_subset(train_data, self.cfg.data.num_train_patients)
-            val_data = self._select_random_subset(val_data, self.cfg.data.num_val_patients)
-            self.log_patient_nums('selecting a random subset', train_data, val_data)
-
+            datasets = self._process_datasets(datasets, self._select_random_subset, 
+                                              {'train': {'num_patients':self.cfg.data.num_train_patients},
+                                               'val': {'num_patients':self.cfg.data.num_val_patients}})
+            
         if self.cfg.data.get("remove_background", False):
-            train_data = self._remove_background(train_data)
-            val_data = self._remove_background(val_data)
-            self.log_patient_nums('removing background tokens', train_data, val_data)
-        
+            datasets = self._process_datasets(datasets, self._remove_background)
+            
         # Truncation
         logger.info(f"Truncating data to {self.cfg.data.truncation_len} tokens")
         truncator = Truncator(max_len=self.cfg.data.truncation_len, 
                               sep_token=vocabulary['[SEP]'])
+        train_data, val_data = datasets['train'], datasets['val']
         train_data.features = truncator(train_data.features)
         val_data.features = truncator(val_data.features)
 
@@ -347,7 +309,6 @@ class DatasetPreparer:
             vocabulary = torch.load(join(tokenized_data_path, VOCABULARY_FILE))
         except:
             vocabulary = torch.load(join(self.cfg.paths.data_path, VOCABULARY_FILE))
-
         return train_features, train_pids, val_features, val_pids, vocabulary
 
     def _load_tree(self):
@@ -430,10 +391,6 @@ class DatasetPreparer:
             data.censor_outcomes = [data.censor_outcomes[i] for i in indices]
         return data
 
-    def _save_pids(self, train_pids, val_pids):
-        torch.save(train_pids, join(self.run_folder, 'pids_train.pt'))
-        torch.save(val_pids, join(self.run_folder, 'pids_val.pt'))
-    
     @staticmethod
     def _select_and_order_outcomes_for_patients(all_outcomes: Dict, pids: List, outcome: str) -> List:
         """Select outcomes for patients and order them based on the order of pids"""
@@ -441,12 +398,19 @@ class DatasetPreparer:
         pid_to_index = {pid: idx for idx, pid in enumerate(all_outcomes[PID_KEY])}
         
         outcome_pids = set(all_outcomes[PID_KEY])
-        assert set(pids).issubset(outcome_pids), "PIDs is not a subset of outcome PIDs"
-        # Get the order of indices based on pids
-        ordered_indices = [pid_to_index[pid] for pid in pids if pid in outcome_pids]
+        if not set(pids).issubset(outcome_pids):
+            logger.warn(f"PIDs is not a subset of outcome PIDs, there is a \
+                        mismatch of {len(set(pids).difference(outcome_pids))} patients") 
+        outcome_group = all_outcomes[outcome]
+        outcomes = [outcome_group[pid_to_index[pid]] if pid in outcome_pids else None for pid in pids]
+        return outcomes
 
-        return [all_outcomes[outcome][idx] for idx in ordered_indices]
+    def _save_pids(self, train_pids, val_pids):
+        torch.save(train_pids, join(self.run_folder, 'pids_train.pt'))
+        torch.save(val_pids, join(self.run_folder, 'pids_val.pt'))
 
     @staticmethod
-    def log_patient_nums(operation:str, train_data:Data, val_data:Data):
-        logger.info(f"After {operation}: {len(train_data)} train patients, {len(val_data)} val patients")
+    def _log_patient_nums(operation:str, datasets: Dict):
+        logger.info(f"After applying {operation}:")
+        for split, data in datasets.items():
+            logger.info(f"{split}: {len(data.pids)} patients")

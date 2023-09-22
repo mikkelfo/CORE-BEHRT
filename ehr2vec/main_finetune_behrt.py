@@ -10,6 +10,7 @@ from evaluation.utils import get_pos_weight, get_sampler
 from model.model import BertForFineTuning
 from torch.optim import AdamW
 from trainer.trainer import EHRTrainer
+from transformers import get_linear_schedule_with_warmup
 
 args = get_args('finetune.yaml')
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
@@ -44,6 +45,8 @@ def main_finetune():
     if sampler:
         cfg.trainer_args.shuffle = False
 
+    if cfg.scheduler:
+        scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=cfg.scheduler.num_warmup_steps, num_training_steps=cfg.scheduler.num_training_steps)
     trainer = EHRTrainer( 
         model=model, 
         optimizer=optimizer,
@@ -51,6 +54,8 @@ def main_finetune():
         val_dataset=val_dataset, 
         args=cfg.trainer_args,
         metrics=cfg.metrics,
+        sampler=sampler,
+        scheduler=scheduler,
         cfg=cfg,
         run=run,
         logger=logger,

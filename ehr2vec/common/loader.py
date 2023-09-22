@@ -161,11 +161,11 @@ class DatasetPreparer:
         The process includes:
         1. Loading tokenized data
         2. Excluding pretrain patients
-        3. Optional: Select male/female
-        4. Loading and processing outcomes
-        5. Optional: Select only patients with a censoring outcome
-        6. Data censoring
-        7. Optional: Select patients by age
+        3. Optional: Select patients by age
+        4. Optional: Select male/female
+        5. Loading and processing outcomes
+        6. Optional: Select only patients with a censoring outcome
+        7. Data censoring
         8. Optional: Select a random subset based on provided number of patients,
         9. Optional: Remove background tokens
         10. Truncation
@@ -185,13 +185,19 @@ class DatasetPreparer:
         val_data = self._exclude_pretrain_patients(val_data, 'val')
         self.log_patient_nums('excluding pretrain patients', train_data, val_data)
        
-        # 3. Optinally select gender group
+        # 3. Patient selection
+        if data_cfg.get('num_train_patients', False) or data_cfg.get('num_val_patients', False):
+            train_data = self._select_random_subset(train_data, data_cfg.num_train_patients)
+            val_data = self._select_random_subset(val_data, data_cfg.num_val_patients)
+            self.log_patient_nums('selecting a random subset', train_data, val_data)
+        
+        # 4. Optinally select gender group
         if data_cfg.get('gender', False):
             train_data = self._select_by_gender(train_data)
             val_data = self._select_by_gender(val_data)
             self.log_patient_nums('selecting by gender', train_data, val_data)
         
-        # 4. Loading and processing outcomes
+        # 5. Loading and processing outcomes
         logger.info('Load outcomes')
         outcomes = torch.load(paths_cfg.outcome)
         censor_outcomes = torch.load(paths_cfg.censor) if paths_cfg.get('censor', False) else outcomes   
@@ -199,28 +205,22 @@ class DatasetPreparer:
         train_data = self._retrieve_and_assign_outcomes(train_data, outcomes, censor_outcomes)
         val_data = self._retrieve_and_assign_outcomes(val_data, outcomes, censor_outcomes)
 
-        # 5. Optionally select patients of interest
+        # 6. Optionally select patients of interest
         if data_cfg.get("select_censored", False):
             train_data = self._select_censored(train_data)
             val_data = self._select_censored(val_data)
             self.log_patient_nums('selecting censored patients', train_data, val_data)
 
-        # 6. Data censoring
+        # 7. Data censoring
         train_data = self._censor_data(train_data)
         val_data = self._censor_data(val_data)
         self.log_patient_nums('censoring/excluding short sequences', train_data, val_data)
 
-        # 7. Select Patients By Age
+        # 8. Select Patients By Age
         if data_cfg.get('min_age', False) or data_cfg.get('max_age', False):
             train_data = self._select_by_age(train_data)
             val_data = self._select_by_age(val_data)
             self.log_patient_nums('selecting by age', train_data, val_data)
-        
-        # 8. Patient selection
-        if data_cfg.get('num_train_patients', False) or data_cfg.get('num_val_patients', False):
-            train_data = self._select_random_subset(train_data, data_cfg.num_train_patients)
-            val_data = self._select_random_subset(val_data, data_cfg.num_val_patients)
-            self.log_patient_nums('selecting a random subset', train_data, val_data)
         
         # 9. Optionally Remove Background Tokens
         if data_cfg.get("remove_background", False):
@@ -236,6 +236,9 @@ class DatasetPreparer:
 
         train_data.check_lengths()
         val_data.check_lengths()
+        # ! outcome before censor outcome??
+        logger.info(f"Positive patients: {len([t for t in train_data.outcomes if not pd.isna(t)])}")
+
         self._save_pids(train_data.pids, val_data.pids) 
 
         return train_data.features, val_data.features, train_data.outcomes, val_data.outcomes

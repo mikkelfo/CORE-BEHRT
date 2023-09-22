@@ -70,7 +70,7 @@ def create_binary_outcome_datasets(all_outcomes, cfg):
 def select_positives(outcomes, censor_outcomes, pids):
     """Select only positive outcomes."""
     logger.info("Selecting only positive outcomes")
-    select_indices = [i for i, outcome in enumerate(outcomes) if pd.notna(outcome)]
+    select_indices = set([i for i, outcome in enumerate(outcomes) if pd.notna(outcome)])
     outcomes = [outcomes[i] for i in select_indices]
     censor_outcomes = [censor_outcomes[i] for i in select_indices]
     pids = [pids[i] for i in select_indices]
@@ -85,6 +85,7 @@ class Data:
     outcomes: Optional[List] = None
     censor_outcomes: Optional[List] = None
     vocabulary: Optional[Dict] = None
+    mode: Optional[str] = None
     
     def __len__(self):
         return len(self.pids)
@@ -97,6 +98,10 @@ class Data:
             assert len(self.outcomes) == len(self.pids), "Length of outcomes does not match length of pids"
         if self.censor_outcomes is not None:
             assert len(self.censor_outcomes) == len(self.pids), "Length of censor outcomes does not match length of pids"
+
+    def pipe(self, func, *args, **kwargs):
+        """Apply a function to the data instance and returns the result"""
+        return func(self, *args, **kwargs)
 
 class DatasetPreparer:
 
@@ -154,7 +159,7 @@ class DatasetPreparer:
         train_dataset = BinaryOutcomeDataset(train_features, outcomes=train_outcome)
         val_dataset = BinaryOutcomeDataset(val_features, outcomes=val_outcome)
         return train_dataset, val_dataset
-    
+
     def prepare_finetune_features(self):
         """
         Prepare the features for fine-tuning. 
@@ -176,13 +181,12 @@ class DatasetPreparer:
 
         # 1. Loading tokenized data
         train_features, train_pids, val_features, val_pids, vocabulary = self._load_tokenized_data()
-        train_data = Data(train_features, train_pids, vocabulary=vocabulary)
-        val_data = Data(val_features, val_pids, vocabulary=vocabulary)
+        train_data = Data(train_features, train_pids, vocabulary=vocabulary, mode='train')
+        val_data = Data(val_features, val_pids, vocabulary=vocabulary, mode='val')
 
         # 2. Excluding pretrain patients
-        logger.info('Exclude pretrain patients')
-        train_data = self._exclude_pretrain_patients(train_data, 'train')
-        val_data = self._exclude_pretrain_patients(val_data, 'val')
+        train_data = self._exclude_pretrain_patients(train_data)
+        val_data = self._exclude_pretrain_patients(val_data)
         self.log_patient_nums('excluding pretrain patients', train_data, val_data)
        
         # 3. Patient selection
@@ -202,6 +206,7 @@ class DatasetPreparer:
         outcomes = torch.load(paths_cfg.outcome)
         censor_outcomes = torch.load(paths_cfg.censor) if paths_cfg.get('censor', False) else outcomes   
 
+        logger.info("Assigning outcomes to data")
         train_data = self._retrieve_and_assign_outcomes(train_data, outcomes, censor_outcomes)
         val_data = self._retrieve_and_assign_outcomes(val_data, outcomes, censor_outcomes)
 
@@ -211,24 +216,29 @@ class DatasetPreparer:
             val_data = self._select_censored(val_data)
             self.log_patient_nums('selecting censored patients', train_data, val_data)
 
-        # 7. Data censoring
+        # 7. Filter patients with outcome before censoring
+        train_data = self._filter_outcome_before_censor(train_data)
+        val_data = self._filter_outcome_before_censor(val_data)
+        self.log_patient_nums('filtering outcome before censor', train_data, val_data)
+
+        # 8. Data censoring
         train_data = self._censor_data(train_data)
         val_data = self._censor_data(val_data)
         self.log_patient_nums('censoring/excluding short sequences', train_data, val_data)
 
-        # 8. Select Patients By Age
+        # 9. Select Patients By Age
         if data_cfg.get('min_age', False) or data_cfg.get('max_age', False):
             train_data = self._select_by_age(train_data)
             val_data = self._select_by_age(val_data)
             self.log_patient_nums('selecting by age', train_data, val_data)
         
-        # 9. Optionally Remove Background Tokens
+        # 10. Optionally Remove Background Tokens
         if data_cfg.get("remove_background", False):
             logger.info("Removing background tokens")
             train_data = self._remove_background(train_data)
             val_data = self._remove_background(val_data)
 
-        # 10. Truncation
+        # 11. Truncation
         logger.info('Truncating')
         truncator = Truncator(max_len=data_cfg.truncation_len, sep_token=vocabulary['[SEP]'])
         train_data.features = truncator(train_data.features)
@@ -237,7 +247,8 @@ class DatasetPreparer:
         train_data.check_lengths()
         val_data.check_lengths()
         # ! outcome before censor outcome??
-        logger.info(f"Positive patients: {len([t for t in train_data.outcomes if not pd.isna(t)])}")
+        logger.info(f"Positive train patients: {len([t for t in train_data.outcomes if not pd.isna(t)])}")
+        logger.info(f"Positive val patients: {len([t for t in val_data.outcomes if not pd.isna(t)])}")
 
         self._save_pids(train_data.pids, val_data.pids) 
 
@@ -264,6 +275,7 @@ class DatasetPreparer:
         return self._select_entries(data, kept_indices)
 
     def _retrieve_and_assign_outcomes(self, data: Data, outcomes: Dict, censor_outcomes: Dict)->Data:
+        """Retrieve outcomes and assign them to the data instance"""
         outcomes = self._select_and_order_outcomes_for_patients(outcomes, data.pids)
         censor_outcomes = self._select_and_order_outcomes_for_patients(censor_outcomes, data.pids)
         assert outcomes[PID_KEY] == data.pids, "PIDs in outcome file and data file do not match"
@@ -342,8 +354,8 @@ class DatasetPreparer:
         h_vocabulary = torch.load(join(hierarchical_path, VOCABULARY_FILE))
         return tree, tree_matrix, h_vocabulary 
 
-    def _exclude_pretrain_patients(self, data: Data,  mode: str):
-        pretrain_pids = set(torch.load(join(self.cfg.paths.model_path, f'pids_{mode}.pt')))
+    def _exclude_pretrain_patients(self, data: Data):
+        pretrain_pids = set(torch.load(join(self.cfg.paths.model_path, f'pids_{data.mode}.pt')))
         kept_indices = [i for i, pid in enumerate(data.pids) if pid not in pretrain_pids]
         return self._select_entries(data, kept_indices)
     
@@ -369,19 +381,14 @@ class DatasetPreparer:
         kept_indices = []
         min_age = self.cfg.data.get('min_age', 0)
         max_age = self.cfg.data.get('max_age', 120)
-        for i, ages in enumerate(data.features['age']):
-            patient_age = ages[-1] # last age
-            if (min_age<=patient_age) and (patient_age<=max_age):
-                kept_indices.append(i)
+        kept_indices = [i for i, ages in enumerate(data.features['age']) 
+                if min_age <= ages[-1] <= max_age]
         return self._select_entries(data, kept_indices)
 
     def _select_by_gender(self, data):
         """Select only patients of a certain gender"""
         gender_token = self._get_gender_token(data.vocabulary, self.cfg.data.gender)
-        kept_indices = []
-        for i, concepts in enumerate(data.features['concept']):
-            if gender_token in concepts:
-                kept_indices.append(i)
+        kept_indices = [i for i, concepts in enumerate(data.features['concept']) if gender_token in set(concepts)]
         return self._select_entries(data, kept_indices)
     
     def _get_gender_token(self, vocabulary, key):
@@ -396,6 +403,14 @@ class DatasetPreparer:
             raise ValueError(f"Unknown gender {key}, please select one of {male_list + female_list}")
         return gender_token
     
+    def _filter_outcome_before_censor(self, data: Data)->Data:
+        """Filter patients with outcome before censoring"""
+        kept_indices = []
+        for i, (outcome, censor) in enumerate(zip(data.outcomes, data.censor_outcomes)):
+            if (pd.isna(outcome) or pd.isna(censor)) or (outcome <= (censor + self.cfg.outcome.n_hours)):
+                kept_indices.append(i)
+        return self._select_entries(data, kept_indices)
+
     @staticmethod
     def _select_entries(data:Data, indices:List)->Data:
         """
@@ -421,8 +436,10 @@ class DatasetPreparer:
         # Create a dictionary of positions for each PID for quick lookup
         pid_to_index = {pid: idx for idx, pid in enumerate(all_outcomes[PID_KEY])}
         
+        outcome_pids = set(all_outcomes[PID_KEY])
+
         # Get the order of indices based on pids
-        ordered_indices = [pid_to_index[pid] for pid in pids if pid in set(pid_to_index)]
+        ordered_indices = [pid_to_index[pid] for pid in pids if pid in outcome_pids]
 
         # order outcomes based on the indices
         return {k: [v[idx] for idx in ordered_indices] for k, v in all_outcomes.items()}

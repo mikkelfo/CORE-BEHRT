@@ -1,5 +1,5 @@
 env: local
-outcomes_name: "TEST"
+outcomes_name: "TEST_CENSOR"
 features_dir: ../outputs/data_icd10
 loader:
   data_dir: ../data/formatted/synthea500_icd10 
@@ -13,3 +13,6 @@ outcomes:
   TEST_OUTCOME: 
     type: [CONCEPT]
     match: [['DJ329', 'DN186']]
+  TEST_CENSOR:
+    type: [CONCEPT]
+    match: [['DJ0190']]

@@ -2,7 +2,7 @@ import torch
 import warnings
 from sklearn.metrics import (accuracy_score, average_precision_score,
                              precision_score, recall_score, roc_auc_score,
-                             confusion_matrix)
+                             confusion_matrix, f1_score)
 
 """Computes the precision@k for the specified value of k"""
 class PrecisionAtK:
@@ -41,47 +41,60 @@ def binary_hit(outputs, batch, threshold=0.5, average=True):
         return (predictions == target).float().mean().item()
 
 
-class Accuracy:
-    def __call__(self, outputs, batch):
+class BaseMetric:
+    def _return_probas_and_targrets(self, outputs, batch):
         probas = torch.sigmoid(outputs.logits)
-        predictions = (probas > 0.5).long().view(-1) 
+        return probas.cpu(), batch['target'].cpu()
+
+    def _return_predictions_and_targrets(self, outputs, batch, threshold=0.5):
+        probas, targets = self._return_probas_and_targrets(outputs, batch)
+        predictions = (probas > threshold).long().view(-1)
+        return predictions, targets
+
+    def __call__(self, outputs, batch):
+        raise NotImplementedError("Subclasses must implement this method")
+
+class Accuracy(BaseMetric):
+    def __call__(self, outputs, batch):
+        predictions, targets = self._return_predictions_and_targrets(outputs, batch)
         try:
-            score = accuracy_score(batch['target'], predictions)
-            return score
+            return accuracy_score(targets, predictions)
         except:
             warnings.warn("Accuracy score could not be computed")
-            return None
+            return 0
         
-class Precision:
+class Precision(BaseMetric):
     def __call__(self, outputs, batch):
-        probas = torch.sigmoid(outputs.logits)
-        predictions = (probas > 0.5).long().view(-1) 
-        return precision_score(batch['target'], predictions, zero_division=0)
+        predictions, targets = self._return_predictions_and_targrets(outputs, batch)
+        return precision_score(targets, predictions, zero_division=0)
     
-class Recall:
+class Recall(BaseMetric):
     def __call__(self, outputs, batch):
-        probas = torch.sigmoid(outputs.logits)
-        predictions = (probas > 0.5).long().view(-1)
-        return recall_score(batch['target'], predictions, zero_division=0)
+        predictions, targets = self._return_predictions_and_targrets(outputs, batch)
+        return recall_score(targets, predictions, zero_division=0)
 
-class ROC_AUC:
+class ROC_AUC(BaseMetric):
     def __call__(self, outputs, batch):
-        probas = torch.sigmoid(outputs.logits)
+        probas, targets = self._return_probas_and_targrets(outputs, batch)
         try:
-            score = roc_auc_score(batch['target'], probas)
-            return score
+            return roc_auc_score(targets, probas)
         except:
-            print("ROC AUC score could not be computed")
+            warnings.warn("ROC AUC score could not be computed")
             return 0
-class PR_AUC:
+        
+class PR_AUC(BaseMetric):
     def __call__(self, outputs, batch):
-        probas = torch.sigmoid(outputs.logits)
+        probas, targets = self._return_probas_and_targrets(outputs, batch)
         try:
-            score = average_precision_score(batch['target'], probas)
-            return score
+            return average_precision_score(targets, probas)
         except:
-            print("PR AUC score could not be computed")
+            warnings.warn("PR AUC score could not be computed")
             return 0
+
+class F1(BaseMetric):
+    def __call__(self, outputs, batch):
+        predictions, targets = self._return_predictions_and_targrets(outputs, batch)
+        return f1_score(targets, predictions, zero_division=0)
         
 def specificity(y, y_scores):
     tn, fp, fn, tp = confusion_matrix(y, y_scores).ravel()

@@ -13,8 +13,8 @@ model:
   pool_type: "mean"
 
 data:
-  num_train_patients: 200
-  num_val_patients: 50
+  num_train_patients: null #300
+  num_val_patients: null #100
   truncation_len: 20
   select_censored: true
   gender: M
@@ -27,7 +27,7 @@ outcome:
   censor_type: TEST_CENSOR
 
 trainer_args:
-  sampler: null
+  sampler: true
   pos_weight: null
   batch_size: 8
   effective_batch_size: 16
@@ -54,5 +54,9 @@ metrics:
     _target_: evaluation.metrics.Recall
   roc_auc:
     _target_: evaluation.metrics.ROC_AUC
+  pr_auc:
+    _target_: evaluation.metrics.PR_AUC
+  f1:
+    _target_: evaluation.metrics.F1
   
  

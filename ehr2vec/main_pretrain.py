@@ -4,13 +4,13 @@ from os.path import join
 
 import torch
 from common.azure import setup_azure
-from common.config import load_config
+from common.config import load_config, instantiate
 from common.loader import DatasetPreparer
 from common.setup import get_args, setup_run_folder
 from model.model import BertEHRModel
 from torch.optim import AdamW
 from trainer.trainer import EHRTrainer
-from transformers import BertConfig, get_linear_schedule_with_warmup
+from transformers import BertConfig
 
 args = get_args('pretrain.yaml')
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
@@ -43,8 +43,10 @@ def main_train(config_path):
         model.parameters(),
         **cfg.optimizer
     )
+
     if cfg.scheduler:
-        scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=cfg.scheduler.num_warmup_steps, num_training_steps=cfg.scheduler.num_training_steps)
+        cfg.scheduler.optimizer = optimizer
+        scheduler = instantiate(cfg.scheduler)
 
     logger.info('Initialize trainer')
     trainer = EHRTrainer( 

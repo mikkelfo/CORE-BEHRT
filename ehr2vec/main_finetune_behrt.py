@@ -2,7 +2,7 @@ import os
 from os.path import join
 
 import torch
-from common.config import load_config
+from common.config import load_config, instantiate
 from common.loader import DatasetPreparer, load_model
 from common.setup import (add_pretrain_info_to_cfg, adjust_paths_for_finetune,
                           azure_finetune_setup, get_args, setup_run_folder)
@@ -10,7 +10,6 @@ from evaluation.utils import get_pos_weight, get_sampler
 from model.model import BertForFineTuning
 from torch.optim import AdamW
 from trainer.trainer import EHRTrainer
-from transformers import get_linear_schedule_with_warmup
 
 args = get_args('finetune.yaml')
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
@@ -46,7 +45,8 @@ def main_finetune():
         cfg.trainer_args.shuffle = False
 
     if cfg.scheduler:
-        scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=cfg.scheduler.num_warmup_steps, num_training_steps=cfg.scheduler.num_training_steps)
+        cfg.scheduler.optimizer = optimizer
+        scheduler = instantiate(cfg.scheduler)
     trainer = EHRTrainer( 
         model=model, 
         optimizer=optimizer,

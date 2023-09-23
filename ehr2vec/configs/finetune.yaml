@@ -43,8 +43,9 @@ optimizer:
   eps: 1e-6
 
 scheduler:
+  _target_: transformers.get_constant_schedule_with_warmup
   num_warmup_steps: 10
-  num_training_steps: 100
+  #num_training_steps: 100
 
 metrics:
   accuracy:

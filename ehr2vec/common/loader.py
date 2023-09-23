@@ -239,7 +239,7 @@ class DatasetPreparer:
 
     def _censor_data(self, data):
         """Censors data and removes patients with no data left"""
-        censorer = Censorer(self.cfg.outcome.n_hours, vocabulary=data.vocabulary)
+        censorer = Censorer(self.cfg.outcome.n_hours, min_len=self.cfg.data.get('min_len', 3), vocabulary=data.vocabulary)
         _, kept_indices = censorer(data.features, data.censor_outcomes)
         return self._select_entries(data, kept_indices)
     

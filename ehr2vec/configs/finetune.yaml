@@ -20,6 +20,7 @@ data:
   gender: M
   min_age: 0
   max_age: 100
+  #min_len: null
 
 outcome: 
   type: TEST_OUTCOME

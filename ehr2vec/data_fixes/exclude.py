@@ -26,6 +26,7 @@ class Excluder():
         return features
     
     def exclude_short_sequences(self, features: dict, outcomes: dict=None) -> pd.DataFrame:
+        """Excludes patients with less than min_len concepts."""
         kept_indices = self._exclude(features)
         
         for key, values in features.items():
@@ -36,19 +37,31 @@ class Excluder():
 
     def _exclude(self, features: dict):
         kept_indices = []
-        tokenized_features = False
-        if isinstance(features['concept'][0][0], int):
-            tokenized_features = True
+        tokenized_features = self._is_tokenized(features['concept'])
+        
+        if tokenized_features:
             special_tokens = set([_int for str_, _int in self.vocabulary.items() if str_.startswith('[')])
+            is_special = lambda x: x in special_tokens
+        else:
+            is_special = lambda x: x.startswith('[')
+        
         for i, concepts in enumerate(features['concept']):
-            if tokenized_features:
-                unique_codes = set([code for code in concepts if not code in special_tokens])
-            else:
-                unique_codes = set([code for code in concepts if not code.startswith('[')])
+            unique_codes = set([code for code in concepts if not is_special(code)])
             if len(unique_codes) >= self.min_len:
                 kept_indices.append(i)
-        return kept_indices
 
+        return kept_indices
+    
+    def _is_tokenized(self, concepts_list):
+        """
+        Determines if a list of concepts is tokenized or not.
+        Returns True if tokenized, otherwise False.
+        """
+        for concepts in concepts_list:
+            if concepts:  # Check if list is not empty
+                return isinstance(concepts[0], int)
+        return False
+    
     @staticmethod
     def exclude_covid_negative(features: dict, outcomes: dict):
         kept_indices = []

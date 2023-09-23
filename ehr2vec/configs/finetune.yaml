@@ -31,6 +31,7 @@ trainer_args:
   sampler: true
   pos_weight: null
   batch_size: 8
+  val_batch_size: 32
   effective_batch_size: 16
   epochs: 2
   info: true
@@ -38,6 +39,7 @@ trainer_args:
     clip_value: 1.0
   mixed_precision: false
   shuffle: true
+  
 optimizer:
   lr: 5e-4
   eps: 1e-6

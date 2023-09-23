@@ -185,19 +185,25 @@ class DatasetPreparer:
         datasets = self._process_datasets(datasets, self._retrieve_and_assign_outcomes, 
                                           {'train': {'outcomes': outcomes, 'censor_outcomes': censor_outcomes},
                                            'val': {'outcomes': outcomes, 'censor_outcomes': censor_outcomes}})
+        self._log_pos_patients_num(datasets)
         # 6. Optionally select patients of interest
         if data_cfg.get("select_censored", False):
             datasets = self._process_datasets(datasets, self._select_censored)
+            self._log_pos_patients_num(datasets)
         # 7. Filter patients with outcome before censoring
         datasets = self._process_datasets(datasets, self._filter_outcome_before_censor)
+        self._log_pos_patients_num(datasets)
         # 8. Data censoring
         datasets = self._process_datasets(datasets, self._censor_data)
+        self._log_pos_patients_num(datasets)
         # 9. Select Patients By Age
         if data_cfg.get('min_age', False) or data_cfg.get('max_age', False):
             datasets = self._process_datasets(datasets, self._select_by_age)
+            self._log_pos_patients_num(datasets)
         # 10. Optionally Remove Background Tokens
         if data_cfg.get("remove_background", False):
             datasets = self._process_datasets(datasets, self._remove_background)
+
         # 11. Truncation
         logger.info('Truncating')
         truncator = Truncator(max_len=data_cfg.truncation_len, sep_token=vocabulary['[SEP]'])
@@ -208,13 +214,16 @@ class DatasetPreparer:
         train_data.check_lengths()
         val_data.check_lengths()
 
-        logger.info(f"Positive train patients: {len([t for t in train_data.outcomes if not pd.isna(t)])}")
-        logger.info(f"Positive val patients: {len([t for t in val_data.outcomes if not pd.isna(t)])}")
-
+        self._log_pos_patients_num(datasets)
         self._save_pids(train_data.pids, val_data.pids) 
 
         return train_data.features, val_data.features, train_data.outcomes, val_data.outcomes
     
+    def _log_pos_patients_num(self, datasets: Dict):
+        for mode, data in datasets.items():
+            logger.info(f"Positive {mode} patients: {len([t for t in data.outcomes if not pd.isna(t)])}")
+
+
     def _process_datasets(self, datasets: Dict, func: callable, args_for_func: Dict=None)->Dict:
         """Apply a function to all datasets in a dictionary"""
         if args_for_func is None:

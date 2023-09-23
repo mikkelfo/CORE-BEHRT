@@ -19,8 +19,10 @@ logger = logging.getLogger(__name__)  # Get the logger for this module
 
 PID_KEY = 'PID'
 VOCABULARY_FILE = 'vocabulary.pt'
-MALE_KEY = 'BG_GENDER_M'
-FEMALE_KEY = 'BG_GENDER_F'
+BG_GENDER_KEYS = {
+    'male': ['M', 'Kvinde', 'male', 'Male', 'man', 'MAN', '1'],
+    'female': ['W', 'Mand', 'F', 'female', 'woman', 'WOMAN', '0']
+}
 
 def load_model(model_class, cfg, add_config={}):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -358,15 +360,24 @@ class DatasetPreparer:
     
     def _get_gender_token(self, vocabulary, key):
         """Get the token from the vocabulary corresponding to the gender provided in the config"""
-        male_list = ['M', 'male', 'Male', 'man', 'MAN']
-        female_list = ['W', 'F', 'female', 'woman', 'WOMAN']
-        if key in male_list:
-            gender_token = vocabulary[MALE_KEY]
-        elif key in female_list:
-            gender_token = vocabulary[FEMALE_KEY]
-        else:
-            raise ValueError(f"Unknown gender {key}, please select one of {male_list + female_list}")
-        return gender_token
+        
+        # Determine the gender category
+        gender_category = None
+        for category, keys in BG_GENDER_KEYS.items():
+            if key in keys:
+                gender_category = category
+                break
+
+        if gender_category is None:
+            raise ValueError(f"Unknown gender {key}, please select one of {BG_GENDER_KEYS}")
+
+        # Check the vocabulary for a matching token
+        for possible_key in BG_GENDER_KEYS[gender_category]:
+            gender_token = vocabulary.get('BG_GENDER_' + possible_key, None)
+            if gender_token is not None:
+                return gender_token
+    
+        raise ValueError(f"None of BG_GENDER_+{BG_GENDER_KEYS[gender_category]} found in vocabulary.")
     
     def _filter_outcome_before_censor(self, data: Data)->Data:
         """Filter patients with outcome before censoring"""

@@ -27,7 +27,7 @@ def main_train(config_path):
 
     logger = setup_run_folder(cfg)
     
-    train_dataset, val_dataset = DatasetPreparer(cfg).prepare_mlm_dataset_for_behrt(original_behrt = True)
+    train_dataset, val_dataset = DatasetPreparer(cfg).prepare_mlm_dataset(original_behrt = True)
 
     
     cfg = adjust_cfg_for_behrt(cfg)

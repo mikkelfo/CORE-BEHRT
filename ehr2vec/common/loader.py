@@ -23,6 +23,8 @@ BG_GENDER_KEYS = {
     'male': ['M', 'Kvinde', 'male', 'Male', 'man', 'MAN', '1'],
     'female': ['W', 'Mand', 'F', 'female', 'woman', 'WOMAN', '0']
 }
+MIN_POSITIVES = {'train': 10, 'val': 5}
+
 
 def load_model(model_class, cfg, add_config={}):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -191,8 +193,9 @@ class DatasetPreparer:
             datasets = self._process_datasets(datasets, self._select_censored)
             self._log_pos_patients_num(datasets)
         # 7. Filter patients with outcome before censoring
-        datasets = self._process_datasets(datasets, self._filter_outcome_before_censor)
-        self._log_pos_patients_num(datasets)
+        if self.cfg.outcome.type != self.cfg.outcome.get('censor_type', None):
+            datasets = self._process_datasets(datasets, self._filter_outcome_before_censor)
+            self._log_pos_patients_num(datasets)
         # 8. Data censoring
         datasets = self._process_datasets(datasets, self._censor_data)
         self._log_pos_patients_num(datasets)
@@ -221,7 +224,10 @@ class DatasetPreparer:
     
     def _log_pos_patients_num(self, datasets: Dict):
         for mode, data in datasets.items():
-            logger.info(f"Positive {mode} patients: {len([t for t in data.outcomes if not pd.isna(t)])}")
+            num_positive_patiens = len([t for t in data.outcomes if not pd.isna(t)])
+            if num_positive_patiens < MIN_POSITIVES[mode]:
+                raise ValueError(f"Number of positive patients is less than 10: {num_positive_patiens}")
+            logger.info(f"Positive {mode} patients: {num_positive_patiens}")
 
 
     def _process_datasets(self, datasets: Dict, func: callable, args_for_func: Dict=None)->Dict:

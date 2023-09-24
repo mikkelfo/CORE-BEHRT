@@ -208,11 +208,14 @@ class EHRTrainer():
         return val_loss / len(val_loop), avg_metrics
 
     def _compute_avg_metrics(self, metric_values: dict):
-        """Computes the average of the metric values when metric is not zero"""
+        """Computes the average of the metric values when metric is not zero and not NaN"""
         averages = {}
         for name, values in metric_values.items():
             values_array = np.array(values)
-            non_zero_values = values_array[values_array != 0]
+            select_mask = (values_array == 0) | (np.isnan(values_array))
+            if select_mask.sum() > 0:
+                self.log(f'Warning: {select_mask.sum()} NaN or zero values for metric {name}')
+            non_zero_values = values_array[~select_mask]
             
             if non_zero_values.size:
                 averages[name] = np.mean(non_zero_values)

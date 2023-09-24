@@ -98,6 +98,16 @@ class F1(BaseMetric):
     def __call__(self, outputs, batch):
         predictions, targets = self._return_predictions_and_targrets(outputs, batch)
         return f1_score(targets, predictions, zero_division=0)
+
+class Percentage_Positives(BaseMetric):
+    def __call__(self, outputs, batch):
+        predictions, _ = self._return_predictions_and_targrets(outputs, batch)
+        return predictions.float().mean().item()
+
+class Mean_Probability(BaseMetric):
+    def __call__(self, outputs, batch):
+        probas, _ = self._return_probas_and_targrets(outputs, batch)
+        return probas.mean().item()
         
 def specificity(y, y_scores):
     tn, fp, fn, tp = confusion_matrix(y, y_scores).ravel()

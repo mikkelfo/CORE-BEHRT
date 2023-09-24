@@ -15,17 +15,17 @@ model:
 data:
   num_train_patients: null #300
   num_val_patients: null #100
-  truncation_len: 20
+  truncation_len: 60
   select_censored: true
-  gender: M
+  # gender: M
   min_age: 0
   max_age: 100
-  #min_len: null
+  # min_len: null
 
 outcome: 
-  type: TEST_OUTCOME
-  n_hours: 12 # censor time
-  censor_type: TEST_CENSOR
+  type: TEST_CENSOR
+  n_hours: 0 # censor time
+  censor_type: TEST_OUTCOME
 
 trainer_args:
   sampler: true
@@ -52,6 +52,8 @@ scheduler:
 metrics:
   accuracy:
     _target_: evaluation.metrics.Accuracy
+  balanced_accuracy:
+    _target_: evaluation.metrics.Balanced_Accuracy
   precision:
     _target_: evaluation.metrics.Precision
   recall:
@@ -62,5 +64,13 @@ metrics:
     _target_: evaluation.metrics.PR_AUC
   f1:
     _target_: evaluation.metrics.F1
+  precentage_positives:
+    _target_: evaluation.metrics.Percentage_Positives
+  mean_probability:
+    _target_: evaluation.metrics.Mean_Probability
+  cohen_kappa:
+    _target_: evaluation.metrics.Cohen_Kappa
+  mathews_correlation:
+    _target_: evaluation.metrics.Mathews_Correlation_Coefficient
   
  

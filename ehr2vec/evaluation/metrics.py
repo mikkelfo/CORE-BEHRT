@@ -2,8 +2,9 @@ import logging
 
 import torch
 from sklearn.metrics import (accuracy_score, average_precision_score,
-                             confusion_matrix, f1_score, precision_score,
-                             recall_score, roc_auc_score)
+                             balanced_accuracy_score, cohen_kappa_score,
+                             confusion_matrix, f1_score, matthews_corrcoef,
+                             precision_score, recall_score, roc_auc_score)
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
 
@@ -66,6 +67,15 @@ class Accuracy(BaseMetric):
             logger.warn("Accuracy score could not be computed")
             return 0
         
+class Balanced_Accuracy(BaseMetric):
+    def __call__(self, outputs, batch):
+        predictions, targets = self._return_predictions_and_targrets(outputs, batch)
+        try:
+            return balanced_accuracy_score(targets, predictions)
+        except:
+            logger.warn("Balanced accuracy score could not be computed")
+            return 0
+
 class Precision(BaseMetric):
     def __call__(self, outputs, batch):
         predictions, targets = self._return_predictions_and_targrets(outputs, batch)
@@ -98,6 +108,16 @@ class F1(BaseMetric):
     def __call__(self, outputs, batch):
         predictions, targets = self._return_predictions_and_targrets(outputs, batch)
         return f1_score(targets, predictions, zero_division=0)
+    
+class Cohen_Kappa(BaseMetric):
+    def __call__(self, outputs, batch):
+        predictions, targets = self._return_predictions_and_targrets(outputs, batch)
+        return cohen_kappa_score(targets, predictions)
+    
+class Matthews_Correlation_Coefficient(BaseMetric):
+    def __call__(self, outputs, batch):
+        predictions, targets = self._return_predictions_and_targrets(outputs, batch)
+        return matthews_corrcoef(targets, predictions)
 
 class Percentage_Positives(BaseMetric):
     def __call__(self, outputs, batch):

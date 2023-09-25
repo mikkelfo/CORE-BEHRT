@@ -21,6 +21,5 @@ setup(
         "pandas",
         "transformers",
         "hydra-core",
-        "pytorch-pretrained-bert",
     ],
 )

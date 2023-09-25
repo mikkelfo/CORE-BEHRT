@@ -61,9 +61,9 @@ def main_finetune():
         cfg=cfg,
         run=run,
         logger=logger,
+        accumulate_logits=True
     )
     trainer.train()
-    trainer.evaluate_binary_classification()
     if cfg.env=='azure':
         from azure_run import file_dataset_save
         file_dataset_save(local_path=join('outputs', cfg.paths.run_name), datastore_name = "workspaceblobstore",

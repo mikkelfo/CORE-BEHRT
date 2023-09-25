@@ -59,6 +59,7 @@ def main_finetune():
         cfg=cfg,
         run=run,
         logger=logger,
+        accumulate_logits=True
     )
     trainer.train()
     trainer.evaluate_binary_classification()

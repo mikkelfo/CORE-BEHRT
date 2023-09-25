@@ -219,9 +219,17 @@ class DatasetPreparer:
 
         self._log_pos_patients_num(datasets)
         self._save_pids(train_data.pids, val_data.pids) 
-
+        self._save_features(train_data, val_data)
         return train_data.features, val_data.features, train_data.outcomes, val_data.outcomes
     
+    def _save_features(self, train_data: Data, val_data: Data):
+        """Save features to file"""
+        torch.save(train_data.features, join(self.run_folder, 'features_train.pt'))
+        torch.save(val_data.features, join(self.run_folder, 'features_val.pt'))
+        torch.save(train_data.vocabulary, join(self.run_folder, 'vocabulary.pt'))
+        torch.save(train_data.outcomes, join(self.run_folder, 'outcomes_train.pt'))
+        torch.save(val_data.outcomes, join(self.run_folder, 'outcomes_train.pt'))
+
     def _log_pos_patients_num(self, datasets: Dict):
         for mode, data in datasets.items():
             num_positive_patiens = len([t for t in data.outcomes if not pd.isna(t)])

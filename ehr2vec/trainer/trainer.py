@@ -1,12 +1,13 @@
 import os
+from collections import namedtuple
 
 import numpy as np
 import torch
 import yaml
 from common.config import Config, get_function, instantiate
 from common.logger import TqdmToLogger
-from collections import namedtuple
 from dataloader.collate_fn import dynamic_padding
+from sklearn.metrics import precision_recall_curve, roc_curve
 from torch.cuda.amp import GradScaler, autocast
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
@@ -27,6 +28,7 @@ class EHRTrainer():
         cfg = None,
         logger = None,
         run = None,
+        accumulate_logits = False
     ):
         self.logger = logger
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
@@ -41,17 +43,14 @@ class EHRTrainer():
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.log("Initialize metrics")
-        if metrics:
-            self.metrics = {k: instantiate(v) for k, v in metrics.items()}
-        else:
-            self.metrics = {}
         
+        self.metrics = {k: instantiate(v) for k, v in metrics.items()} if metrics else {}
         self.sampler = sampler
         self.cfg = cfg
-        
         self.run = run
+        self.accumulate_logits = accumulate_logits
         
-        if self.cfg.trainer_args.get('mixed_precision', False):#
+        if self.cfg.trainer_args.get('mixed_precision', False):
             raise ValueError("Mixed precision produces unstable results (nan loss). Please use full precision.")
             self.scaler = GradScaler()
         else:
@@ -101,7 +100,7 @@ class EHRTrainer():
         epoch_loss = []
         step_loss = 0
         self.log(f'Test validation before starting training')
-        self.validate()
+        self.validate(epoch)
         for i, batch in enumerate(train_loop):
             step_loss += self.train_step(batch).item()
             if (i+1) % self.accumulation_steps == 0:
@@ -159,7 +158,7 @@ class EHRTrainer():
         self.run_log('Train loss', step_loss / self.accumulation_steps)
 
     def validate_and_log(self, epoch, epoch_loss, train_loop):
-        val_loss, metrics = self.validate()
+        val_loss, metrics = self.validate(epoch)
         self.run_log(name='Val loss', value=val_loss)
         for k, v in metrics.items():
             self.run_log(name = k, value = v)
@@ -182,7 +181,7 @@ class EHRTrainer():
     def backward_pass(self, loss):
         loss.backward()
 
-    def validate(self):
+    def validate(self, epoch):
         """Returns the validation loss and metrics"""
         if self.val_dataset is None:
             self.log('No validation dataset provided')
@@ -195,49 +194,62 @@ class EHRTrainer():
         val_loss = 0
         
         metric_values = {name: [] for name in self.metrics}
+        logits_list = [] if self.accumulate_logits else None
+        targets_list = [] if self.accumulate_logits else None
+
         with torch.no_grad():
             for batch in val_loop:
                 outputs = self.forward_pass(batch)
                 val_loss += outputs.loss.item()
-                for name, func in self.metrics.items():
-                    metric_values[name].append(func(outputs, batch))
 
+                if self.accumulate_logits:
+                    logits_list.append(outputs.logits.cpu())
+                    targets_list.append(batch['target'].cpu())
+                else:
+                    for name, func in self.metrics.items():
+                        metric_values[name].append(func(outputs, batch))
+
+        if self.accumulate_logits:
+            metric_values = self.process_binary_classification_results(logits_list, targets_list, epoch)
+        else:
+            metric_values = self._compute_avg_metrics(metric_values)
+        
         self.model.train()
-        avg_metrics = self._compute_avg_metrics(metric_values)
-        return val_loss / len(val_loop), avg_metrics
+        
+        return val_loss / len(val_loop), metric_values
 
-    def evaluate_binary_classification(self):
-        """Evaluates a binary classification task"""
-        self.model.eval()
-        dataloader = self.get_val_dataloader()
-        val_loop = self.get_tqdm(dataloader)
-        val_loop.set_description('Validation')
 
-        logits = []
-        targets = []
-        with torch.no_grad():
-            for batch in val_loop:
-                outputs = self.forward_pass(batch)
-                logits.append(outputs.logits.cpu())
-                targets.append(batch['target'].cpu())
-        targets = torch.cat(targets)
-        logits = torch.cat(logits)
+    def process_binary_classification_results(self, logits_list, targets_list, epoch):
+        """Process results specifically for binary classification."""
+        targets = torch.cat(targets_list)
+        logits = torch.cat(logits_list)
         batch = {'target': targets}
         outputs = namedtuple('Outputs', ['logits'])(logits)
-        metric_values = {}
+        acc_metrics = {}
         for name, func in self.metrics.items():
             v = func(outputs, batch)
-            self.run_log(name = name, value = v)
+            self.run_log(name=name, value=v)
             self.log(f"{name}: {v}")
-            metric_values[name] = v
-        self.save_metrics_to_csv(metric_values)
+            acc_metrics[name] = v
+        self.save_curves(logits, targets, epoch)
+        self.save_metrics_to_csv(acc_metrics, epoch)
+        return acc_metrics
 
-    def save_metrics_to_csv(self, metrics: dict):
+    def save_curves(self, logits, targets, epoch):
+        """Saves the ROC and PRC curves to a csv file"""
+        roc_name = os.path.join(self.run_folder, 'checkpoints', f'roc_curve_{epoch}.npz')
+        prc_name = os.path.join(self.run_folder, 'checkpoints', f'prc_curve_{epoch}.npz')
+        probas = torch.sigmoid(logits).cpu().numpy()
+        fpr, tpr, threshold_roc = roc_curve(targets, probas)
+        precision, recall, threshold_pr = precision_recall_curve(targets, probas)
+        np.savez_compressed(roc_name, fpr=fpr, tpr=tpr, threshold=threshold_roc)
+        np.savez_compressed(prc_name, precision=precision, recall=recall, threshold=np.append(threshold_pr, 1))
+
+    def save_metrics_to_csv(self, metrics: dict, epoch: int):
         """Saves the metrics to a csv file"""
-        metrics_name = os.path.join(self.run_folder, 'final_validation.csv')
+        metrics_name = os.path.join(self.run_folder, 'checkpoints', f'validation_scores_{epoch}.csv')
         with open(metrics_name, 'w') as file:
             file.write('metric,value\n')
-        with open(metrics_name, 'w') as file:
             for key, value in metrics.items():
                 file.write(f'{key},{value}\n')
 

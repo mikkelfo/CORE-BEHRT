@@ -54,10 +54,14 @@ class BaseMetric:
         probas, targets = self._return_probas_and_targrets(outputs, batch)
         predictions = (probas > threshold).long().view(-1)
         return predictions, targets
+    
+    def _return_confusion_matrix(self, outputs, batch):
+        predictions, targets = self._return_predictions_and_targrets(outputs, batch)
+        return confusion_matrix(targets, predictions).ravel()
 
     def __call__(self, outputs, batch):
-        raise NotImplementedError("Subclasses must implement this method")
-
+        raise NotImplementedError
+    
 class Accuracy(BaseMetric):
     def __call__(self, outputs, batch):
         predictions, targets = self._return_predictions_and_targrets(outputs, batch)
@@ -128,6 +132,26 @@ class Mean_Probability(BaseMetric):
     def __call__(self, outputs, batch):
         probas, _ = self._return_probas_and_targrets(outputs, batch)
         return probas.mean().item()
+    
+class True_Positives(BaseMetric):
+    def __call__(self, outputs, batch):
+        tn, fp, fn, tp = self._return_confusion_matrix(outputs, batch)
+        return tp 
+
+class False_Positives(BaseMetric):
+    def __call__(self, outputs, batch):
+        tn, fp, fn, tp = self._return_confusion_matrix(outputs, batch)
+        return fp
+
+class True_Negatives(BaseMetric):
+    def __call__(self, outputs, batch):
+        tn, fp, fn, tp = self._return_confusion_matrix(outputs, batch)
+        return tn
+
+class False_Negatives(BaseMetric):
+    def __call__(self, outputs, batch):
+        tn, fp, fn, tp = self._return_confusion_matrix(outputs, batch)
+        return fn
         
 def specificity(y, y_scores):
     tn, fp, fn, tp = confusion_matrix(y, y_scores).ravel()

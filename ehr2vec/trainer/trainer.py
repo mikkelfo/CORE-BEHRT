@@ -5,6 +5,7 @@ import torch
 import yaml
 from common.config import Config, get_function, instantiate
 from common.logger import TqdmToLogger
+from collections import namedtuple
 from dataloader.collate_fn import dynamic_padding
 from torch.cuda.amp import GradScaler, autocast
 from torch.utils.data import DataLoader, Dataset
@@ -188,9 +189,7 @@ class EHRTrainer():
             return None, None
         
         self.model.eval()
-        dataloader = DataLoader(self.val_dataset, batch_size=self.args.get('val_batch_size', self.args['batch_size']), 
-                                shuffle=self.args.get('shuffle', True), 
-                                collate_fn=self.args['collate_fn'])
+        dataloader = self.get_val_dataloader()
         val_loop = tqdm(dataloader, total=len(dataloader), file=TqdmToLogger(self.logger) if self.logger else None)
         val_loop.set_description('Validation')
         val_loss = 0
@@ -206,6 +205,49 @@ class EHRTrainer():
         self.model.train()
         avg_metrics = self._compute_avg_metrics(metric_values)
         return val_loss / len(val_loop), avg_metrics
+
+    def evaluate_binary_classification(self):
+        """Evaluates a binary classification task"""
+        self.model.eval()
+        dataloader = self.get_val_dataloader()
+        val_loop = tqdm(dataloader, total=len(dataloader), file=TqdmToLogger(self.logger) if self.logger else None)
+        val_loop.set_description('Validation')
+
+        logits = []
+        targets = []
+        with torch.no_grad():
+            for batch in val_loop:
+                outputs = self.forward_pass(batch)
+                logits.append(outputs.logits.cpu())
+                targets.append(batch['target'].cpu())
+        targets = torch.cat(targets)
+        logits = torch.cat(logits)
+        batch = {'target': targets}
+        outputs = namedtuple('Outputs', ['logits'])(logits)
+        metric_values = {}
+        for name, func in self.metrics.items():
+            v = func(outputs, batch)
+            self.run_log(name = name, value = v)
+            self.log(f"{name}: {v}")
+            metric_values[name] = v
+        self.save_metrics_to_csv(metric_values)
+
+    def save_metrics_to_csv(self, metrics: dict):
+        """Saves the metrics to a csv file"""
+        metrics_name = os.path.join(self.run_folder, 'final_validation.csv')
+        with open(metrics_name, 'w') as file:
+            file.write('metric,value\n')
+        with open(metrics_name, 'w') as file:
+            for key, value in metrics.items():
+                file.write(f'{key},{value}\n')
+
+    def get_val_dataloader(self):
+        return DataLoader(
+            self.val_dataset, 
+            batch_size=self.args.get('val_batch_size', self.args['batch_size']), 
+            shuffle=self.args.get('shuffle', True), 
+            collate_fn=self.args['collate_fn']
+        )
 
     def _compute_avg_metrics(self, metric_values: dict):
         """Computes the average of the metric values when metric is not zero and not NaN"""

@@ -66,7 +66,7 @@ class OutcomeMaker:
 
             # Rename and convert to abspos
             timestamps = timestamps.rename(outcome)
-            timestamps = (origin_point - timestamps).dt.total_seconds() / 60 / 60
+            timestamps = (timestamps - origin_point).dt.total_seconds() / 60 / 60
 
             outcome_df = outcome_df.merge(timestamps, on="PID", how="left")
 

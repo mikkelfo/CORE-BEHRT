@@ -13,4 +13,4 @@ DEATH:
   match: DATE_OF_DEATH
 COVID: 
   type: [CONCEPT, VALUE]
-  match: [[COVID_TEST], [POSITIV]]
+  match: [[COVID_TEST], [Positiv]]

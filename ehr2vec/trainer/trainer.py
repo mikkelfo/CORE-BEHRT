@@ -96,13 +96,13 @@ class EHRTrainer():
             self.train_epoch(epoch, dataloader)
 
     def train_epoch(self, epoch: int, dataloader: DataLoader):
-        train_loop = tqdm(enumerate(dataloader), total=len(dataloader), file=TqdmToLogger(self.logger) if self.logger else None)
+        train_loop = self.get_tqdm(dataloader)
         train_loop.set_description(f'Train {epoch}')
         epoch_loss = []
         step_loss = 0
         self.log(f'Test validation before starting training')
         self.validate()
-        for i, batch in train_loop:
+        for i, batch in enumerate(train_loop):
             step_loss += self.train_step(batch).item()
             if (i+1) % self.accumulation_steps == 0:
                 self.clip_gradients()
@@ -113,6 +113,9 @@ class EHRTrainer():
             if i%100==0:
                 self.run_log_gpu()
         self.validate_and_log(epoch, epoch_loss, train_loop)
+        torch.cuda.empty_cache()
+        del train_loop
+        del epoch_loss
 
     def clip_gradients(self):
         if self.scaler is not None:
@@ -132,8 +135,6 @@ class EHRTrainer():
             loss = outputs.loss
 
         self.backward_pass(loss)
-        torch.cuda.empty_cache()
-        del outputs
         return loss
 
     def update_and_log(self, i, step_loss, train_loop, epoch_loss):
@@ -156,7 +157,6 @@ class EHRTrainer():
                 self.run_log('Learning Rate', current_lr)
                 break
         self.run_log('Train loss', step_loss / self.accumulation_steps)
-        
 
     def validate_and_log(self, epoch, epoch_loss, train_loop):
         val_loss, metrics = self.validate()
@@ -190,7 +190,7 @@ class EHRTrainer():
         
         self.model.eval()
         dataloader = self.get_val_dataloader()
-        val_loop = tqdm(dataloader, total=len(dataloader), file=TqdmToLogger(self.logger) if self.logger else None)
+        val_loop = self.get_tqdm(dataloader)
         val_loop.set_description('Validation')
         val_loss = 0
         
@@ -210,7 +210,7 @@ class EHRTrainer():
         """Evaluates a binary classification task"""
         self.model.eval()
         dataloader = self.get_val_dataloader()
-        val_loop = tqdm(dataloader, total=len(dataloader), file=TqdmToLogger(self.logger) if self.logger else None)
+        val_loop = self.get_tqdm(dataloader)
         val_loop.set_description('Validation')
 
         logits = []
@@ -248,7 +248,10 @@ class EHRTrainer():
             shuffle=self.args.get('shuffle', True), 
             collate_fn=self.args['collate_fn']
         )
-
+    
+    def get_tqdm(self, dataloader):
+        return tqdm(dataloader, total=len(dataloader), file=TqdmToLogger(self.logger) if self.logger else None)
+    
     def _compute_avg_metrics(self, metric_values: dict):
         """Computes the average of the metric values when metric is not zero and not NaN"""
         averages = {}

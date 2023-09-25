@@ -52,6 +52,7 @@ scheduler:
 metrics:
   accuracy:
     _target_: evaluation.metrics.Accuracy
+    threshold: 0.6
   balanced_accuracy:
     _target_: evaluation.metrics.Balanced_Accuracy
   precision:
@@ -71,6 +72,15 @@ metrics:
   cohen_kappa:
     _target_: evaluation.metrics.Cohen_Kappa
   mathews_correlation:
-    _target_: evaluation.metrics.Mathews_Correlation_Coefficient
+    _target_: evaluation.metrics.Matthews_Correlation_Coefficient
+  true_positives:
+    _target_: evaluation.metrics.True_Positives
+  true_negatives:
+    _target_: evaluation.metrics.True_Negatives
+  false_positives:
+    _target_: evaluation.metrics.False_Positives
+  false_negatives:
+    _target_: evaluation.metrics.False_Negatives
+  
   
  

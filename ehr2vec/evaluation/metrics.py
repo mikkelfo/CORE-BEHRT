@@ -46,13 +46,16 @@ def binary_hit(outputs, batch, threshold=0.5, average=True):
 
 
 class BaseMetric:
+    def __init__(self, threshold=0.5) -> None:
+        self.threshold = threshold
+        
     def _return_probas_and_targrets(self, outputs, batch):
         probas = torch.sigmoid(outputs.logits)
         return probas.cpu(), batch['target'].cpu()
 
-    def _return_predictions_and_targrets(self, outputs, batch, threshold=0.5):
+    def _return_predictions_and_targrets(self, outputs, batch):
         probas, targets = self._return_probas_and_targrets(outputs, batch)
-        predictions = (probas > threshold).long().view(-1)
+        predictions = (probas > self.threshold).long().view(-1)
         return predictions, targets
     
     def _return_confusion_matrix(self, outputs, batch):

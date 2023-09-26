@@ -77,8 +77,7 @@ class Excluder:
         return kept_indices
 
     @staticmethod
-    def exclude_underaged_visits(features: dict, kept_indices: list, **kwargs
-    ) -> tuple:
+    def exclude_underaged_visits(features: dict, kept_indices: list, **kwargs) -> tuple:
         for i in range(len(features["concept"])):
             # Find all valid ages (-1 is valid due to background sentence)
             valid_ages = [

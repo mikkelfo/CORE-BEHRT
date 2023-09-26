@@ -37,9 +37,10 @@ def main_data(cfg):
     torch.save(features, os.path.join(cfg.paths.data_dir, "features.pt"))
 
     # Split features (test is optional)
-    train_features, val_features, *test_features = Splitter(
-        cfg, split_name="pretrain_splits.pt", mode="random"
-    )(features)
+    Splitter.mimic_split(dir="data/mimic3", split_name="mimic_splits.pt")
+    train_features, val_features, *test_features = Splitter(cfg, dir="data/mimic3")(
+        features, file="mimic_splits.pt", mode="load"
+    )
 
     # Tokenize
     tokenizer = EHRTokenizer(cfg.tokenizer)

@@ -41,7 +41,7 @@ def main_data(cfg):
     pretrain_splits = Splitter(
         cfg,
         split_name="pretrain_splits.pt",
-    )(features, mode="random")
+    )(features, mode=cfg.split.mode)
 
     # Tokenize
     tokenizer = EHRTokenizer(cfg.tokenizer)

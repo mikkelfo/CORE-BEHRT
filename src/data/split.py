@@ -1,5 +1,6 @@
 import os
 import torch
+import pandas as pd
 from datetime import datetime
 import src.common.utils as utils
 
@@ -110,3 +111,19 @@ class Splitter:
     @staticmethod
     def get_number_of_patients(data: dict):
         return len(next(iter(data.values())))
+    @staticmethod
+    def mimic_split(dir="data/mimic3", split_name="mimic_splits.pt"):
+        pids = torch.load("data/extra/PIDs.pt")
+        excluder_kept_indices = torch.load("data/extra/excluder_kept_indices.pt")
+        new_pids = [pids[i] for i, v in excluder_kept_indices.items() if v]
+
+        mimic_split = []
+        for split in ["train", "eval", "test"]:
+            split_ids = pd.read_csv(f"data/mimic3/{split}-id.txt", header=None)[
+                0
+            ].tolist()
+            split = [i for i, pid in enumerate(new_pids) if pid in set(split_ids)]
+            mimic_split.append(split)
+
+        torch.save(mimic_split, os.path.join(dir, split_name))
+        return mimic_split

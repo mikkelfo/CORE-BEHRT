@@ -17,3 +17,6 @@ hydra:
 
 paths:
   encoded_suffix: pretrain
+
+split:
+  mode: random

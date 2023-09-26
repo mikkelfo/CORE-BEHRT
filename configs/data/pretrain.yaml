@@ -5,6 +5,7 @@ defaults:
   - outcomes: defaults  # Needed for outcomes.py (not used in data_pretrain)
   - tokenizer: defaults
   - paths: defaults
+  - excluder: defaults
 
   - override hydra/hydra_logging: disabled  
   - override hydra/job_logging: disabled  

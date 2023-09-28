@@ -194,7 +194,7 @@ class DatasetPreparer:
             self._log_pos_patients_num(datasets)
         # 7. Filter patients with outcome before censoring
         if self.cfg.outcome.type != self.cfg.outcome.get('censor_type', None):
-            datasets = self._process_datasets(datasets, self._filter_outcome_before_censor)
+            datasets = self._process_datasets(datasets, self._filter_outcome_before_censor) # !Timeframe (earlier instance of outcome)
             self._log_pos_patients_num(datasets)
         # 8. Data censoring
         datasets = self._process_datasets(datasets, self._censor_data)
@@ -220,8 +220,18 @@ class DatasetPreparer:
         self._log_pos_patients_num(datasets)
         self._save_pids(train_data.pids, val_data.pids) 
         self._save_features(train_data, val_data)
+        self._save_patient_nums(train_data, val_data)
         return train_data.features, val_data.features, train_data.outcomes, val_data.outcomes
     
+    def _save_patient_nums(self, train_data: Data, val_data: Data):
+        """Save patient numbers for train val including the number of positive patients to a csv file"""
+        train_df = pd.DataFrame({'train': [len(train_data), len([t for t in train_data.outcomes if not pd.isna(t)])]}, 
+                                index=['total', 'positive'])
+        val_df = pd.DataFrame({'val': [len(val_data), len([t for t in val_data.outcomes if not pd.isna(t)])]},
+                              index=['total', 'positive'])
+        patient_nums = pd.concat([train_df, val_df], axis=1)
+        patient_nums.to_csv(join(self.run_folder, 'patient_nums.csv'), index_label='Patient Group')
+
     def _save_features(self, train_data: Data, val_data: Data):
         """Save features to file"""
         torch.save(train_data.features, join(self.run_folder, 'features_train.pt'))

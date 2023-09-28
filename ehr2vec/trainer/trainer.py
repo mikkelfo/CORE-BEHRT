@@ -228,7 +228,6 @@ class EHRTrainer():
         acc_metrics = {}
         for name, func in self.metrics.items():
             v = func(outputs, batch)
-            self.run_log(name=name, value=v)
             self.log(f"{name}: {v}")
             acc_metrics[name] = v
         self.save_curves(logits, targets, epoch)

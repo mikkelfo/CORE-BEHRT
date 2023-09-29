@@ -1,6 +1,6 @@
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from os.path import join
 from typing import Dict, List, Optional, Union
@@ -84,12 +84,12 @@ def select_positives(outcomes, censor_outcomes, pids):
 
 @dataclass
 class Data:
-    features: Dict
-    pids: List
-    outcomes: Optional[List] = None
-    censor_outcomes: Optional[List] = None
-    vocabulary: Optional[Dict] = None
-    mode: Optional[str] = None
+    features: dict = field(default_factory=dict)
+    pids: list = field(default_factory=list)
+    outcomes: Optional[List] = field(default=None)
+    censor_outcomes: Optional[List] = field(default=None)
+    vocabulary: Optional[Dict] = field(default=None)
+    mode: Optional[str] = field(default=None)
     
     def __len__(self):
         return len(self.pids)
@@ -299,35 +299,62 @@ class DatasetPreparer:
                                               {'train': {'num_patients':self.cfg.data.num_train_patients},
                                                'val': {'num_patients':self.cfg.data.num_val_patients}})
             
-        if self.cfg.data.get("remove_background", False):
-            datasets = self._process_datasets(datasets, self._remove_background)
-            
+        remove_background = self.cfg.data.get("remove_background", False)
+        if remove_background:
+            background_len = len(self._get_background_indices(datasets['train']))
+
         # Truncation
-        logger.info(f"Truncating data to {self.cfg.data.truncation_len} tokens")
-        truncator = Truncator(max_len=self.cfg.data.truncation_len, 
+        truncation_len = self.cfg.data.truncation_len if not remove_background\
+                               else self.cfg.data.truncation_len+background_len 
+        logger.info(f"Truncating data to {truncation_len} tokens")
+        truncator = Truncator(max_len=truncation_len,
                               sep_token=vocabulary['[SEP]'])
         train_data, val_data = datasets['train'], datasets['val']
+        del datasets
         train_data.features = truncator(train_data.features)
         val_data.features = truncator(val_data.features)
+        
+        # Remove Background
+        if remove_background:
+            train_data = self._remove_background(train_data)
+            val_data = self._remove_background(val_data)
 
         train_data.check_lengths()
         val_data.check_lengths()
         self._save_pids(train_data.pids, val_data.pids)
-
-        return train_data.features, val_data.features, train_data.vocabulary
+        train_features, val_features = train_data.features, val_data.features
+        vocabulary = train_data.vocabulary
+        del train_data, val_data
+        return train_features, val_features, vocabulary
 
     def _remove_background(self, data: Data)->Data:
         """Remove background tokens from features and the first sep token following it"""
+        background_indices = self._get_background_indices(data)
+        first_index = min(background_indices)
+        last_index = max(background_indices)
+        for k, token_lists in data.features.items():
+            new_tokens_lists = []
+            for idx, tokens in enumerate(token_lists):
+                new_tokens = [token for j, token in enumerate(tokens) if (j < first_index) or (j > last_index)]
+                new_tokens_lists.append(new_tokens)
+            data.features[k] = new_tokens_lists 
+        return data
+
+    def _get_background_indices(self, data: Data)->List[int]:
+        """Get the length of the background sentence"""
         background_tokens = set([v for k, v in data.vocabulary.items() if k.startswith('BG_')])
         example_concepts = data.features['concept'][0] # Assume that all patients have the same background length
-        remove_indices = [i for i, concept in enumerate(example_concepts) if concept in background_tokens]
+        background_indices = [i for i, concept in enumerate(example_concepts) if concept in background_tokens]
         if data.vocabulary['[SEP]'] in example_concepts:
-            remove_indices.append(len(remove_indices)+1)
-        first_index, last_index = min(remove_indices), max(remove_indices)
-        for k, token_lists in data.features.items():
-            data.features[k] = [tokens[:first_index]+tokens[last_index+1:] \
-                               for tokens in token_lists]
-        return data
+            background_indices.append(max(background_indices)+1)
+        return background_indices
+
+    def _remove_short_sequences(self, data: Data)->Data:
+        kept_indices = []
+        for i, concepts in enumerate(data.features['concept']):
+            if len(concepts) >= self.cfg.data.get('min_len', 2):
+                kept_indices.append(i)
+        return self._select_entries(data, kept_indices)
 
     def _load_tokenized_data(self):
         tokenized_dir = self.cfg.paths.get('tokenized_dir', 'tokenized')

@@ -47,8 +47,7 @@ def main_train(config_path):
         **cfg.optimizer
     )
     if cfg.scheduler:
-        cfg.scheduler.optimizer = optimizer
-        scheduler = instantiate(cfg.scheduler)
+        scheduler = instantiate(cfg.scheduler, **{'optimizer': optimizer})
 
     logger.info('Initialize trainer')
     trainer = EHRTrainer( 

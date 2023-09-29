@@ -60,12 +60,14 @@ class Config(dict):
             yaml.dump(config.to_dict(), file)
 
 
-def instantiate(config):
+def instantiate(config, **extra_kwargs):
     """Instantiates a class from a config object."""
     module_path, class_name = config._target_.rsplit(".", 1)
     module = importlib.import_module(module_path)
     class_ = getattr(module, class_name)
     kwargs = {k: v for k, v in config.items() if k != "_target_"}
+    # Merge config kwargs with extra kwargs
+    kwargs.update(extra_kwargs)
     instance = class_(**kwargs)
     return instance
 

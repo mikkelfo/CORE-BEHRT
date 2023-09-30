@@ -215,11 +215,12 @@ class DatasetPreparer:
         datasets['val'].check_lengths()
 
         self._log_pos_patients_num(datasets)
-
+        datasets = self._process_datasets(datasets, self._save_sequence_lengths)
         train_data, val_data = datasets['train'], datasets['val']
         self._save_pids(train_data.pids, val_data.pids) 
         self._save_features(train_data, val_data)
         self._save_patient_nums(train_data, val_data)
+
         return train_data.features, val_data.features, train_data.outcomes, val_data.outcomes
     
     def _save_patient_nums(self, train_data: Data, val_data: Data):
@@ -317,7 +318,7 @@ class DatasetPreparer:
         datasets['train'].check_lengths()
         datasets['val'].check_lengths()
         self._save_pids(datasets['train'].pids, datasets['val'].pids)
-        
+        datasets = self._process_datasets(datasets, self._save_sequence_lengths)
         return datasets['train'].features, datasets['val'].features, datasets['train'].vocabulary
 
     def _truncate(self, data: Data)->Data:
@@ -484,3 +485,19 @@ class DatasetPreparer:
         logger.info(f"After applying {operation}:")
         for split, data in datasets.items():
             logger.info(f"{split}: {len(data.pids)} patients")
+
+    def _save_sequence_lengths(self, data):
+        if not data.outcomes:
+            sequence_lens = torch.tensor([len(concepts) for concepts in data.features['concept']])
+            torch.save(sequence_lens, join(self.run_folder, f'sequences_lengths_{data.mode}.pt'))
+            return data
+        else:
+            pos_indices = set([i for i, outcome in enumerate(data.outcomes) if not pd.isna(outcome)])
+            sequence_lens_neg = torch.tensor([len(concepts) for i, concepts in enumerate(data.features['concept']) if i in pos_indices])
+            sequence_lens_pos = torch.tensor([len(concepts) for i, concepts in enumerate(data.features['concept']) if i not in pos_indices])
+            torch.save(sequence_lens_neg, join(self.run_folder, f'sequences_lengths_{data.mode}_neg.pt'))
+            torch.save(sequence_lens_pos, join(self.run_folder, f'sequences_lengths_{data.mode}_pos.pt'))
+            return data
+
+        
+

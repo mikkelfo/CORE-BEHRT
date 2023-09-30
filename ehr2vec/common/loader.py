@@ -209,15 +209,14 @@ class DatasetPreparer:
 
         # 11. Truncation
         logger.info('Truncating')
-        truncator = Truncator(max_len=data_cfg.truncation_len, sep_token=vocabulary['[SEP]'])
-        train_data, val_data = datasets['train'], datasets['val']
-        train_data.features = truncator(train_data.features)
-        val_data.features = truncator(val_data.features)
-
-        train_data.check_lengths()
-        val_data.check_lengths()
+        datasets = self._process_datasets(datasets, self._truncate)
+        
+        datasets['train'].check_lengths()
+        datasets['val'].check_lengths()
 
         self._log_pos_patients_num(datasets)
+
+        train_data, val_data = datasets['train'], datasets['val']
         self._save_pids(train_data.pids, val_data.pids) 
         self._save_features(train_data, val_data)
         self._save_patient_nums(train_data, val_data)
@@ -246,7 +245,6 @@ class DatasetPreparer:
             if num_positive_patiens < MIN_POSITIVES[mode]:
                 raise ValueError(f"Number of positive patients is less than 10: {num_positive_patiens}")
             logger.info(f"Positive {mode} patients: {num_positive_patiens}")
-
 
     def _process_datasets(self, datasets: Dict, func: callable, args_for_func: Dict=None)->Dict:
         """Apply a function to all datasets in a dictionary"""
@@ -288,7 +286,12 @@ class DatasetPreparer:
         return data
         
     def _prepare_mlm_features(self):
-        """Load data, truncate"""
+        """
+        1. Load tokenized data
+        2. Optional: Select random subset
+        3. Truncation
+        4. Optional: Remove background tokens        
+        """
         train_features, train_pids, val_features, val_pids, vocabulary = self._load_tokenized_data()
         torch.save(vocabulary, join(self.run_folder, VOCABULARY_FILE))
         datasets = {'train': Data(train_features, train_pids, vocabulary=vocabulary, mode='train'),
@@ -301,31 +304,27 @@ class DatasetPreparer:
             
         remove_background = self.cfg.data.get("remove_background", False)
         if remove_background:
-            background_len = len(self._get_background_indices(datasets['train']))
-
-        # Truncation
-        truncation_len = self.cfg.data.truncation_len if not remove_background\
-                               else self.cfg.data.truncation_len+background_len 
-        logger.info(f"Truncating data to {truncation_len} tokens")
-        truncator = Truncator(max_len=truncation_len,
-                              sep_token=vocabulary['[SEP]'])
-        train_data, val_data = datasets['train'], datasets['val']
-        del datasets
-        train_data.features = truncator(train_data.features)
-        val_data.features = truncator(val_data.features)
+            self.cfg.data.truncation_len += len(self._get_background_indices(datasets['train']))
+        
+        logger.info(f"Truncating data to {self.cfg.data.truncation_len} tokens")
+        datasets = self._process_datasets(datasets, self._truncate)
         
         # Remove Background
         if remove_background:
-            train_data = self._remove_background(train_data)
-            val_data = self._remove_background(val_data)
+            logger.info("Removing background tokens")
+            datasets = self._process_datasets(datasets, self._remove_background)
+        
+        datasets['train'].check_lengths()
+        datasets['val'].check_lengths()
+        self._save_pids(datasets['train'].pids, datasets['val'].pids)
+        
+        return datasets['train'].features, datasets['val'].features, datasets['train'].vocabulary
 
-        train_data.check_lengths()
-        val_data.check_lengths()
-        self._save_pids(train_data.pids, val_data.pids)
-        train_features, val_features = train_data.features, val_data.features
-        vocabulary = train_data.vocabulary
-        del train_data, val_data
-        return train_features, val_features, vocabulary
+    def _truncate(self, data: Data)->Data:
+        truncator = Truncator(max_len=self.cfg.data.truncation_len,
+                              vocabulary=data.vocabulary)
+        data.features = truncator(data.features)
+        return data
 
     def _remove_background(self, data: Data)->Data:
         """Remove background tokens from features and the first sep token following it"""

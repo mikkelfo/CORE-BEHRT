@@ -18,6 +18,15 @@ class BaseEmbeddings(nn.Module):
         embeddings = self.LayerNorm(embeddings)
         return self.dropout(embeddings)
 
+    def initialize_linear_params(self, config):
+        if config.to_dict().get('linear', False):
+            self.a = nn.Parameter(torch.ones(1))
+            self.b = nn.Parameter(torch.zeros(1))
+            self.c = nn.Parameter(torch.zeros(1))
+            self.d = nn.Parameter(torch.zeros(1))
+        else:
+            self.a = self.b = self.c = self.d = 1
+
 class EhrEmbeddings(BaseEmbeddings):
     """
         EHR Embeddings
@@ -93,6 +102,7 @@ class BehrtEmbeddings(BaseEmbeddings):
     def __init__(self, config):
         super().__init__(config)
         self.initialize_embeddings(config)
+        self.initialize_linear_params(config)
 
     def initialize_embeddings(self, config):
         self.word_embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
@@ -104,16 +114,16 @@ class BehrtEmbeddings(BaseEmbeddings):
     def forward(self, input_ids, token_type_ids=None, position_ids=None, inputs_embeds = None, **kwargs):
         if inputs_embeds is not None:
             return inputs_embeds
-        embeddings = self.word_embeddings(input_ids)
+        embeddings = self.a * self.word_embeddings(input_ids)
         
         if position_ids is not None:
             if 'age' in position_ids:
                 age_embed = self.age_embeddings(position_ids['age'])
-                embeddings += age_embed
+                embeddings += self.c * age_embed
             if 'position_ids' in position_ids:
                 posi_embed = self.posi_embeddings(position_ids['position_ids'])
-                embeddings += posi_embed
-        segment_embed = self.segment_embeddings(token_type_ids)
+                embeddings += self.d * posi_embed
+        segment_embed = self.b * self.segment_embeddings(token_type_ids)
         embeddings += segment_embed
                 
         embeddings = self.LayerNorm(embeddings)

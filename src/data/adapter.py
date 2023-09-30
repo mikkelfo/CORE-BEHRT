@@ -1,4 +1,10 @@
 class DataAdapter:
+    def adapt_to_single_visit(self, features: dict) -> dict:
+        features = self.adapt_to_single_visit(features)
+        features = self.remove_duplicate_codes(features)
+
+        return features
+
     def adapt_to_behrt(self, features: dict) -> dict:
         """
         Delete abspos
@@ -47,3 +53,50 @@ class DataAdapter:
                     # flag += 1 for position_ids, flag = 1 - flag for segments
                     flag = func(flag)
         return position_ids
+
+    @staticmethod
+    def convert_to_singlevisits(features: dict) -> dict:
+        single_visits = {key: [] for key in features}
+
+        for i in range(len(features["concept"])):
+            patient = {key: values[i] for key, values in features.items()}
+            segments = patient["segment"]
+            
+            # Get idxs of background (first segment 1)
+            background_idx = segments.index(1)
+
+            # Initialize every visit with background info
+            split_visits = {
+                key: [values[:background_idx] for _ in range(max(segments))]
+                for key, values in patient.items()
+            }
+
+            # Add age, abspos and segment (segment should just be 0, 1, ..., 1) and the rest normal
+            for i in range(background_idx, len(segments)):
+                visit_idx = segments[i] - 1
+                for key, values in patient.items():
+                    if key == "segment":
+                        split_visits[key][visit_idx].append(1)
+                    else:
+                        split_visits[key][visit_idx].append(values[i])
+
+            # Add each visit to the single_visits dict
+            for key, values in split_visits.items():
+                single_visits[key].extend(values)
+
+        return single_visits
+
+    @staticmethod
+    def remove_duplicate_codes(features: dict) -> dict:
+        for i, patient in enumerate(features["concept"]):
+            idxs = []
+            tracker = set()
+            for j, concept in enumerate(patient):
+                if concept not in tracker:
+                    idxs.append(j)
+                    tracker.add(concept)
+
+            for key, values in features.items():
+                features[key][i] = [values[i][j] for j in idxs]
+
+        return features

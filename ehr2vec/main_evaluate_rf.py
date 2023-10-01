@@ -11,7 +11,7 @@ from common.io import PatientHDF5Reader
 from common.logger import TqdmToLogger
 from common.setup import get_args, setup_logger
 from evaluation.optimize import find_best_params_RF
-from evaluation.utils import Oversampler, get_mean_std, sample
+from evaluation.utils import Oversampler, get_mean_std, sample, evaluate_predictions
 from joblib import Parallel, delayed
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import StratifiedKFold, train_test_split
@@ -71,7 +71,7 @@ def process_fold(fold, X, y, task, metrics, best_params, logger):
     
     X_train, y_train = oversample_data(X_train, y_train, task, logger)
     pred, pred_probas = train_and_predict(X_train, y_train, X_val, best_params, logger)
-    results = evaluate_predictions(y_val, pred, pred_probas, metrics, logger)
+    results = evaluate_predictions(y_val, pred, pred_probas, metrics)
     return results
 
 def train_and_predict(X_train, y_train, X_val, best_params, logger):
@@ -84,15 +84,6 @@ def train_and_predict(X_train, y_train, X_val, best_params, logger):
     pred_probas = clf.predict_proba(X_val)[:, 1]
     
     return pred, pred_probas
-
-def evaluate_predictions(y_val, pred, pred_probas, metrics, logger):
-    results = {}
-    logger.info("Evaluate")
-    for metric in metrics:
-        score = metric(y_val, pred_probas if metric.__name__.endswith('auc') else pred)
-        logger.info(f"{metric.__name__}: {score}")
-        results[metric.__name__] = score
-    return results
 
 def oversample_data(X, y, task, logger):
     if "oversampling_ratio" in task and task.get("oversampling_ratio", False):

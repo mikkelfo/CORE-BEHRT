@@ -3,7 +3,7 @@ import os
 from dataclasses import dataclass, field
 
 from os.path import join
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Tuple
 
 import numpy as np
 import pandas as pd
@@ -144,6 +144,50 @@ class DatasetPreparer:
         val_dataset = BinaryOutcomeDataset(val_features, outcomes=val_outcome)
         return train_dataset, val_dataset
 
+    def prepare_onehot_features(self)->Tuple[np.ndarray]:
+        """Use ft features and map them onto one hot vectors with binary outcomes"""
+        train_data = self._load_finetune_data(mode='train')
+        val_data = self._load_finetune_data(mode='val')
+        token2index = self._get_token_to_index_map(train_data.vocabulary)
+        X_train, y_train = self._encode_to_onehot(train_data, token2index)
+        X_val, y_val = self._encode_to_onehot(val_data, token2index)
+        return X_train, y_train, X_val, y_val
+    
+    def _encode_to_onehot(self, data:Data, token2index: dict)->Tuple[np.ndarray]:
+        """Encode features to one hot and age at the time of last event"""
+        X = np.zeros((len(data), len(token2index)+1))
+        y = np.zeros(len(data), dtype=np.int16)
+        keys_array = np.array(list(token2index.keys()))
+        token2index_map = np.vectorize(token2index.get)
+        for i, (concepts, outcome) in enumerate(zip(data.features['concept'], data.outcomes)):
+            y[i] = int(not pd.isna(outcome))
+            age = data.features['age'][i][-1]    
+            X[i, 0] = age
+            concepts = np.array(concepts)
+            unique_concepts = np.unique(concepts)
+            mask = np.isin(unique_concepts, keys_array) # Only keep concepts that are in the token2index map
+            filtered_concepts = unique_concepts[mask]
+            unique_indices = token2index_map(filtered_concepts) + 1
+            X[i, unique_indices] = 1
+        return X, y
+                
+    # ! Potentially map gender onto one index?
+    def _get_token_to_index_map(self, vocabulary:dict)->dict:
+        """
+        Creates a new mapping from vocbulary values to new integers excluding special tokens
+        """
+        unique_tokens = set([v for k, v in vocabulary.items() if not k.startswith('[')])
+        return {token: i for i, token in enumerate(unique_tokens)}        
+
+    def _load_finetune_data(self, mode):
+        """Load features for finetuning"""
+        dir_ = self.cfg.paths.finetune_features_path
+        train_features = torch.load(join(dir_, f'features_{mode}.pt'))
+        outcomes = torch.load(join(dir_, f'outcomes_{mode}.pt'))
+        pids = torch.load(join(dir_, f'pids_{mode}.pt'))
+        vocabulary = torch.load(join(dir_, 'vocabulary.pt'))
+        return Data(train_features, pids, outcomes, vocabulary=vocabulary, mode=mode)
+
     def _prepare_finetune_features(self):
         """
         Prepare the features for fine-tuning. 
@@ -238,7 +282,7 @@ class DatasetPreparer:
         torch.save(val_data.features, join(self.run_folder, 'features_val.pt'))
         torch.save(train_data.vocabulary, join(self.run_folder, 'vocabulary.pt'))
         torch.save(train_data.outcomes, join(self.run_folder, 'outcomes_train.pt'))
-        torch.save(val_data.outcomes, join(self.run_folder, 'outcomes_train.pt'))
+        torch.save(val_data.outcomes, join(self.run_folder, 'outcomes_val.pt'))
 
     def _log_pos_patients_num(self, datasets: Dict):
         for mode, data in datasets.items():

@@ -2,7 +2,9 @@ import numpy as np
 from sklearn.utils import resample
 import pandas as pd
 from torch.utils.data import WeightedRandomSampler
+import logging
 
+logger = logging.getLogger(__name__)
 
 def get_mean_std(Results_dic:dict)->dict:
     """Takes a nested dict with methods as outer dict and metrics as inner dict which contains lists os metrics,
@@ -16,7 +18,6 @@ def get_mean_std(Results_dic:dict)->dict:
             std = np.std(np.array(Results_dic[method][metric]))
             Results_mean_std[method][metric] = f'{mean:.3f} ± {std:.3f}'
     return Results_mean_std
-
 
 class Oversampler:
     def __init__(self, ratio=1.0, random_state=None):
@@ -94,3 +95,13 @@ def get_pos_weight(cfg, outcomes):
         return sum(pd.isna(outcomes)) / sum(pd.notna(outcomes))
     else:
         return None
+    
+def evaluate_predictions(y_val, pred_probas, metrics, threshold=.5):
+    results = {}
+    logger.info("Evaluate")
+    pred = np.where(pred_probas>threshold, 1, 0)
+    for metric in metrics:
+        score = metric(y_val, pred_probas if metric.__name__.endswith('auc') else pred)
+        logger.info(f"{metric.__name__}: {score}")
+        results[metric.__name__] = score
+    return results

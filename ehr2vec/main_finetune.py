@@ -18,7 +18,7 @@ config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.conf
 
 def main_finetune():
     cfg = load_config(config_path)
-
+    model_path = cfg.paths.model_path
     cfg = adjust_paths_for_finetune(cfg)
     cfg, run, mount_context = azure_finetune_setup(cfg)
     cfg = add_pretrain_info_to_cfg(cfg)
@@ -67,7 +67,7 @@ def main_finetune():
     if cfg.env=='azure':
         from azure_run import file_dataset_save
         file_dataset_save(local_path=join('outputs', cfg.paths.run_name), datastore_name = "workspaceblobstore",
-                    remote_path = join("PHAIR", cfg.paths.model_path, cfg.paths.run_name))
+                    remote_path = join("PHAIR", model_path, cfg.paths.run_name))
         mount_context.stop()
     logger.info('Done')
 

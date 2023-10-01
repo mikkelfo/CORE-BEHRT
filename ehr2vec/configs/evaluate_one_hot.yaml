@@ -6,11 +6,6 @@ paths:
 model:
   _target_: sklearn.ensemble.RandomForestClassifier
 
-outcome: 
-  type: TEST_OUTCOME
-  n_hours: 20 # censor time
-  censor_type: TEST_OUTCOME
-
 trainer_args:
   sampler: true
   pos_weight: null

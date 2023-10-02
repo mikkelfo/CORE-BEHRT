@@ -24,9 +24,8 @@ def main_finetune():
     os.makedirs(run_folder, exist_ok=True)
     logger = setup_logger(run_folder)
     cfg.save_to_yaml(join(run_folder, 'evaluate_one_hot.yaml'))
-    
 
-    X_train, y_train, X_val, y_val = DatasetPreparer(cfg).prepare_onehot_features()
+    X_train, y_train, X_val, y_val, new_vocab = DatasetPreparer(cfg).prepare_onehot_features()
     
     logger.info('Instantiating Model')
     sample_weight = get_pos_weight(cfg, y_train) if cfg.trainer_args.get('sample_weight', False) else None
@@ -36,10 +35,19 @@ def main_finetune():
     metrics = [get_function(metric) for metric in cfg.metrics.values()]
     results = evaluate_predictions(y_val, pred_probas, metrics)
     torch.save(model, join(run_folder, 'model.pth'))
+    torch.save(new_vocab, join(run_folder, 'new_vocab.pt'))
     logger.info('Saving results')
     results_df = pd.DataFrame(results, index=[0])
     results_df.to_csv(join(run_folder, 'results.csv'), index=False)
-    
+    try:
+        feature_importances = model.feature_importances_
+        feature_names = ['age']
+        sorted_new_vocab = {k: v for k, v in sorted(new_vocab.items(), key=lambda item: item[1])}
+        feature_names = feature_names + [k for k, v in sorted_new_vocab.items()]
+        df_feat_imp = pd.DataFrame({'feature': feature_names, 'importance': feature_importances})
+        df_feat_imp.sort_values('importance', ascending=False).to_csv(join(run_folder, 'feature_importances.csv'), index=False)
+    except:
+        pass
     if cfg.env=='azure':
         # from azure_run import file_dataset_save
         #file_dataset_save(local_path=join('outputs', cfg.paths.run_name), datastore_name = "workspaceblobstore",

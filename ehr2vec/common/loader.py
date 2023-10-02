@@ -148,10 +148,10 @@ class DatasetPreparer:
         """Use ft features and map them onto one hot vectors with binary outcomes"""
         train_data = self._load_finetune_data(mode='train')
         val_data = self._load_finetune_data(mode='val')
-        token2index = self._get_token_to_index_map(train_data.vocabulary)
+        token2index, new_vocab = self._get_token_to_index_map(train_data.vocabulary)
         X_train, y_train = self._encode_to_onehot(train_data, token2index)
         X_val, y_val = self._encode_to_onehot(val_data, token2index)
-        return X_train, y_train, X_val, y_val
+        return X_train, y_train, X_val, y_val, new_vocab
     
     def _encode_to_onehot(self, data:Data, token2index: dict)->Tuple[np.ndarray]:
         """Encode features to one hot and age at the time of last event"""
@@ -172,12 +172,14 @@ class DatasetPreparer:
         return X, y
                 
     # ! Potentially map gender onto one index?
-    def _get_token_to_index_map(self, vocabulary:dict)->dict:
+    def _get_token_to_index_map(self, vocabulary:dict)->Tuple[dict]:
         """
         Creates a new mapping from vocbulary values to new integers excluding special tokens
         """
-        unique_tokens = set([v for k, v in vocabulary.items() if not k.startswith('[')])
-        return {token: i for i, token in enumerate(unique_tokens)}        
+        filtered_tokens = set([v for k, v in vocabulary.items() if not k.startswith('[')])
+        token2index = {token: i for i, token in enumerate(filtered_tokens)}        
+        new_vocab = {k: token2index[v] for k, v in vocabulary.items() if v in token2index}
+        return token2index, new_vocab
 
     def _load_finetune_data(self, mode):
         """Load features for finetuning"""
@@ -199,10 +201,11 @@ class DatasetPreparer:
         5. Loading and processing outcomes
         6. Optional: Select only patients with a censoring outcome
         7. Filter patients with outcome before censoring
-        8. Data censoring
-        9. Optional: Select patients by age
-        10. Optional: Remove background tokens
-        11. Truncation
+        8. Optional: Filter code types (e.g. only diagnoses)
+        9. Data censoring
+        10. Optional: Select patients by age
+        11. Optional: Remove background tokens
+        12. Truncation
         
         """
         data_cfg = self.cfg.data
@@ -240,18 +243,23 @@ class DatasetPreparer:
         if self.cfg.outcome.type != self.cfg.outcome.get('censor_type', None):
             datasets = self._process_datasets(datasets, self._filter_outcome_before_censor) # !Timeframe (earlier instance of outcome)
             self._log_pos_patients_num(datasets)
-        # 8. Data censoring
+        
+        # 8. Filter code types
+        if data_cfg.get('code_types', False):
+            datasets = self._process_datasets(datasets, self._filter_code_types)
+            self._log_pos_patients_num(datasets)
+        # 9. Data censoring
         datasets = self._process_datasets(datasets, self._censor_data)
         self._log_pos_patients_num(datasets)
-        # 9. Select Patients By Age
+        # 10. Select Patients By Age
         if data_cfg.get('min_age', False) or data_cfg.get('max_age', False):
             datasets = self._process_datasets(datasets, self._select_by_age)
             self._log_pos_patients_num(datasets)
-        # 10. Optionally Remove Background Tokens
+        # 11. Optionally Remove Background Tokens
         if data_cfg.get("remove_background", False):
             datasets = self._process_datasets(datasets, self._remove_background)
 
-        # 11. Truncation
+        # 12. Truncation
         logger.info('Truncating')
         datasets = self._process_datasets(datasets, self._truncate)
         
@@ -302,14 +310,6 @@ class DatasetPreparer:
         self._log_patient_nums(func.__name__, datasets)
         return datasets
 
-    # def prepare_onehot_dataset(self):
-    #     train_features, train_pids, val_features, val_pids, vocabulary = self._load_tokenized_data()
-    #     # extend by test!
-    #     censorer = Censorer(n_hours=cfg.outcomes.n_hours, min_len=cfg.excluder.min_len, vocabulary=vocabulary)
-    #     outcomes = torch.load(join(cfg.paths.data_path, cfg.paths.outcome))
-    #     tokenized_features_train = censorer(tokenized_features_train, outcome, vocabulary, cfg)
-    #     pass
-
     def _select_censored(self, data):
         """Select only censored patients"""
         kept_indices = [i for i, censor in enumerate(data.censor_outcomes) if not pd.isna(censor)]
@@ -321,6 +321,32 @@ class DatasetPreparer:
         _, kept_indices = censorer(data.features, data.censor_outcomes)
         return self._select_entries(data, kept_indices)
     
+    def _filter_code_types(self, data):
+        """Filter code types"""
+        keep_code_types = ['[', 'BG_', 'BG', ]
+        keep_code_types = set(keep_code_types + self.cfg.data.code_types)
+        special_codes = set([code for code in data.vocabulary if \
+                         any([code.startswith(c) for c in keep_code_types])])
+        logger.info(f"Keep only codes starting with: {keep_code_types}")
+        new_features = {}
+        kept_indices = []
+        for i, patient in self._iter_patients(data.features):
+            concepts = patient['concept']
+            keep_entries = {i:concept for i, concept in enumerate(concepts) if \
+                            concept.startswith(keep_code_types)}
+            non_special_entries = set([concept for concept in keep_entries.values() if concept not in special_codes])
+            #! Continue here
+            for k, v in patient:
+                filtered_list = [v[i] for i in keep_entries]
+                new_features[k].append(filtered_list)
+                
+        return self._select_entries(data, kept_indices)
+
+    @staticmethod
+    def _iter_patients(features: dict) -> dict:
+        for i in range(len(features["concept"])):
+            yield {key: values[i] for key, values in features.items()}
+
     def _retrieve_and_assign_outcomes(self, data: Data, outcomes: Dict, censor_outcomes: Dict)->Data:
         """Retrieve outcomes and assign them to the data instance"""
         data.outcomes = self._select_and_order_outcomes_for_patients(outcomes, data.pids, self.cfg.outcome.type)

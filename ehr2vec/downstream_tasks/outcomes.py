@@ -35,7 +35,6 @@ class OutcomeMaker:
 
             timestamps = timestamps.rename(outcome)
             timestamps = self.get_relative_timestamps_in_hours(timestamps, origin_point)
-
             outcome_df = outcome_df.merge(timestamps, on="PID", how="left")
         outcomes = outcome_df.to_dict("list")
         # pids = outcomes.pop("PID")
@@ -47,7 +46,7 @@ class OutcomeMaker:
         return concepts_plus[concepts_plus.TIMESTAMP.notna()]
 
     def get_relative_timestamps_in_hours(self, timestamps, origin_point):
-        return (origin_point - timestamps).dt.total_seconds() / 60 / 60
+        return (timestamps - origin_point).dt.total_seconds() / 60 / 60
 
     def match_patient_info(self, outcome_df, patients_info_dict, matches):
         timestamps = outcome_df.PID.map(

@@ -7,6 +7,7 @@ from src.data.concept_loader import ConceptLoader
 from src.data.featuremaker import FeatureMaker
 from src.data.tokenizer import EHRTokenizer
 from src.data.split import Splitter
+from src.data.adapter import DataAdapter
 from src.data_fixes.infer import Inferrer
 from src.data_fixes.handle import Handler
 from src.data_fixes.exclude import Excluder
@@ -36,28 +37,42 @@ def main_data(cfg):
     # Save final features
     torch.save(features, os.path.join(cfg.paths.data_dir, "features.pt"))
 
-    # Split features (test is optional)
-    Splitter.mimic_split(dir="data/mimic3", split_name="mimic_splits.pt")
-    train_features, val_features, *test_features = Splitter(cfg, dir="data/mimic3")(
+    # Split features
+    ## First we get the test_split and isolate the test_set from the pretraining set
+    _, _, test_split = Splitter().mimic_split(
+        dir="data/mimic3", split_name="mimic_splits.pt"
+    )
+    pretrain_features, _ = Splitter().isolate_holdout(features, test_split)
+    ## Pretrain split (single-visit)
+    single_visit_features = DataAdapter().adapt_to_single_visit(pretrain_features)
+    pretrain_train, pretrain_val = Splitter(cfg, dir="data/mimic3", split_name="pretrain_splits.pt")(
+        single_visit_features, mode="random", ratios=[0.8, 0.2]
+    )
+
+    ## Finetuning split (multi-visit) - we use the splits found above
+    finetune_train, finetune_val, finetune_test = Splitter(cfg, dir="data/mimic3", split_name="finetune_splits.pt")(
         features, file="mimic_splits.pt", mode="load"
     )
 
     # Tokenize
     tokenizer = EHRTokenizer(cfg.tokenizer)
-    train_encoded = tokenizer(train_features)
+    ## Not used (we do it again during saving for ease of use)
+    pretrain_train_encoded = tokenizer(pretrain_train)
     tokenizer.freeze_vocabulary(
         vocab_name=os.path.join(cfg.paths.data_dir, cfg.paths.vocabulary)
     )
-    val_encoded = tokenizer(val_features)
 
-    feature_set = [("train", train_encoded), ("val", val_encoded)]
-
-    if test_features:
-        test_encoded = tokenizer(test_features[0])
-        feature_set.append(("test", test_encoded))
+    feature_set = [
+        ("pretrain_train", pretrain_train),
+        ("val", pretrain_val),
+        ("finetune_train", finetune_train),
+        ("finetune_val", finetune_val),
+        ("finetune_test", finetune_test),
+    ]
 
     # Save features
-    for set, encoded in feature_set:
+    for set, split_feature in feature_set:
+        encoded = tokenizer(split_feature)
         torch.save(
             encoded,
             os.path.join(cfg.paths.data_dir, f"{set}_{cfg.paths.encoded_suffix}.pt"),

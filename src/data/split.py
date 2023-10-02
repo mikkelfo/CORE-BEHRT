@@ -1,7 +1,7 @@
 import os
 import torch
-import pandas as pd
 from datetime import datetime
+import src.common.utils as utils
 
 
 class Splitter:
@@ -84,7 +84,7 @@ class Splitter:
                 os.path.join(self.config.paths.data_dir, "outcomes.pt")
             )
         origin_point = datetime(**self.config.features.abspos)
-        covid_abspos = (covid_date - origin_point).total_seconds() / 60 / 60
+        covid_abspos = utils.calc_abspos(covid_date, origin_point)
         covid_split = [
             i for i, val in enumerate(outcomes["COVID"]) if val < covid_abspos
         ]

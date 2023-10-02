@@ -3,6 +3,7 @@ import os
 import numpy as np
 import pandas as pd
 from datetime import datetime
+import src.common.utils as utils
 
 
 class OutcomeMaker:
@@ -66,7 +67,7 @@ class OutcomeMaker:
 
             # Rename and convert to abspos
             timestamps = timestamps.rename(outcome)
-            timestamps = (timestamps - origin_point).dt.total_seconds() / 60 / 60
+            timestamps = utils.calc_abspos(timestamps, origin_point)
 
             outcome_df = outcome_df.merge(timestamps, on="PID", how="left")
 

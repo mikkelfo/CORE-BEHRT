@@ -1,5 +1,6 @@
 import pandas as pd
 from datetime import datetime
+import src.common.utils as utils
 
 
 class BaseCreator:
@@ -41,7 +42,7 @@ class AbsposCreator(BaseCreator):
     def create(self, concepts: pd.DataFrame, patients_info: pd.DataFrame):
         origin_point = datetime(**self.config.features.abspos)
         # Calculate hours since origin point
-        abspos = (concepts["TIMESTAMP"] - origin_point).dt.total_seconds() / 60 / 60
+        abspos = utils.calc_abspos(concepts["TIMESTAMP"], origin_point)
 
         concepts["ABSPOS"] = abspos
         return concepts
@@ -81,9 +82,7 @@ class BackgroundCreator(BaseCreator):
                         background["PID"].append(pid)
                         background["CONCEPT"].append(name)
                         background["ABSPOS"].append(
-                            (p_info["BIRTHDATE"] - origin_point).total_seconds()
-                            / 60
-                            / 60
+                            utils.calc_abspos(p_info["BIRTHDATE"], origin_point)
                         )
 
         if "segment" in self.config.features:

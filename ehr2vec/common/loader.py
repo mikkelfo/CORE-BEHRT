@@ -1,13 +1,13 @@
 import logging
 import os
-from dataclasses import dataclass, field
 
 from os.path import join
-from typing import Dict, List, Optional, Union, Tuple
+from typing import Dict, List,  Union, Tuple
 
 import numpy as np
 import pandas as pd
 import torch
+from common.utils import Data
 from data.dataset import (BinaryOutcomeDataset, HierarchicalMLMDataset,
                           MLMDataset)
 from data_fixes.adapt import BehrtAdapter
@@ -82,29 +82,8 @@ def select_positives(outcomes, censor_outcomes, pids):
 
 # TODO: Add option to load test set only!
 
-@dataclass
-class Data:
-    features: dict = field(default_factory=dict)
-    pids: list = field(default_factory=list)
-    outcomes: Optional[List] = field(default=None)
-    censor_outcomes: Optional[List] = field(default=None)
-    vocabulary: Optional[Dict] = field(default=None)
-    mode: Optional[str] = field(default=None)
-    
-    def __len__(self):
-        return len(self.pids)
-
-    def check_lengths(self):
-        """Check that all features have the same length"""
-        for key, values in self.features.items():
-            assert len(values) == len(self.pids), f"Length of {key} does not match length of pids"
-        if self.outcomes is not None:
-            assert len(self.outcomes) == len(self.pids), "Length of outcomes does not match length of pids"
-        if self.censor_outcomes is not None:
-            assert len(self.censor_outcomes) == len(self.pids), "Length of censor outcomes does not match length of pids"
-
 class DatasetPreparer:
-
+    SPECIAL_CODES = ['[', 'BG_', 'BG']
     def __init__(self, cfg):
         self.cfg = cfg
         self.run_folder = join(self.cfg.paths.output_path, self.cfg.paths.run_name)
@@ -155,20 +134,30 @@ class DatasetPreparer:
     
     def _encode_to_onehot(self, data:Data, token2index: dict)->Tuple[np.ndarray]:
         """Encode features to one hot and age at the time of last event"""
-        X = np.zeros((len(data), len(token2index)+1))
-        y = np.zeros(len(data), dtype=np.int16)
-        keys_array = np.array(list(token2index.keys()))
+        AGE_INDEX = 0
+         # Initialize arrays
+        num_samples = len(data)
+        num_features = len(token2index) + 1 # +1 for age
+        X = np.zeros((num_samples, num_features), dtype=np.int16)
+        y = np.zeros(num_samples, dtype=np.int16)
+        # Create an array of keys for faster lookup
+        keys_array = np.array(list(token2index.keys())) 
+        
+        # Vectorized function to map tokens to indices
         token2index_map = np.vectorize(token2index.get)
+
         for i, (concepts, outcome) in enumerate(zip(data.features['concept'], data.outcomes)):
             y[i] = int(not pd.isna(outcome))
             age = data.features['age'][i][-1]    
-            X[i, 0] = age
+            X[i, AGE_INDEX] = age
+            
+            # Filter and encode unique concepts
             concepts = np.array(concepts)
             unique_concepts = np.unique(concepts)
-            mask = np.isin(unique_concepts, keys_array) # Only keep concepts that are in the token2index map
-            filtered_concepts = unique_concepts[mask]
-            unique_indices = token2index_map(filtered_concepts) + 1
-            X[i, unique_indices] = 1
+            valid_concepts_mask = np.isin(unique_concepts, keys_array) # Only keep concepts that are in the token2index map
+            filtered_concepts = unique_concepts[valid_concepts_mask]
+            concept_indices = token2index_map(filtered_concepts) + 1
+            X[i, concept_indices] = 1
         return X, y
                 
     # ! Potentially map gender onto one index?
@@ -181,7 +170,7 @@ class DatasetPreparer:
         new_vocab = {k: token2index[v] for k, v in vocabulary.items() if v in token2index}
         return token2index, new_vocab
 
-    def _load_finetune_data(self, mode):
+    def _load_finetune_data(self, mode: str)->Data:
         """Load features for finetuning"""
         dir_ = self.cfg.paths.finetune_features_path
         train_features = torch.load(join(dir_, f'features_{mode}.pt'))
@@ -190,7 +179,7 @@ class DatasetPreparer:
         vocabulary = torch.load(join(dir_, 'vocabulary.pt'))
         return Data(train_features, pids, outcomes, vocabulary=vocabulary, mode=mode)
 
-    def _prepare_finetune_features(self):
+    def _prepare_finetune_features(self)->Tuple[dict]:
         """
         Prepare the features for fine-tuning. 
         The process includes:
@@ -275,7 +264,7 @@ class DatasetPreparer:
 
         return train_data.features, val_data.features, train_data.outcomes, val_data.outcomes
     
-    def _save_patient_nums(self, train_data: Data, val_data: Data):
+    def _save_patient_nums(self, train_data: Data, val_data: Data)->None:
         """Save patient numbers for train val including the number of positive patients to a csv file"""
         train_df = pd.DataFrame({'train': [len(train_data), len([t for t in train_data.outcomes if not pd.isna(t)])]}, 
                                 index=['total', 'positive'])
@@ -284,7 +273,7 @@ class DatasetPreparer:
         patient_nums = pd.concat([train_df, val_df], axis=1)
         patient_nums.to_csv(join(self.run_folder, 'patient_nums.csv'), index_label='Patient Group')
 
-    def _save_features(self, train_data: Data, val_data: Data):
+    def _save_features(self, train_data: Data, val_data: Data)->None:
         """Save features to file"""
         torch.save(train_data.features, join(self.run_folder, 'features_train.pt'))
         torch.save(val_data.features, join(self.run_folder, 'features_val.pt'))
@@ -292,7 +281,7 @@ class DatasetPreparer:
         torch.save(train_data.outcomes, join(self.run_folder, 'outcomes_train.pt'))
         torch.save(val_data.outcomes, join(self.run_folder, 'outcomes_val.pt'))
 
-    def _log_pos_patients_num(self, datasets: Dict):
+    def _log_pos_patients_num(self, datasets: Dict)->None:
         for mode, data in datasets.items():
             num_positive_patiens = len([t for t in data.outcomes if not pd.isna(t)])
             if num_positive_patiens < MIN_POSITIVES[mode]:
@@ -310,37 +299,50 @@ class DatasetPreparer:
         self._log_patient_nums(func.__name__, datasets)
         return datasets
 
-    def _select_censored(self, data):
+    def _select_censored(self, data: Data)->Data:
         """Select only censored patients"""
         kept_indices = [i for i, censor in enumerate(data.censor_outcomes) if not pd.isna(censor)]
         return self._select_entries(data, kept_indices)
 
-    def _censor_data(self, data):
+    def _censor_data(self, data: Data)->Data:
         """Censors data and removes patients with no data left"""
         censorer = Censorer(self.cfg.outcome.n_hours, min_len=self.cfg.data.get('min_len', 3), vocabulary=data.vocabulary)
         _, kept_indices = censorer(data.features, data.censor_outcomes)
         return self._select_entries(data, kept_indices)
     
-    def _filter_code_types(self, data):
-        """Filter code types"""
-        keep_code_types = ['[', 'BG_', 'BG', ]
-        keep_code_types = set(keep_code_types + self.cfg.data.code_types)
-        special_codes = set([code for code in data.vocabulary if \
-                         any([code.startswith(c) for c in keep_code_types])])
-        logger.info(f"Keep only codes starting with: {keep_code_types}")
-        new_features = {}
-        kept_indices = []
-        for i, patient in self._iter_patients(data.features):
+    def _filter_code_types(self, data: Data)->Data:
+        """Filter code types, e.g. keep only diagnoses. Remove patients with not sufficient data left."""
+        keep_codes = self._get_keep_codes()
+        special_tokens = set([token for code, token in data.vocabulary.items() if self.code_starts_with(code, self.SPECIAL_CODES)])
+        keep_tokens = set([token for code, token in data.vocabulary.items() if self.code_starts_with(code, keep_codes)])
+
+        logger.info(f"Keep only codes starting with: {keep_codes}")
+        keep_indices = []
+        for patient_index, patient in enumerate(self._iter_patients(data.features)):
             concepts = patient['concept']
-            keep_entries = {i:concept for i, concept in enumerate(concepts) if \
-                            concept.startswith(keep_code_types)}
-            non_special_entries = set([concept for concept in keep_entries.values() if concept not in special_codes])
-            #! Continue here
-            for k, v in patient:
-                filtered_list = [v[i] for i in keep_entries]
-                new_features[k].append(filtered_list)
-                
-        return self._select_entries(data, kept_indices)
+            non_special_entries = set([token for token in concepts if token not in special_tokens])
+            if len(non_special_entries)>self.cfg.data.get('min_len', 2):
+                keep_indices.append(patient_index)
+            self._filter_patient(data, patient, keep_tokens, patient_index)
+            
+        return self._select_entries(data, keep_indices)
+
+    def _filter_patient(self, data: Data, patient: dict, keep_tokens: set, patient_index: int)->None:
+        concepts = patient['concept']
+        keep_entries = {i:token for i, token in enumerate(concepts) if \
+                            token in keep_tokens}
+        for k, v in patient.items():
+            filtered_list = [v[i] for i in keep_entries]
+            data.features[k][patient_index] = filtered_list
+
+    def _get_keep_codes(self)->set:
+        """Return a set of codes to keep."""
+        return set(self.SPECIAL_CODES + self.cfg.data.code_types)
+
+    @staticmethod
+    def code_starts_with(code: int, prefixes: set)->bool:
+        """Check if the code starts with any of the given prefixes."""
+        return any(code.startswith(prefix) for prefix in prefixes)
 
     @staticmethod
     def _iter_patients(features: dict) -> dict:
@@ -356,7 +358,7 @@ class DatasetPreparer:
             data.censor_outcomes = [None]*len(outcomes)
         return data
         
-    def _prepare_mlm_features(self):
+    def _prepare_mlm_features(self)->Tuple[dict, dict, dict]:   
         """
         1. Load tokenized data
         2. Optional: Select random subset
@@ -546,7 +548,7 @@ class DatasetPreparer:
         outcomes = [outcome_group[pid_to_index[pid]] if pid in outcome_pids else None for pid in pids]
         return outcomes
 
-    def _save_pids(self, train_pids, val_pids):
+    def _save_pids(self, train_pids: list, val_pids: list)->None:
         torch.save(train_pids, join(self.run_folder, 'pids_train.pt'))
         torch.save(val_pids, join(self.run_folder, 'pids_val.pt'))
 

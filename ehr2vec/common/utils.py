@@ -2,7 +2,8 @@ import glob
 import logging
 import os
 from os.path import join
-
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional
 from torch.utils.data import IterableDataset
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
@@ -33,6 +34,27 @@ def check_directory_for_features(dir_):
     else:
         return False
     
+@dataclass
+class Data:
+    features: dict = field(default_factory=dict)
+    pids: list = field(default_factory=list)
+    outcomes: Optional[List] = field(default=None)
+    censor_outcomes: Optional[List] = field(default=None)
+    vocabulary: Optional[Dict] = field(default=None)
+    mode: Optional[str] = field(default=None)
+    
+    def __len__(self):
+        return len(self.pids)
+
+    def check_lengths(self):
+        """Check that all features have the same length"""
+        for key, values in self.features.items():
+            assert len(values) == len(self.pids), f"Length of {key} does not match length of pids"
+        if self.outcomes is not None:
+            assert len(self.outcomes) == len(self.pids), "Length of outcomes does not match length of pids"
+        if self.censor_outcomes is not None:
+            assert len(self.censor_outcomes) == len(self.pids), "Length of censor outcomes does not match length of pids"
+
 class ConcatIterableDataset(IterableDataset):
     def __init__(self, datasets):
         self.datasets = datasets

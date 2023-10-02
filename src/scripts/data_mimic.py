@@ -45,14 +45,14 @@ def main_data(cfg):
     pretrain_features, _ = Splitter().isolate_holdout(features, test_split)
     ## Pretrain split (single-visit)
     single_visit_features = DataAdapter().adapt_to_single_visit(pretrain_features)
-    pretrain_train, pretrain_val = Splitter(cfg, dir="data/mimic3", split_name="pretrain_splits.pt")(
-        single_visit_features, mode="random", ratios=[0.8, 0.2]
-    )
+    pretrain_train, pretrain_val = Splitter(
+        cfg, dir="data/mimic3", split_name="pretrain_splits.pt"
+    )(single_visit_features, mode="random", ratios=[0.8, 0.2])
 
     ## Finetuning split (multi-visit) - we use the splits found above
-    finetune_train, finetune_val, finetune_test = Splitter(cfg, dir="data/mimic3", split_name="finetune_splits.pt")(
-        features, file="mimic_splits.pt", mode="load"
-    )
+    finetune_train, finetune_val, finetune_test = Splitter(
+        cfg, dir="data/mimic3", split_name="finetune_splits.pt"
+    )(features, file="mimic_splits.pt", mode="load")
 
     # Tokenize
     tokenizer = EHRTokenizer(cfg.tokenizer)

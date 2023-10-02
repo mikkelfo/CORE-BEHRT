@@ -61,7 +61,7 @@ class DataAdapter:
         for i in range(len(features["concept"])):
             patient = {key: values[i] for key, values in features.items()}
             segments = patient["segment"]
-            
+
             # Get idxs of background (first segment 1)
             background_idx = segments.index(1)
 

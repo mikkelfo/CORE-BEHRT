@@ -1,6 +1,7 @@
 import os
 import torch
 import hydra
+import src.common.setup as setup
 from src.data.tokenizer import EHRTokenizer
 from src.data.split import Splitter
 
@@ -21,12 +22,7 @@ def main_data(cfg):
     )
 
     # Save features
-    for set, data in finetune_splits.items():
-        encoded = tokenizer(data)
-        torch.save(
-            encoded,
-            os.path.join(cfg.paths.data_dir, f"{set}_{cfg.paths.encoded_suffix}.pt"),
-        )
+    setup.save_splits(cfg, finetune_splits, tokenizer)
 
 
 if __name__ == "__main__":

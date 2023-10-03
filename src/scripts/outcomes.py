@@ -1,7 +1,7 @@
 import os
 import hydra
 import torch
-import numpy as np
+import src.common.setup as setup
 from src.data.split import Splitter
 from src.data_fixes.infer import Inferrer
 from src.data.concept_loader import ConceptLoader
@@ -44,11 +44,7 @@ def main(cfg):
     )(outcomes, mode="covid")
 
     # Save features
-    for set, set_outcomes in outcome_splits.items():
-        torch.save(
-            set_outcomes,
-            os.path.join(cfg.paths.data_dir, f"{set}_{cfg.paths.outcomes_suffix}.pt"),
-        )
+    setup.save_splits(cfg, outcome_splits)
 
 
 if __name__ == "__main__":

@@ -38,20 +38,15 @@ def main(cfg):
     torch.save(outcomes, os.path.join(cfg.paths.data_dir, "outcomes.pt"))
 
     # Split outcomes
-    train_outcomes, val_outcomes, test_outcomes = Splitter(
-        cfg, split_name="covid_splits.pt", mode="covid"
-    )(outcomes)
-
-    feature_set = [
-        ("train", train_outcomes),
-        ("val", val_outcomes),
-        ("test", test_outcomes),
-    ]
+    outcome_splits = Splitter(
+        cfg,
+        split_name="covid_splits.pt",
+    )(outcomes, mode="covid")
 
     # Save features
-    for set, encoded in feature_set:
+    for set, set_outcomes in outcome_splits.items():
         torch.save(
-            encoded,
+            set_outcomes,
             os.path.join(cfg.paths.data_dir, f"{set}_{cfg.paths.outcomes_suffix}.pt"),
         )
 

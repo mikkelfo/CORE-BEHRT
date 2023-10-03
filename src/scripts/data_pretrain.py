@@ -36,27 +36,23 @@ def main_data(cfg):
     # Save final features
     torch.save(features, os.path.join(cfg.paths.data_dir, "features.pt"))
 
-    # Split features (test is optional)
-    train_features, val_features, *test_features = Splitter(
-        cfg, split_name="pretrain_splits.pt", mode="random"
-    )(features)
+    # Split features
+    ## Pretrain split
+    pretrain_splits = Splitter(
+        cfg,
+        split_name="pretrain_splits.pt",
+    )(features, mode="random")
 
     # Tokenize
     tokenizer = EHRTokenizer(cfg.tokenizer)
-    train_encoded = tokenizer(train_features)
+    train_encoded = tokenizer(pretrain_splits["train"])  # Re-do for ease of use
     tokenizer.freeze_vocabulary(
         vocab_name=os.path.join(cfg.paths.data_dir, cfg.paths.vocabulary)
     )
-    val_encoded = tokenizer(val_features)
-
-    feature_set = [("train", train_encoded), ("val", val_encoded)]
-
-    if test_features:
-        test_encoded = tokenizer(test_features[0])
-        feature_set.append(("test", test_encoded))
 
     # Save features
-    for set, encoded in feature_set:
+    for set, data in pretrain_splits.items():
+        encoded = tokenizer(data)
         torch.save(
             encoded,
             os.path.join(cfg.paths.data_dir, f"{set}_{cfg.paths.encoded_suffix}.pt"),

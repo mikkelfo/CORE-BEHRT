@@ -10,27 +10,19 @@ def main_data(cfg):
     # Load features
     features = torch.load(os.path.join(cfg.paths.data_dir, "features.pt"))
 
-    # Split features (test is optional)
-    train_features, val_features, test_features = Splitter(cfg, mode="load")(
-        features, file="covid_splits.pt"
+    # Finetune split
+    finetune_splits = Splitter(cfg, split_name="finetune_splits.pt")(
+        features, mode="load", file="covid_splits.pt"
     )
 
     # Tokenize
     tokenizer = EHRTokenizer(
         cfg.tokenizer, vocabulary=os.path.join(cfg.paths.data_dir, cfg.paths.vocabulary)
     )
-    train_encoded = tokenizer(train_features)
-    val_encoded = tokenizer(val_features)
-    test_encoded = tokenizer(test_features)
-
-    feature_set = [
-        ("train", train_encoded),
-        ("val", val_encoded),
-        ("test", test_encoded),
-    ]
 
     # Save features
-    for set, encoded in feature_set:
+    for set, data in finetune_splits.items():
+        encoded = tokenizer(data)
         torch.save(
             encoded,
             os.path.join(cfg.paths.data_dir, f"{set}_{cfg.paths.encoded_suffix}.pt"),

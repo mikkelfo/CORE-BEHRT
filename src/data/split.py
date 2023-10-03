@@ -5,76 +5,70 @@ import src.common.utils as utils
 
 
 class Splitter:
-    def __init__(self, config, split_name="splits.pt", mode="random") -> None:
+    def __init__(self, config, dir=None, split_name="splits.pt") -> None:
         self.config = config
-        self.dir = config.paths.extra_dir
+        self.dir = config.paths.extra_dir if dir is None else dir
         self.split_name = split_name
-        self.mode = mode
 
     def __call__(
         self,
         data: dict,
-        ratios: list = [0.8, 0.2],
+        mode: str,
+        ratios: dict = {"train": 0.8, "val": 0.2},
         file=None,
     ):
-        if self.mode == "random":
+        self.validate_ratios(ratios)  # Check ratios sum to 1
+        if mode == "random":
             return self.random_split(data, ratios)
-        elif self.mode == "covid":
+        elif mode == "covid":
             return self.covid_split(data, ratios)
-        elif self.mode == "load":
+        elif mode == "load":
             return self.load_splits(data, file=file)
+        else:
+            raise ValueError("Invalid mode")
 
     def load_splits(self, data, file):
         splits = torch.load(os.path.join(self.dir, file))
-        # Train, val, test is last
-        for split in splits:
-            yield {key: [values[s] for s in split] for key, values in data.items()}
 
-    # Notice ratios is the train/val split as test split is fixed
-    def covid_split(self, data: dict, ratios: list = [0.8, 0.2]):
-        N = len(next(iter(data.values())))  # Get length of first value in dict
+        return self.return_splits(data, splits)
+
+    def random_split(self, data: dict, ratios: dict = {"train": 0.8, "val": 0.2}):
+        N = self.get_number_of_patients(data)
+
+        splits = self._split_indices(N, ratios)  # Get indices for each split
+
+        return self.return_splits(data, splits)
+
+    def covid_split(self, data: dict, ratios: dict = {"train": 0.8, "val": 0.2}):
+        N = self.get_number_of_patients(data)
 
         # Covid split is all patients where their entire abspos is < the covid_split abspos
         covid_split = self.get_covid_split()
         normal_split = [i for i in range(N) if i not in covid_split]
 
+        # Split the normal split (i.e. non-covid patients)
         splits = self._split_indices(len(normal_split), ratios)
-        splits = [[normal_split[i] for i in split] for split in splits]
+        splits = {
+            key: [normal_split[i] for i in split] for key, split in splits.items()
+        }  # Adjust range idx to patient idx
 
-        # We put the covid_split as the last split
-        splits.append(covid_split)
-        torch.save(splits, os.path.join(self.dir, self.split_name))
-        print(f"Resulting split ratios: {[round(len(s) / N, 2) for s in splits]}")
-        # Train, val, test is last
-        for split in splits:
-            yield {key: [values[s] for s in split] for key, values in data.items()}
+        splits["test"] = covid_split
 
-    def random_split(self, data: dict, ratios: list = [0.8, 0.2]):
-        if round(sum(ratios), 5) != 1:
-            raise ValueError(f"Sum of ratios ({ratios}) != 1 ({round(sum(ratios), 5)})")
+        return self.return_splits(data, splits)
 
-        N = len(next(iter(data.values())))  # Get length of first value in dict
-
-        splits = self._split_indices(N, ratios)
-        torch.save(splits, os.path.join(self.dir, self.split_name))
-        print(f"Resulting split ratios: {[round(len(s) / N, 2) for s in splits]}")
-        # Train, val, test is last
-        for split in splits:
-            yield {key: [values[s] for s in split] for key, values in data.items()}
-
-    def _split_indices(self, N: int, ratios: list = [0.8, 0.2]):
+    def _split_indices(self, N: int, ratios: dict = {"train": 0.8, "val": 0.2}):
         torch.manual_seed(0)
 
-        indices = torch.randperm(N)
-        splits = []
-        for ratio in ratios:
+        indices = torch.randperm(N).tolist()
+        splits = {}
+        for name, ratio in ratios.items():
             N_split = round(N * ratio)
-            splits.append(indices[:N_split])
+            splits[name] = indices[:N_split]
             indices = indices[N_split:]
 
         # Add remaining indices to last split - incase of rounding error
         if len(indices) > 0:
-            splits[-1] = torch.cat((splits[-1], indices))
+            splits[name].extend(indices)
 
         return splits
 
@@ -92,3 +86,27 @@ class Splitter:
             covid_split, os.path.join(self.config.paths.extra_dir, "covid_split.pt")
         )
         return covid_split
+
+    def return_splits(self, data: dict, splits: dict) -> dict:
+        self.save_splits(splits)
+        return {
+            set: {key: [values[s] for s in split] for key, values in data.items()}
+            for set, split in splits.items()
+        }
+
+    def save_splits(self, splits):
+        torch.save(splits, os.path.join(self.dir, self.split_name))
+        N = sum([len(s) for s in splits.values()])
+        print(
+            f"Resulting split ratios: {[round(len(s) / N, 2) for s in splits.values()]}"
+        )
+
+    @staticmethod
+    def validate_ratios(ratios: dict):
+        ratio_sum = round(sum(ratios.values()), 5)
+        if ratio_sum != 1:
+            raise ValueError(f"Sum of ratios ({ratios}) != 1 ({ratio_sum})")
+
+    @staticmethod
+    def get_number_of_patients(data: dict):
+        return len(next(iter(data.values())))

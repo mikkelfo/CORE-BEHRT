@@ -29,7 +29,7 @@ def main_data(cfg):
     features = FeatureMaker(cfg)(concepts, patients_info)
 
     # Overwrite/drop nans and other incorrect values
-    features = Handler()(features)
+    features = Handler(cfg)(features)
 
     # Exclude patients
     features = Excluder(cfg)(features)

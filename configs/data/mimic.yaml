@@ -1,6 +1,7 @@
 defaults:
   - loader: defaults
   - features: defaults
+  - handler: defaults
   - outcomes: defaults
   - tokenizer: defaults
   - paths: defaults
@@ -26,4 +27,8 @@ loader:
 excluder:
   underaged: 
     min_age: 16
+
+handler:
+  ages:
+    max: 400
 

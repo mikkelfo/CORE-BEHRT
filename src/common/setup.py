@@ -30,7 +30,8 @@ def get_features(cfg):
 
     return features
 
-def save_splits(cfg, splits: dict, tokenizer = None):
+
+def save_splits(cfg, splits: dict, tokenizer=None):
     for set, split_feature in splits.items():
         # Tokenize if tokenizer is provided
         if tokenizer:
@@ -40,7 +41,8 @@ def save_splits(cfg, splits: dict, tokenizer = None):
             split_feature,
             os.path.join(cfg.paths.data_dir, f"{set}_{cfg.paths.encoded_suffix}.pt"),
         )
-    
+
+
 def save_config(cfg):
     # Save config
     with open(os.path.join(cfg.paths.data_dir, "data_config.json"), "w") as f:

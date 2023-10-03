@@ -1,5 +1,4 @@
 encoded_suffix: 'encoded'
-outcomes_suffix: 'outcomes'
 vocabulary: 'vocabulary.pt'
 data_dir: 'data/processed'
 extra_dir: 'data/extra'

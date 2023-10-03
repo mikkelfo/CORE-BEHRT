@@ -8,7 +8,7 @@ from src.data.concept_loader import ConceptLoader
 from src.downstream_tasks.outcomes import OutcomeMaker
 
 
-@hydra.main(config_path="../../configs/data", config_name="pretrain")
+@hydra.main(config_path="../../configs/data", config_name="outcomes")
 def main(cfg):
     # Load concepts and patients_info
     concepts_plus, patients_info = ConceptLoader()(

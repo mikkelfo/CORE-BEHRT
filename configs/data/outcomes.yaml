@@ -1,4 +1,5 @@
 defaults:
+  - features: defaults
   - loader: defaults
   - outcomes: defaults
   - paths: defaults
@@ -12,3 +13,5 @@ hydra:
   run:  
     dir: .
 
+paths:
+  encoded_suffix: outcomes

@@ -60,7 +60,7 @@ class Excluder:
     @staticmethod
     def exclude_short_sequences(features: dict, kept_indices: dict, **kwargs):
         if kwargs.get("vocabulary") is not None:
-            vocabulary = {v: k for k, v in vocabulary.items()}
+            vocabulary = {v: k for k, v in kwargs["vocabulary"].items()}
         # Get all indices of patients with sequences shorter than threshold
         for i, concepts in enumerate(features["concept"]):
             if kwargs.get("vocabulary") is not None:

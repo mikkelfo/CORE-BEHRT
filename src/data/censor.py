@@ -21,9 +21,14 @@ class Censor:
                 censored_features[key].append(value)
 
         # Re-exclude short sequences after truncation
-        censored_features = Excluder.exclude_short_sequences(
-            censored_features, name="censor_kept_indices", vocabulary=self.vocabulary
+        # TODO: Temporarily fix
+        kept_indices = {i: set() for i in range(len(censored_features["concept"]))}
+        kept_indices = Excluder.exclude_short_sequences(
+            censored_features, kept_indices, vocabulary=self.vocabulary, min_concepts=2
         )
+        # Finally, remove empty lists
+        for key, values in censored_features.items():
+            censored_features[key] = [values[i] for i, v in enumerate(values) if v]
 
         return censored_features
 

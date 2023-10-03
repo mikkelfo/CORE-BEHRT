@@ -1,7 +1,8 @@
 defaults:
   - loader: defaults
   - features: defaults
-  - outcomes: defaults
+  - handler: defaults
+  - outcomes: defaults  # Needed for outcomes.py (not used in data_pretrain)
   - tokenizer: defaults
   - paths: defaults
 

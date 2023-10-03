@@ -5,7 +5,6 @@ import src.common.setup as setup
 from src.data.split import Splitter
 from src.data_fixes.infer import Inferrer
 from src.data.concept_loader import ConceptLoader
-
 from src.downstream_tasks.outcomes import OutcomeMaker
 
 
@@ -19,11 +18,7 @@ def main(cfg):
     )
 
     # Get the set of relevant patients
-    pids = torch.load(os.path.join(cfg.paths.extra_dir, "PIDs.pt"))
-    excluder_kept_indices = torch.load(
-        os.path.join(cfg.paths.extra_dir, "excluder_kept_indices.pt")
-    )
-    patient_set = [pids[i] for i in excluder_kept_indices]
+    patient_set = Splitter.get_pids_with_exclusion(cfg.paths.extra_dir)
 
     # Filter out irrelevant patients (due to _plus element)
     concepts_plus = concepts_plus[concepts_plus.PID.isin(patient_set)]

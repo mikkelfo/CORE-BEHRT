@@ -3,8 +3,10 @@ from src.data_fixes.exclude import Excluder
 
 
 class Censor:
-    def __init__(self, n_hours: int, vocabulary: dict = None) -> None:
-        self.n_hours = n_hours
+    def __init__(self, cfg: dict, vocabulary: dict = None) -> None:
+        self.cfg = cfg
+        self.n_hours = cfg.outcome.n_hours
+        self.min_concepts = cfg.data.excluder.short_sequences.min_concepts
         self.vocabulary = vocabulary
 
     def __call__(self, features: dict, censor_outcomes: list) -> dict:
@@ -21,16 +23,14 @@ class Censor:
                 censored_features[key].append(value)
 
         # Re-exclude short sequences after truncation
-        # TODO: Temporarily fix
-        kept_indices = {i: set() for i in range(len(censored_features["concept"]))}
-        kept_indices = Excluder.exclude_short_sequences(
-            censored_features, kept_indices, vocabulary=self.vocabulary, min_concepts=2
+        truncate_and_censored = Excluder(self.cfg)._call_standalone(
+            censored_features,
+            "short_sequences",
+            filename="censor_kept_indices",
+            vocabulary=self.vocabulary,
+            min_concepts=self.min_concepts,
         )
-        # Finally, remove empty lists
-        for key, values in censored_features.items():
-            censored_features[key] = [values[i] for i, v in enumerate(values) if v]
-
-        return censored_features
+        return truncate_and_censored
 
     def _censor(self, patient: dict, event_timestamp: float) -> dict:
         if pd.isna(event_timestamp):

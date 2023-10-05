@@ -151,4 +151,4 @@ class Splitter:
         excluder_kept_indices = torch.load(
             os.path.join(dir, "excluder_kept_indices.pt")
         )
-        return [pids[i] for i, v in excluder_kept_indices.items() if v]
+        return [pids[i] for i in excluder_kept_indices]

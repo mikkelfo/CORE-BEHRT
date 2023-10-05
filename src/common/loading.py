@@ -41,3 +41,7 @@ def vocabulary(cfg):
 
 def tree(cfg):
     return load(cfg.paths.extra_dir, "tree.pt")
+
+
+def data_config(cfg):
+    return json.load(open(os.path.join(cfg.paths.data_dir, "data_config.json")))

@@ -5,7 +5,6 @@ import torch
 class Excluder:
     def __init__(self, config):
         self.config = config
-
         self.dir = config.paths.extra_dir
 
         # NB: Order matters
@@ -15,26 +14,44 @@ class Excluder:
             "short_sequences": self.exclude_short_sequences,  # Always last
         }
 
-    def __call__(self, features: dict, name: str = "excluder_kept_indices") -> dict:
+    def __call__(self, features: dict, filename: str = "excluder_kept_indices") -> dict:
         for function in self.functions:
             if function not in self.config.excluder:
                 continue
 
-            kept_indices = {i: set() for i in range(len(features["concept"]))}
-            # Get what indices to keep
-            kept_indices = self.functions[function](
-                features, kept_indices, **self.config.excluder[function]
+            # Call function (init, call, update)
+            features = self._call_helper(
+                features, function, **self.config.excluder[function]
             )
-            # Exclude from patients and update features
-            for i, idxs in kept_indices.items():
-                for key, values in features.items():
-                    features[key][i] = [values[i][j] for j in idxs]
 
         # Finally, remove empty lists
-        for key, values in features.items():
-            features[key] = [value for value in values if value]
+        features = self.wrapup_exclusion(features, filename=filename)
 
-        torch.save(kept_indices, os.path.join(self.dir, f"{name}.pt"))
+        return features
+
+    def _call_helper(self, features: dict, function: str, **kwargs) -> dict:
+        # Initialize kept indices (empty dict)
+        kept_indices = self.init_kept_indices(features)
+        # Call function
+        kept_indices = self.functions[function](features, kept_indices, **kwargs)
+        # Update features based on kept indices
+        features = self.update_features(features, kept_indices)
+
+        return features
+
+    def _call_standalone(
+        self, features: dict, function: str, filename: str, **kwargs
+    ) -> dict:
+        features = self._call_helper(features, function, **kwargs)
+        features = self.wrapup_exclusion(features, filename=filename)
+
+        return features
+
+    def wrapup_exclusion(self, features: dict, filename: str) -> dict:
+        kept_patients = self.get_kept_patients(features)
+        features = self.remove_empty_lists(features, kept_patients)
+
+        torch.save(kept_patients, os.path.join(self.dir, f"{filename}.pt"))
 
         return features
 
@@ -77,7 +94,7 @@ class Excluder:
         return kept_indices
 
     @staticmethod
-    def exclude_underaged_visits(features: dict, kept_indices: list, **kwargs) -> tuple:
+    def exclude_underaged_visits(features: dict, kept_indices: dict, **kwargs) -> dict:
         for i in range(len(features["concept"])):
             # Find all valid ages (-1 is valid due to background sentence)
             valid_ages = [
@@ -104,3 +121,26 @@ class Excluder:
             kept_indices[i].update(valid_indices)
 
         return kept_indices
+
+    @staticmethod
+    def init_kept_indices(features: dict) -> dict:
+        return {i: set() for i in range(len(features["concept"]))}
+
+    @staticmethod
+    def update_features(features: dict, kept_indices: dict) -> dict:
+        for i, idxs in kept_indices.items():
+            for key, values in features.items():
+                features[key][i] = [values[i][j] for j in idxs]
+
+        return features
+
+    @staticmethod
+    def get_kept_patients(features: dict) -> list:
+        return [i for i, v in enumerate(features["concept"]) if v]
+
+    @staticmethod
+    def remove_empty_lists(features: dict, kept_patients: list) -> dict:
+        for key, values in features.items():
+            features[key] = [values[i] for i in kept_patients]
+
+        return features

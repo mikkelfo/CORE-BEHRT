@@ -49,14 +49,13 @@ def censor_dataset(cfg):
     train_outcomes, val_outcomes = loading.outcomes(cfg)
     vocabulary = loading.vocabulary(cfg)
 
-    n_hours, outcome_type, censor_type = (
-        cfg.outcome.n_hours,
+    outcome_type, censor_type = (
         cfg.outcome.type,
         cfg.outcome.censor_type,
     )
 
     for enc, out in zip([train_encoded, val_encoded], [train_outcomes, val_outcomes]):
-        censored_enc = Censor(n_hours=n_hours, vocabulary=vocabulary)(
+        censored_enc = Censor(cfg, vocabulary=vocabulary)(
             features=enc,
             censor_outcomes=out[censor_type],
         )

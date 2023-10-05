@@ -8,6 +8,11 @@ from omegaconf import open_dict
 
 @hydra.main(config_path="../../configs/train", config_name="finetune")
 def main_finetune(cfg):
+    # Load in data config and add to cfg.data
+    data_config = loading.data_config(cfg)
+    with open_dict(cfg):
+        cfg.data = data_config
+
     # Create datasets
     train_dataset, val_dataset = create.censor_dataset(cfg)
 

@@ -47,3 +47,12 @@ def save_config(cfg):
     # Save config
     with open(os.path.join(cfg.paths.data_dir, "data_config.json"), "w") as f:
         json.dump(OmegaConf.to_container(cfg, resolve=True), f)
+
+
+def get_pids_with_exclusion(cfg):
+    pids = torch.load(os.path.join(cfg.paths.extra_dir, "PIDs.pt"))
+    excluder_kept_indices = torch.load(
+        os.path.join(cfg.paths.extra_dir, "excluder_kept_indices.pt")
+    )
+
+    return [pids[i] for i in excluder_kept_indices]

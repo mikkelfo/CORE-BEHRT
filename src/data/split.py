@@ -3,6 +3,7 @@ import torch
 import pandas as pd
 from datetime import datetime
 import src.common.utils as utils
+import src.common.setup as setup
 
 
 class Splitter:
@@ -113,7 +114,7 @@ class Splitter:
         return len(next(iter(data.values())))
 
     def mimic_split(self, dir="data/mimic3", split_name="mimic_splits.pt"):
-        pids = self.get_pids_with_exclusion()
+        pids = setup.get_pids_with_exclusion(self.config)
 
         mimic_split = []
         for split in ["train", "eval", "test"]:
@@ -144,11 +145,3 @@ class Splitter:
         }
 
         return non_holdout, holdout
-
-    @staticmethod
-    def get_pids_with_exclusion(dir="data/extra"):
-        pids = torch.load(os.path.join(dir, "PIDs.pt"))
-        excluder_kept_indices = torch.load(
-            os.path.join(dir, "excluder_kept_indices.pt")
-        )
-        return [pids[i] for i in excluder_kept_indices]

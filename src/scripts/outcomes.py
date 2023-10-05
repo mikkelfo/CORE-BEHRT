@@ -18,7 +18,7 @@ def main(cfg):
     )
 
     # Get the set of relevant patients
-    patient_set = Splitter.get_pids_with_exclusion(cfg.paths.extra_dir)
+    patient_set = setup.get_pids_with_exclusion(cfg)
 
     # Filter out irrelevant patients (due to _plus element)
     concepts_plus = concepts_plus[concepts_plus.PID.isin(patient_set)]

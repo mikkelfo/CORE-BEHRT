@@ -1,9 +1,8 @@
-import torch
-import os
 import numpy as np
 import pandas as pd
 from datetime import datetime
 import src.common.utils as utils
+import src.common.setup as setup
 
 
 class OutcomeMaker:
@@ -22,15 +21,7 @@ class OutcomeMaker:
 
         # Init outcome dataframe
         if patient_set is None:
-            pids = torch.load(
-                os.path.join(self.config.paths.extra_dir, "PIDs.pt")
-            )  # Load PIDs
-            excluder_kept_indices = torch.load(
-                os.path.join(self.config.paths.extra_dir, "excluder_kept_indices.pt")
-            )  # Remember excluded patients
-            patient_set = [
-                pids[i] for i in excluder_kept_indices
-            ]  # Construct patient set
+            patient_set = setup.get_pids_with_exclusion(self.config)
         outcome_df = pd.DataFrame({"PID": patient_set})
 
         # Get origin point

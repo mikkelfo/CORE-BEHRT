@@ -1,5 +1,4 @@
 import os
-import torch
 import hydra
 import src.common.setup as setup
 from src.data.split import Splitter

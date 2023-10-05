@@ -35,6 +35,10 @@ def outcomes(cfg):
     return train_outcomes, val_outcomes
 
 
+def features(cfg):
+    return load(cfg.paths.data_dir, "features.pt")
+
+
 def vocabulary(cfg):
     return load(cfg.paths.data_dir, cfg.paths.vocabulary)
 

@@ -1,6 +1,6 @@
 class DataAdapter:
     def adapt_to_single_visit(self, features: dict) -> dict:
-        features = self.adapt_to_single_visit(features)
+        features = self.convert_to_singlevisits(features)
         features = self.remove_duplicate_codes(features)
 
         return features

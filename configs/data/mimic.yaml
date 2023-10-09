@@ -16,9 +16,6 @@ hydra:
   run:  
     dir: .
 
-paths:
-  encoded_suffix: pretrain
-
 
 loader:
   data_dir: data/mimic3

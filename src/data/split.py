@@ -113,30 +113,32 @@ class Splitter:
     def get_number_of_patients(data: dict):
         return len(next(iter(data.values())))
 
-    def mimic_split(self, dir="data/mimic3", split_name="mimic_splits.pt"):
+    def mimic_split(self):
         pids = setup.get_pids_with_exclusion(self.config)
 
-        mimic_split = []
-        for split in ["train", "eval", "test"]:
-            split_ids = pd.read_csv(f"data/mimic3/{split}-id.txt", header=None)[
+        mimic_split = {key: [] for key in ["train", "eval", "test"]}
+        for split_name in mimic_split:
+            split_ids = pd.read_csv(f"data/mimic3/{split_name}-id.txt", header=None)[
                 0
             ].tolist()
             split = [i for i, pid in enumerate(pids) if pid in set(split_ids)]
-            mimic_split.append(split)
+            mimic_split[split_name] = split
 
-        torch.save(mimic_split, os.path.join(dir, split_name))
+        torch.save(mimic_split, os.path.join(self.dir, self.split_name))
         return mimic_split
 
-    def isolate_holdout(self, features: dict, test_split):
+    @staticmethod
+    def isolate_holdout(features: dict, test_split):
         if isinstance(test_split, str):
             test_split = torch.load(test_split)
         else:
             assert isinstance(test_split, list)
-        test_split = set(test_split)
 
+        test_split = set(test_split)
         normal_split = [
             i for i in range(len(features["concept"])) if i not in test_split
         ]
+
         non_holdout = {
             key: [values[i] for i in normal_split] for key, values in features.items()
         }

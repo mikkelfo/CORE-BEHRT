@@ -14,6 +14,7 @@ from data_fixes.adapt import BehrtAdapter
 from data_fixes.censor import Censorer
 from data_fixes.truncate import Truncator
 from data_fixes.handle import Handler
+from data_fixes.exclude import Excluder
 from transformers import BertConfig
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
@@ -200,10 +201,11 @@ class DatasetPreparer:
         7. Filter patients with outcome before censoring
         8. Optional: Filter code types (e.g. only diagnoses)
         9. Data censoring
-        10. Optional: Select patients by age
-        11. Optional: Remove background tokens
-        12. Truncation
-        13. Normalize segments
+        10. Exclude patients with less than k concepts
+        11. Optional: Select patients by age
+        12. Optional: Remove background tokens
+        13. Truncation
+        14. Normalize segments
         
         """
         data_cfg = self.cfg.data
@@ -250,20 +252,23 @@ class DatasetPreparer:
         datasets = self._process_datasets(datasets, self._censor_data)
         self._log_pos_patients_num(datasets)
 
-        # 10. Select Patients By Age
+        # 10. Exclude patients with less than k concepts
+        datasets = self._process_datasets(datasets, self._exclude_short_sequences)
+
+        # 11. Select Patients By Age
         if data_cfg.get('min_age', False) or data_cfg.get('max_age', False):
             datasets = self._process_datasets(datasets, self._select_by_age)
             self._log_pos_patients_num(datasets)
 
-        # 11. Optionally Remove Background Tokens
+        # 12. Optionally Remove Background Tokens
         if data_cfg.get("remove_background", False):
             datasets = self._process_datasets(datasets, self._remove_background)
 
-        # 12. Truncation
+        # 13. Truncation
         logger.info('Truncating')
         datasets = self._process_datasets(datasets, self._truncate)
 
-        # 13. Normalize Segments
+        # 14. Normalize Segments
         logger.info('Normalizing segments')
         datasets = self._process_datasets(datasets, self._normalize_segments)
 
@@ -316,6 +321,13 @@ class DatasetPreparer:
         self._log_patient_nums(func.__name__, datasets)
         return datasets
 
+    def _exclude_short_sequences(self, data: Data)->Data:
+        """Exclude patients with less than k concepts"""
+        excluder = Excluder(min_len = self.cfg.data.get('min_len', 3),
+                            vocabulary=data.vocabulary)
+        kept_indices = excluder._exclude(data.features)
+        return self._select_entries(data, kept_indices)
+
     def _select_censored(self, data: Data)->Data:
         """Select only censored patients"""
         kept_indices = [i for i, censor in enumerate(data.censor_outcomes) if not pd.isna(censor)]
@@ -323,9 +335,9 @@ class DatasetPreparer:
 
     def _censor_data(self, data: Data)->Data:
         """Censors data and removes patients with no data left"""
-        censorer = Censorer(self.cfg.outcome.n_hours, min_len=self.cfg.data.get('min_len', 3), vocabulary=data.vocabulary)
-        _, kept_indices = censorer(data.features, data.censor_outcomes)
-        return self._select_entries(data, kept_indices)
+        censorer = Censorer(self.cfg.outcome.n_hours, vocabulary=data.vocabulary)
+        data.features = censorer(data.features, data.censor_outcomes, exclude=False)
+        return data
     
     def _filter_code_types(self, data: Data)->Data:
         """Filter code types, e.g. keep only diagnoses. Remove patients with not sufficient data left."""

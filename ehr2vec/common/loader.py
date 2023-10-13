@@ -101,8 +101,13 @@ class DatasetPreparer:
         
         return train_dataset, val_dataset
 
-    def prepare_hmlm_dataset(self):
+    def prepare_hmlm_dataset(self, original_behrt=False):
         train_features, val_features, vocabulary = self._prepare_mlm_features()
+
+        if original_behrt:
+            train_features = BehrtAdapter().adapt_features(train_features)
+            val_features = BehrtAdapter().adapt_features(val_features)
+
         tree, tree_matrix, h_vocabulary = self._load_tree()
         
         torch.save(h_vocabulary, join(self.run_folder, 'h_vocabulary.pt'))
@@ -196,6 +201,7 @@ class DatasetPreparer:
         10. Optional: Select patients by age
         11. Optional: Remove background tokens
         12. Truncation
+        13. Normalize segments
         
         """
         data_cfg = self.cfg.data
@@ -241,10 +247,12 @@ class DatasetPreparer:
         # 9. Data censoring
         datasets = self._process_datasets(datasets, self._censor_data)
         self._log_pos_patients_num(datasets)
+
         # 10. Select Patients By Age
         if data_cfg.get('min_age', False) or data_cfg.get('max_age', False):
             datasets = self._process_datasets(datasets, self._select_by_age)
             self._log_pos_patients_num(datasets)
+
         # 11. Optionally Remove Background Tokens
         if data_cfg.get("remove_background", False):
             datasets = self._process_datasets(datasets, self._remove_background)
@@ -252,7 +260,11 @@ class DatasetPreparer:
         # 12. Truncation
         logger.info('Truncating')
         datasets = self._process_datasets(datasets, self._truncate)
-        
+
+        # 13. Normalize Segments
+        logger.info('Normalizing segments')
+        datasets = self._process_datasets(datasets, self._normalize_segments)
+
         datasets['train'].check_lengths()
         datasets['val'].check_lengths()
 
@@ -379,18 +391,15 @@ class DatasetPreparer:
                                               {'train': {'num_patients':self.cfg.data.num_train_patients},
                                                'val': {'num_patients':self.cfg.data.num_val_patients}})
             
-        remove_background = self.cfg.data.get("remove_background", False)
-        if remove_background:
-            self.cfg.data.truncation_len += len(self._get_background_indices(datasets['train']))
-        
-        logger.info(f"Truncating data to {self.cfg.data.truncation_len} tokens")
-        datasets = self._process_datasets(datasets, self._truncate)
-        
-        # Remove Background
-        if remove_background:
+        if self.cfg.data.get("remove_background", False):
             logger.info("Removing background tokens")
             datasets = self._process_datasets(datasets, self._remove_background)
-        
+       
+        logger.info(f"Truncating data to {self.cfg.data.truncation_len} tokens")
+        datasets = self._process_datasets(datasets, self._truncate)
+        logger.info("Normalizing segments")
+        datasets = self._process_datasets(datasets, self._normalize_segments)
+
         datasets['train'].check_lengths()
         datasets['val'].check_lengths()
         self._save_pids(datasets['train'].pids, datasets['val'].pids)
@@ -398,13 +407,21 @@ class DatasetPreparer:
         return datasets['train'].features, datasets['val'].features, datasets['train'].vocabulary
 
     def _truncate(self, data: Data)->Data:
-        truncator = Truncator(max_len=self.cfg.data.truncation_len,
+        truncator = Truncator(max_len=self.cfg.data.truncation_len, 
                               vocabulary=data.vocabulary)
         data.features = truncator(data.features)
+        return data
+
+    def _normalize_segments(self, data: Data)->Data:
+        """Normalize segments after truncation to start with 1 and increase by 1
+        or if position_ids present (org. BEHRT version) then normalize those."""
+        segments_key = 'position_ids' if 'position_ids' in data.features.keys() else 'segment'
+        
         segments = []
-        for segment in data.features['segment']:
+        for segment in data.features[segments_key]:
             segments.append(Handler.normalize_segments(segment))
-        data.features['segment'] = segments
+        
+        data.features[segments_key] = segments
         return data
 
     def _remove_background(self, data: Data)->Data:
@@ -578,14 +595,6 @@ class DatasetPreparer:
             torch.save(sequence_lens_neg, join(self.run_folder, f'sequences_lengths_{data.mode}_neg.pt'))
             torch.save(sequence_lens_pos, join(self.run_folder, f'sequences_lengths_{data.mode}_pos.pt'))
             return data
-        
-    def _normalize_segments(data: Data) -> Data:
-        segments = data.features['segment']
-        segment_set = sorted(set(segments))
-        correct_segments = list(range(len(segment_set)))
-        converter = {k: v for (k,v) in zip(segment_set, correct_segments)}
-        data.features['segment'] = [converter[segment] for segment in segments]
-        return data
     
     @staticmethod
     def _check_max_segment(data: Data)->None:

@@ -24,7 +24,7 @@ def main_finetune():
     logger = setup_run_folder(cfg)
     cfg.save_to_yaml(join(cfg.paths.output_path, cfg.paths.run_name, 'finetune_config.yaml'))
     
-    train_dataset, val_dataset = DatasetPreparer(cfg).prepare_finetune_dataset_for_behrt(original_behrt = True)
+    train_dataset, val_dataset = DatasetPreparer(cfg).prepare_finetune_dataset(original_behrt = True)
    
     logger.info('Initializing model')
     model = load_model(BertForFineTuning, cfg, add_config = 
@@ -62,7 +62,6 @@ def main_finetune():
         accumulate_logits=True
     )
     trainer.train()
-    trainer.evaluate_binary_classification()
     if cfg.env=='azure':
         from azure_run import file_dataset_save
         file_dataset_save(local_path=join('outputs', cfg.paths.run_name), datastore_name = "workspaceblobstore",

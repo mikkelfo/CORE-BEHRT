@@ -552,10 +552,13 @@ class DatasetPreparer:
         raise ValueError(f"None of BG_GENDER_+{BG_GENDER_KEYS[gender_category]} found in vocabulary.")
     
     def _filter_outcome_before_censor(self, data: Data)->Data:
-        """Filter patients with outcome before censoring"""
+        """Filter patients with outcome before censoring and missing censoring when outcome present."""
         kept_indices = []
         for i, (outcome, censor) in enumerate(zip(data.outcomes, data.censor_outcomes)):
-            if (pd.isna(outcome) or pd.isna(censor)) or (outcome <= (censor + self.cfg.outcome.n_hours)):
+            if pd.isna(censor):
+                if pd.isna(outcome):
+                    kept_indices.append(i)
+            elif pd.isna(outcome) or outcome >= (censor + self.cfg.outcome.n_hours):
                 kept_indices.append(i)
         return self._select_entries(data, kept_indices)
 

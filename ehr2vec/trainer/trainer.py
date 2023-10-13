@@ -5,12 +5,12 @@ import numpy as np
 import torch
 import yaml
 from common.config import Config, get_function, instantiate
-from common.logger import TqdmToLogger
+
 from dataloader.collate_fn import dynamic_padding
-from sklearn.metrics import precision_recall_curve, roc_curve
 from torch.cuda.amp import GradScaler, autocast
 from torch.utils.data import DataLoader, Dataset
-from tqdm import tqdm
+from trainer.utils import (get_nvidia_smi_output, save_curves, 
+                           save_metrics_to_csv, get_tqdm, compute_avg_metrics)
 
 yaml.add_representer(Config, lambda dumper, data: data.yaml_repr(dumper))
 
@@ -96,7 +96,7 @@ class EHRTrainer():
             self.train_epoch(epoch, dataloader)
 
     def train_epoch(self, epoch: int, dataloader: DataLoader):
-        train_loop = self.get_tqdm(dataloader)
+        train_loop = get_tqdm(dataloader)
         train_loop.set_description(f'Train {epoch}')
         epoch_loss = []
         step_loss = 0
@@ -167,6 +167,8 @@ class EHRTrainer():
         self.log(f'Epoch {epoch} metrics: {metrics}\n')
 
     def setup_training(self) -> DataLoader:
+        """Sets up the training dataloader and returns it"""
+        self.log(get_nvidia_smi_output())
         self.model.train()
         self.save_setup()
         dataloader = DataLoader(self.train_dataset, batch_size=self.args['batch_size'], sampler=self.sampler,
@@ -188,7 +190,7 @@ class EHRTrainer():
         
         self.model.eval()
         dataloader = self.get_val_dataloader()
-        val_loop = self.get_tqdm(dataloader)
+        val_loop = get_tqdm(dataloader)
         val_loop.set_description('Validation')
         val_loss = 0
         
@@ -211,7 +213,7 @@ class EHRTrainer():
         if self.accumulate_logits:
             metric_values = self.process_binary_classification_results(logits_list, targets_list, epoch)
         else:
-            metric_values = self._compute_avg_metrics(metric_values)
+            metric_values = compute_avg_metrics(metric_values)
         
         self.model.train()
         
@@ -229,27 +231,9 @@ class EHRTrainer():
             v = func(outputs, batch)
             self.log(f"{name}: {v}")
             acc_metrics[name] = v
-        self.save_curves(logits, targets, epoch)
-        self.save_metrics_to_csv(acc_metrics, epoch)
+        save_curves(self.run_folder, logits, targets, epoch)
+        save_metrics_to_csv(self.run_folder, acc_metrics, epoch)
         return acc_metrics
-
-    def save_curves(self, logits, targets, epoch):
-        """Saves the ROC and PRC curves to a csv file"""
-        roc_name = os.path.join(self.run_folder, 'checkpoints', f'roc_curve_{epoch}.npz')
-        prc_name = os.path.join(self.run_folder, 'checkpoints', f'prc_curve_{epoch}.npz')
-        probas = torch.sigmoid(logits).cpu().numpy()
-        fpr, tpr, threshold_roc = roc_curve(targets, probas)
-        precision, recall, threshold_pr = precision_recall_curve(targets, probas)
-        np.savez_compressed(roc_name, fpr=fpr, tpr=tpr, threshold=threshold_roc)
-        np.savez_compressed(prc_name, precision=precision, recall=recall, threshold=np.append(threshold_pr, 1))
-
-    def save_metrics_to_csv(self, metrics: dict, epoch: int):
-        """Saves the metrics to a csv file"""
-        metrics_name = os.path.join(self.run_folder, 'checkpoints', f'validation_scores_{epoch}.csv')
-        with open(metrics_name, 'w') as file:
-            file.write('metric,value\n')
-            for key, value in metrics.items():
-                file.write(f'{key},{value}\n')
 
     def get_val_dataloader(self):
         return DataLoader(
@@ -258,25 +242,6 @@ class EHRTrainer():
             shuffle=self.args.get('shuffle', True), 
             collate_fn=self.args['collate_fn']
         )
-    
-    def get_tqdm(self, dataloader):
-        return tqdm(dataloader, total=len(dataloader), file=TqdmToLogger(self.logger) if self.logger else None)
-    
-    def _compute_avg_metrics(self, metric_values: dict):
-        """Computes the average of the metric values when metric is not zero and not NaN"""
-        averages = {}
-        for name, values in metric_values.items():
-            values_array = np.array(values)
-            select_mask = (values_array == 0) | (np.isnan(values_array))
-            if select_mask.sum() > 0:
-                self.log(f'Warning: {select_mask.sum()} NaN or zero values for metric {name}')
-            non_zero_values = values_array[~select_mask]
-            
-            if non_zero_values.size:
-                averages[name] = np.mean(non_zero_values)
-            else:
-                averages[name] = 0
-        return averages
 
     def to_device(self, batch: dict) -> None:
         """Moves a batch to the device in-place"""
@@ -292,7 +257,6 @@ class EHRTrainer():
 
     def run_log_gpu(self):
         """Logs the GPU memory usage to the run"""
-        
         memory_allocated = torch.cuda.memory_allocated(device=self.device)/1e9
         max_memory_reserved = torch.cuda.max_memory_reserved(device=self.device)/1e9
         memory_cached = torch.cuda.memory_reserved(device=self.device)/1e9
@@ -305,7 +269,6 @@ class EHRTrainer():
             self.log(f"GPU Max Memory Allocated in GB: {max_memory_reserved}")
             self.log(f"GPU Memory Allocated in GB: {memory_allocated}")
             self.log(f"GPU Memory Cached in GB: {memory_cached}")
-            
 
     def run_log(self, name, value):
         if self.run is not None:

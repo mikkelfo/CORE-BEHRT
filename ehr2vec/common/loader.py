@@ -281,6 +281,8 @@ class DatasetPreparer:
         torch.save(train_data.vocabulary, join(self.run_folder, 'vocabulary.pt'))
         torch.save(train_data.outcomes, join(self.run_folder, 'outcomes_train.pt'))
         torch.save(val_data.outcomes, join(self.run_folder, 'outcomes_val.pt'))
+        torch.save(train_data.censor_outcomes, join(self.run_folder, 'censor_outcomes_train.pt'))
+        torch.save(val_data.censor_outcomes, join(self.run_folder, 'censor_outcomes_val.pt'))
 
     def _log_pos_patients_num(self, datasets: Dict)->None:
         for mode, data in datasets.items():

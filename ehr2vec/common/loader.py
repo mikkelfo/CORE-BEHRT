@@ -93,9 +93,11 @@ class DatasetPreparer:
     def prepare_mlm_dataset(self, original_behrt=False):
         """Load data, truncate, adapt features, create dataset"""
         train_features, val_features, vocabulary = self._prepare_mlm_features()
+
         if original_behrt:
             train_features = BehrtAdapter().adapt_features(train_features)
             val_features = BehrtAdapter().adapt_features(val_features)
+        
         train_dataset = MLMDataset(train_features, vocabulary, **self.cfg.data.dataset)
         val_dataset = MLMDataset(val_features, vocabulary, **self.cfg.data.dataset)
         
@@ -311,7 +313,6 @@ class DatasetPreparer:
             # Get mode-specific arguments, or an empty dictionary if they don't exist
             mode_args = args_for_func.get(split, {})
             datasets[split] = func(data, **mode_args)
-            self._check_max_segment(data)
         self._log_patient_nums(func.__name__, datasets)
         return datasets
 
@@ -404,6 +405,8 @@ class DatasetPreparer:
         datasets['val'].check_lengths()
         self._save_pids(datasets['train'].pids, datasets['val'].pids)
         datasets = self._process_datasets(datasets, self._save_sequence_lengths)
+        self._check_max_segment(datasets['train'])
+        self._check_max_segment(datasets['val'])
         return datasets['train'].features, datasets['val'].features, datasets['train'].vocabulary
 
     def _truncate(self, data: Data)->Data:
@@ -596,9 +599,11 @@ class DatasetPreparer:
             torch.save(sequence_lens_pos, join(self.run_folder, f'sequences_lengths_{data.mode}_pos.pt'))
             return data
     
-    @staticmethod
-    def _check_max_segment(data: Data)->None:
+    def _check_max_segment(self, data: Data)->None:
         """Check max segment"""
-        logging.info(f"Max segment is: {max([max(seg) for seg in data.features['segment']])}")
+        max_segment = max([max(seg) for seg in data.features['segment']])
+        if max_segment>=self.cfg.model.type_vocab_size:
+            raise ValueError(f"Max segment {max_segment} is larger or equal to type_vocab_size {self.cfg.model.type_vocab_size}\
+                             Please adjust type_vocab_size in the config.")
         
 

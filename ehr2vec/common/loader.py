@@ -13,6 +13,7 @@ from data.dataset import (BinaryOutcomeDataset, HierarchicalMLMDataset,
 from data_fixes.adapt import BehrtAdapter
 from data_fixes.censor import Censorer
 from data_fixes.truncate import Truncator
+from data_fixes.handle import Handler
 from transformers import BertConfig
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
@@ -296,6 +297,7 @@ class DatasetPreparer:
             # Get mode-specific arguments, or an empty dictionary if they don't exist
             mode_args = args_for_func.get(split, {})
             datasets[split] = func(data, **mode_args)
+            self._check_max_segment(data)
         self._log_patient_nums(func.__name__, datasets)
         return datasets
 
@@ -397,6 +399,10 @@ class DatasetPreparer:
         truncator = Truncator(max_len=self.cfg.data.truncation_len,
                               vocabulary=data.vocabulary)
         data.features = truncator(data.features)
+        segments = []
+        for segment in data.features['segment']:
+            segments.append(Handler.normalize_segments(segment))
+        data.features['segment'] = segments
         return data
 
     def _remove_background(self, data: Data)->Data:
@@ -570,6 +576,18 @@ class DatasetPreparer:
             torch.save(sequence_lens_neg, join(self.run_folder, f'sequences_lengths_{data.mode}_neg.pt'))
             torch.save(sequence_lens_pos, join(self.run_folder, f'sequences_lengths_{data.mode}_pos.pt'))
             return data
-
+        
+    def _normalize_segments(data: Data) -> Data:
+        segments = data.features['segment']
+        segment_set = sorted(set(segments))
+        correct_segments = list(range(len(segment_set)))
+        converter = {k: v for (k,v) in zip(segment_set, correct_segments)}
+        data.features['segment'] = [converter[segment] for segment in segments]
+        return data
+    
+    @staticmethod
+    def _check_max_segment(data: Data)->None:
+        """Check max segment"""
+        logging.info(f"Max segment is: {max([max(seg) for seg in data.features['segment']])}")
         
 

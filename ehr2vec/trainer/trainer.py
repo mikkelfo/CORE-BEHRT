@@ -1,7 +1,6 @@
 import os
 from collections import namedtuple
 
-import numpy as np
 import torch
 import yaml
 from common.config import Config, get_function, instantiate

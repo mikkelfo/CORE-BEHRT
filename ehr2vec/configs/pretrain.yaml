@@ -1,7 +1,7 @@
 env: local
 paths:
   # data_path: 'pretrain_datasets/diagnosis_medication/070623/outputs/data' # inside mounted datastore
-  data_path: "..\\outputs\\data_test"
+  data_path: "..\\outputs\\data_icd10"
   output_path: 'outputs/pretraining'
   type: med_diag
   run_name: behrt_test
@@ -15,6 +15,7 @@ data:
   num_train_patients: 100
   num_val_patients: 20
   remove_background: true
+  min_len: 2
 
 trainer_args:
   batch_size: 8
@@ -28,7 +29,8 @@ trainer_args:
   shuffle: true
 
 model:
-  max_position_embeddings: 512
+  # type_vocab_size should be > truncation_len//2 if sep token else >truncation len
+  # !!! If you want to feed longer sequences during finetuning adjust type_vocab_size accordingly
   linear: true
   hidden_size: 96
   num_hidden_layers: 3

@@ -1,7 +1,6 @@
 import os
 from os.path import join
 
-import torch
 from common.config import load_config, instantiate
 from common.loader import DatasetPreparer, load_model
 from common.setup import (add_pretrain_info_to_cfg, adjust_paths_for_finetune,
@@ -32,8 +31,9 @@ def main_finetune():
                        {'pos_weight':get_pos_weight(cfg, train_dataset.outcomes),
                         'pool_type': cfg.model.get('pool_type', 'mean')})
     try:
-        model = torch.compile(model)
-        logger.info('Model compiled')
+        logger.warning('Compilation leads to torchdynamo error during training. Skip it')
+        #model = torch.compile(model)
+        #logger.info('Model compiled')
     except:
         logger.info('Model not compiled')    
     optimizer = AdamW(
@@ -41,7 +41,7 @@ def main_finetune():
         **cfg.optimizer
     )
 
-    sampler = get_sampler(cfg, train_dataset, train_dataset.outcomes)
+    sampler = get_sampler(cfg, train_dataset, train_dataset.outcomes, sample_weight=cfg.trainer_args.sample_weight)
     if sampler:
         cfg.trainer_args.shuffle = False
 

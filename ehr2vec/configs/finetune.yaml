@@ -1,9 +1,9 @@
 env: local
 paths:
   data_path: "../outputs/data_icd10"
-  model_path: "outputs/pretraining/behrt_plus_test"
+  model_path: "outputs/pretraining/behrt_test"
   checkpoint_epoch: 2
-  outcome: "outputs/outcomes/TEST_CENSOR/TEST_CENSOR.pt"
+  outcome: "../outputs/data_icd10/outcomes/TEST_CENSOR/TEST_CENSOR.pt"
   # censor: "outputs/outcomes/TEST/TEST.pt"
   #output_path: "outputs/finetuning"
   run_name: "test"
@@ -15,21 +15,25 @@ model:
 data:
   num_train_patients: null #300
   num_val_patients: null #100
-  truncation_len: 60
-  select_censored: true
+  truncation_len: 30
+  select_censored: false
   # gender: M
   min_age: 0
   max_age: 100
   # min_len: null
+  #code_types:
+   # - D
+  min_len: 2
 
 outcome: 
-  type: TEST_CENSOR
-  n_hours: 0 # censor time
+  type: TEST_OUTCOME
+  n_hours: -100 # censor time
   censor_type: TEST_OUTCOME
 
 trainer_args:
   sampler: true
-  pos_weight: null
+  sample_weight: .1 # adjust the sampling weight of the positive class (1 is balanced)
+  pos_weight: null # weight for positive class in the loss
   batch_size: 8
   val_batch_size: 32
   effective_batch_size: 16

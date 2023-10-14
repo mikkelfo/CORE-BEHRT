@@ -1,6 +1,6 @@
 env: local
 paths:
-  finetune_features_path: "outputs/pretraining/behrt_plus_test/finetune_TEST_OUTCOME_censored_20_hours_post_TEST_OUTCOME_test"
+  finetune_features_path: "outputs/pretraining/behrt_test/finetune_TEST_OUTCOME_censored_4_days_pre_TEST_OUTCOME_test"
   run_name: "test"
 
 model:

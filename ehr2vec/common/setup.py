@@ -88,7 +88,7 @@ def azure_finetune_setup(cfg):
 def azure_onehot_setup(cfg):
     if cfg.env=='azure':
         run, mount_context = setup_azure(cfg.paths.run_name)
-        cfg.finetune_features_path = join(mount_context.mount_point, cfg.finetune_features_path)
+        cfg.paths.finetune_features_path = join(mount_context.mount_point, cfg.paths.finetune_features_path)
         cfg.paths.output_path = OUTPUTS_DIR
         return cfg, run, mount_context
     return cfg, None, None

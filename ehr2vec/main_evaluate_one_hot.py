@@ -13,14 +13,15 @@ config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.conf
 
 def main_finetune():
     cfg = load_config(config_path)
-
-    cfg.paths.output_path = cfg.paths.finetune_features_path
+    features_path = cfg.paths.finetune_features_path
+    cfg.paths.output_path = features_path
     cfg, _, mount_context = azure_onehot_setup(cfg)
 
     model = instantiate(cfg.model)
     model_name = model.__class__.__name__
-
-    run_folder=join(cfg.paths.output_path, f"{model_name}_{cfg.paths.run_name}")
+    cfg.paths.run_name = f"{model_name}_{cfg.paths.run_name}"
+    run_folder=join(cfg.paths.output_path, cfg.paths.run_name)
+     
     os.makedirs(run_folder, exist_ok=True)
     logger = setup_logger(run_folder)
     cfg.save_to_yaml(join(run_folder, 'evaluate_one_hot.yaml'))
@@ -49,9 +50,9 @@ def main_finetune():
     except:
         pass
     if cfg.env=='azure':
-        # from azure_run import file_dataset_save
-        #file_dataset_save(local_path=join('outputs', cfg.paths.run_name), datastore_name = "workspaceblobstore",
-         #           remote_path = join("PHAIR", cfg.paths.model_path, cfg.paths.run_name))
+        from azure_run import file_dataset_save
+        file_dataset_save(local_path=join('outputs', cfg.paths.run_name), datastore_name = "workspaceblobstore",
+                    remote_path = join("PHAIR", features_path, cfg.paths.run_name))
         mount_context.stop()
     logger.info('Done')
 

@@ -3,6 +3,7 @@ run_name: base_hierarchical
 paths:
   features: "..\\outputs\\data_icd10"
   hierarchical_name: hierarchical_filtered
+  tokenized_dir: tokenized
 tree:
   cutoff_level: 5
   extend_level: 5

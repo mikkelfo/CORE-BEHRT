@@ -13,7 +13,7 @@ from trainer.trainer import EHRTrainer
 
 args = get_args('finetune.yaml')
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
-
+# os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
 def main_finetune():
     cfg = load_config(config_path)
@@ -24,14 +24,18 @@ def main_finetune():
     logger = setup_run_folder(cfg)
     cfg.save_to_yaml(join(cfg.paths.output_path, cfg.paths.run_name, 'finetune_config.yaml'))
     
-    train_dataset, val_dataset = DatasetPreparer(cfg).prepare_finetune_dataset()
+    train_dataset, val_dataset = DatasetPreparer(cfg).prepare_finetune_dataset(
+        original_behrt = cfg.model.get('behrt_embeddings', False)
+    )
     
     logger.info('Initializing model')
     model = load_model(BertForFineTuning, cfg, 
                        {'pos_weight':get_pos_weight(cfg, train_dataset.outcomes),
+                        'embedding':'original_behrt' if cfg.model.get('behrt_embeddings', False) else None,
                         'pool_type': cfg.model.get('pool_type', 'mean')})
+
     try:
-        logger.warning('Compilation leads to torchdynamo error during training. Skip it')
+        logger.warning('Compilation currently leads to torchdynamo error during training. Skip it')
         #model = torch.compile(model)
         #logger.info('Model compiled')
     except:
@@ -41,7 +45,7 @@ def main_finetune():
         **cfg.optimizer
     )
 
-    sampler = get_sampler(cfg, train_dataset, train_dataset.outcomes, sample_weight=cfg.trainer_args.sample_weight)
+    sampler = get_sampler(cfg, train_dataset, train_dataset.outcomes)
     if sampler:
         cfg.trainer_args.shuffle = False
 
@@ -68,9 +72,9 @@ def main_finetune():
         from azure_run import file_dataset_save
         file_dataset_save(local_path=join('outputs', cfg.paths.run_name), datastore_name = "workspaceblobstore",
                     remote_path = join("PHAIR", model_path, cfg.paths.run_name))
+        logger.info("Saved to Azure Blob Storage")
         mount_context.stop()
     logger.info('Done')
-
 
 if __name__ == '__main__':
     main_finetune()

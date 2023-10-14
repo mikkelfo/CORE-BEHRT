@@ -4,17 +4,18 @@ from os.path import join
 
 import torch
 from common.azure import setup_azure
-from common.config import load_config
+from common.config import instantiate, load_config
 from common.loader import DatasetPreparer
 from common.setup import get_args, setup_run_folder
+from model.config import adjust_cfg_for_behrt
 from model.model import HierarchicalBertForPretraining
 from torch.optim import AdamW
 from trainer.trainer import EHRTrainer
-from transformers import BertConfig, get_linear_schedule_with_warmup
+from transformers import BertConfig
 
 args = get_args("h_pretrain.yaml")
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
-
+# os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
 def main_train(config_path):
     cfg = load_config(config_path)
@@ -26,30 +27,35 @@ def main_train(config_path):
     logger = setup_run_folder(cfg)
     
     logger.info(f"Loading data from {cfg.paths.data_path}")
-    train_dataset, val_dataset = DatasetPreparer(cfg).prepare_hmlm_dataset()
+    train_dataset, val_dataset = DatasetPreparer(cfg).prepare_hmlm_dataset(
+        original_behrt = cfg.model.get('behrt_embeddings', False)
+    )
     torch.save(train_dataset.target_mapping, join(cfg.paths.output_path, cfg.paths.run_name, 'target_mapping.pt'))
     logger.info("Setup model")
+    if cfg.model.get('behrt_embeddings', False):
+        cfg = adjust_cfg_for_behrt(cfg)
     bertconfig = BertConfig(leaf_size=len(train_dataset.leaf_counts), 
                             vocab_size=len(train_dataset.vocabulary),
                             levels=train_dataset.levels,
                             **cfg.model)
-    model = HierarchicalBertForPretraining(bertconfig, tree_matrix=train_dataset.tree_matrix)
+    model = HierarchicalBertForPretraining(
+        bertconfig, tree_matrix=train_dataset.tree_matrix)
 
     try:
-        model = torch.compile(model)
-        logger.info('Model compiled')
+        logger.warning('Compilation currently leads to torchdynamo error during training. Skip it')
+        #model = torch.compile(model)
+        #logger.info('Model compiled')
     except:
         logger.info('Model not compiled')
         
     logger.info("Setup optimizer")
     optimizer = AdamW(
         model.parameters(),
-        lr=cfg.optimizer.lr,
-        weight_decay=cfg.optimizer.weight_decay,
-        eps=cfg.optimizer.epsilon,
+        **cfg.optimizer
     )
     if cfg.scheduler:
-        scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=cfg.scheduler.num_warmup_steps, num_training_steps=cfg.scheduler.num_training_steps)
+        scheduler = instantiate(cfg.scheduler, **{'optimizer': optimizer})
+        
     logger.info("Setup trainer")
     trainer = EHRTrainer( 
         model=model, 
@@ -69,6 +75,7 @@ def main_train(config_path):
         from azure_run import file_dataset_save
         file_dataset_save(local_path=join('outputs', cfg.paths.run_name), datastore_name = "workspaceblobstore",
                     remote_path = join("PHAIR", 'models', cfg.paths.type, cfg.paths.run_name))
+        logger.info("Saved model to Azure")
         mount_context.stop()
     logger.info("Done")
 

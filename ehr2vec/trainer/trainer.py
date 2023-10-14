@@ -4,12 +4,11 @@ from collections import namedtuple
 import torch
 import yaml
 from common.config import Config, get_function, instantiate
-
 from dataloader.collate_fn import dynamic_padding
 from torch.cuda.amp import GradScaler, autocast
 from torch.utils.data import DataLoader, Dataset
-from trainer.utils import (get_nvidia_smi_output, save_curves, 
-                           save_metrics_to_csv, get_tqdm, compute_avg_metrics)
+from trainer.utils import (compute_avg_metrics, get_nvidia_smi_output,
+                           get_tqdm, save_curves, save_metrics_to_csv)
 
 yaml.add_representer(Config, lambda dumper, data: data.yaml_repr(dumper))
 

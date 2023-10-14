@@ -1,12 +1,12 @@
 import os
 from os.path import join
 
-import torch
 import pandas as pd
-from common.config import load_config, instantiate, get_function
+import torch
+from common.config import get_function, instantiate, load_config
 from common.loader import DatasetPreparer
 from common.setup import azure_onehot_setup, get_args, setup_logger
-from evaluation.utils import get_pos_weight, evaluate_predictions
+from evaluation.utils import evaluate_predictions, get_pos_weight
 
 args = get_args('evaluate_one_hot.yaml')
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)

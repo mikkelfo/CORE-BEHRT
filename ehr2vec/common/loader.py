@@ -1,8 +1,7 @@
 import logging
 import os
-
 from os.path import join
-from typing import Dict, List,  Union, Tuple
+from typing import Dict, List, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -12,9 +11,9 @@ from data.dataset import (BinaryOutcomeDataset, HierarchicalMLMDataset,
                           MLMDataset)
 from data_fixes.adapt import BehrtAdapter
 from data_fixes.censor import Censorer
-from data_fixes.truncate import Truncator
-from data_fixes.handle import Handler
 from data_fixes.exclude import Excluder
+from data_fixes.handle import Handler
+from data_fixes.truncate import Truncator
 from transformers import BertConfig
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
@@ -36,7 +35,12 @@ def load_model(model_class, cfg, add_config={}):
     config.update(add_config)
     model = model_class(config)
     load_result = model.load_state_dict(torch.load(checkpoint_path, map_location=device)['model_state_dict'], strict=False)
-    logger.info("missing state dict keys: %s", load_result.missing_keys)
+    missing_keys = load_result.missing_keys
+
+    if len([k for k in missing_keys if k.startswith('embeddings')])>0:
+        pretrained_model_embeddings = model.embeddings.__class__.__name__
+        raise ValueError("Embeddings not loaded. Ensure that model.behrt_embeddings is compatible with pretrained model embeddings {pretrained_model_embeddings}.")
+    logger.warning("missing state dict keys: %s", missing_keys)
     return model
 
 def create_binary_outcome_datasets(all_outcomes, cfg):

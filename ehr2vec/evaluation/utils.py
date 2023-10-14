@@ -1,8 +1,9 @@
-import numpy as np
-from sklearn.utils import resample
-import pandas as pd
-from torch.utils.data import WeightedRandomSampler
 import logging
+
+import numpy as np
+import pandas as pd
+from sklearn.utils import resample
+from torch.utils.data import WeightedRandomSampler
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,7 @@ def validate_outcomes(all_outcomes, cfg):
         if cfg.outcome.get('censor_type', False):
             assert cfg.outcome.censor_type in all_outcomes, f"Censor type {cfg.outcome.censor_type} not found in outcomes."
 
-def get_sampler(cfg, train_dataset, outcomes, sample_weight=1.0):
+def get_sampler(cfg, train_dataset, outcomes):
     """Get sampler for training data.
     sample_weight: float. Adjusts the number of samples in the positive class.
     """
@@ -85,7 +86,7 @@ def get_sampler(cfg, train_dataset, outcomes, sample_weight=1.0):
         label_weight = 1 / labels.value_counts()
         weights = labels.map(label_weight).values
         # Adjust the weight for the positive class (1) using the sample_weight
-        label_weight[1] *= sample_weight
+        label_weight[1] *= cfg.trainer_args.get('sample_weight', 1.0) 
         sampler = WeightedRandomSampler(
             weights=weights,
             num_samples=len(train_dataset),

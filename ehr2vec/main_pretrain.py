@@ -2,11 +2,11 @@
 import os
 from os.path import join
 
-import torch
 from common.azure import setup_azure
-from common.config import load_config, instantiate
+from common.config import instantiate, load_config
 from common.loader import DatasetPreparer
 from common.setup import get_args, setup_run_folder
+from model.config import adjust_cfg_for_behrt
 from model.model import BertEHRModel
 from torch.optim import AdamW
 from trainer.trainer import EHRTrainer
@@ -14,7 +14,7 @@ from transformers import BertConfig
 
 args = get_args('pretrain.yaml')
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
-
+# os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
 def main_train(config_path):
     cfg = load_config(config_path)
@@ -24,7 +24,12 @@ def main_train(config_path):
         cfg.paths.data_path = join(mount_context.mount_point, cfg.paths.data_path)
 
     logger = setup_run_folder(cfg)
-    train_dataset, val_dataset = DatasetPreparer(cfg).prepare_mlm_dataset()
+    train_dataset, val_dataset = DatasetPreparer(cfg).prepare_mlm_dataset(
+        original_behrt = cfg.model.get('behrt_embeddings', False))
+    
+    if cfg.model.get('behrt_embeddings', False):
+        cfg = adjust_cfg_for_behrt(cfg)
+
     logger.info('Initializing model')
     model = BertEHRModel(
         BertConfig(
@@ -33,8 +38,9 @@ def main_train(config_path):
         )
     )
     try:
-        model = torch.compile(model)
-        logger.info('Model compiled')
+        logger.warning('Compilation currently leads to torchdynamo error during training. Skip it')
+        #model = torch.compile(model)
+        #logger.info('Model compiled')
     except:
         logger.info('Model not compiled')
 
@@ -66,6 +72,7 @@ def main_train(config_path):
         from azure_run import file_dataset_save
         file_dataset_save(local_path=join('outputs', cfg.paths.run_name), datastore_name = "workspaceblobstore",
                     remote_path = join("PHAIR", 'models', cfg.paths.type, cfg.paths.run_name))
+        logger.info('Save model to Azure')
         mount_context.stop()
     logger.info("Done")
 

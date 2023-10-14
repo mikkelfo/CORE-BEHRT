@@ -179,12 +179,13 @@ class TreeBuilder:
 def get_counts(cfg, logger)-> dict:
     """Takes a cfg and logger and returns a dictionary of counts for each code in the vocabulary."""
     data_path = cfg.paths.features
-    vocabulary = torch.load(join(data_path, 'vocabulary.pt'))
+    tokenized_dir = cfg.paths.get('tokenized_dir', 'tokenized')
+    vocabulary = torch.load(join(data_path, tokenized_dir,'vocabulary.pt'))
     inv_vocab = {v: k for k, v in vocabulary.items()}
 
     train_val_files = [
         join(data_path, 'tokenized', f) 
-        for f in os.listdir(join(data_path, 'tokenized')) 
+        for f in os.listdir(join(data_path, tokenized_dir)) 
         if f.startswith(('tokenized_train', 'tokenized_val'))
     ]
     counts = Counter()

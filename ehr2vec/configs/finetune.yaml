@@ -11,6 +11,7 @@ paths:
 
 model:
   pool_type: "mean"
+  behrt_embeddings: true
 
 data:
   num_train_patients: null #300

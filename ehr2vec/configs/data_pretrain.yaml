@@ -1,5 +1,5 @@
 env: local
-output_dir: ../outputs/data_test
+output_dir: ../outputs/data_icd10
 tokenized_dir_name: "tokenized"
 run_name: "icd10_small"
 loader:
@@ -25,9 +25,9 @@ tokenizer:
   cls_token: true
   padding: false
   truncation: null
-  cutoffs:
-    D: 3 # diagnosis
-    M: 4 # medication
+  #cutoffs:
+   # D: 3 # diagnosis
+    #M: 4 # medication
 
 excluder:
   min_len: 2

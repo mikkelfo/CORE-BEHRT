@@ -49,10 +49,10 @@ def main_data(config_path):
     logger.info('Finish outcomes creation')
 
     if cfg.env=='azure':
-        from azure_run import file_dataset_save
-        file_dataset_save(local_path=join('outputs', 'data'), datastore_name = "workspaceblobstore",
-                    remote_path = join("PHAIR", "outcomes", cfg.run_name))
-        mount_context.stop()
+            from azure_run import file_dataset_save
+            file_dataset_save(local_path=join('outputs', 'outcomes'), datastore_name = "workspaceblobstore",
+                        remote_path = join("PHAIR", "outcomes", cfg.run_name))
+            mount_context.stop()
 
 if __name__ == '__main__':
     main_data(config_path)

@@ -50,10 +50,14 @@ def main(config_path):
     forwarder.encode_concepts(cfg)
     
     if cfg.env=='azure':
-        logger.info('Saving to blob storage')
-        from azure_run import file_dataset_save
-        file_dataset_save(local_path=join('outputs', cfg.paths.run_name), datastore_name = "workspaceblobstore",
-                    remote_path = join("PHAIR", concepts_path, cfg.paths.run_name))
+        try:
+            logger.info('Saving to blob storage')
+            from azure_run import file_dataset_save
+            file_dataset_save(local_path=join('outputs', cfg.paths.run_name), datastore_name = "workspaceblobstore",
+                        remote_path = join("PHAIR", concepts_path, cfg.paths.run_name))
+            logger.info("Saved outcomes to blob")
+        except:
+            logger.warning('Could not save outcomes to blob')
         mount_context.stop()
     logger.info('Done')
 

@@ -69,10 +69,13 @@ def main_finetune():
     )
     trainer.train()
     if cfg.env=='azure':
-        from azure_run import file_dataset_save
-        file_dataset_save(local_path=join('outputs', cfg.paths.run_name), datastore_name = "workspaceblobstore",
-                    remote_path = join("PHAIR", model_path, cfg.paths.run_name))
-        logger.info("Saved to Azure Blob Storage")
+        try:
+            from azure_run import file_dataset_save
+            file_dataset_save(local_path=join('outputs', cfg.paths.run_name), datastore_name = "workspaceblobstore",
+                        remote_path = join("PHAIR", model_path, cfg.paths.run_name))
+            logger.info("Saved to Azure Blob Storage")
+        except:
+            logger.warning('Could not save to Azure Blob Storage')
         mount_context.stop()
     logger.info('Done')
 

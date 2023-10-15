@@ -50,9 +50,13 @@ def main_finetune():
     except:
         pass
     if cfg.env=='azure':
-        from azure_run import file_dataset_save
-        file_dataset_save(local_path=join('outputs', cfg.paths.run_name), datastore_name = "workspaceblobstore",
-                    remote_path = join("PHAIR", features_path, cfg.paths.run_name))
+        try:
+            from azure_run import file_dataset_save
+            file_dataset_save(local_path=join('outputs', cfg.paths.run_name), datastore_name = "workspaceblobstore",
+                        remote_path = join("PHAIR", features_path, cfg.paths.run_name))
+            logger.info("Saved outcomes to blob")
+        except:
+            logger.warning('Could not save outcomes to blob')
         mount_context.stop()
     logger.info('Done')
 

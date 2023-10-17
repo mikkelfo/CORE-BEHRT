@@ -159,7 +159,8 @@ class EHRTrainer():
         self.run_log(name='Val loss', value=val_loss)
         for k, v in metrics.items():
             self.run_log(name = k, value = v)
-        self.save_checkpoint(id=f'epoch{epoch}_end', train_loss=epoch_loss, val_loss=val_loss, metrics=metrics, final_step_loss=epoch_loss[-1])
+        if epoch%self.args.get('checkpoint_frequency', 1) == 0:
+            self.save_checkpoint(id=f'epoch{epoch}_end', train_loss=epoch_loss, val_loss=val_loss, metrics=metrics, final_step_loss=epoch_loss[-1])
         self.log(f'Epoch {epoch} train loss: {sum(epoch_loss) / (len(train_loop) / self.accumulation_steps)}')
         self.log(f'Epoch {epoch} val loss: {val_loss}')
         self.log(f'Epoch {epoch} metrics: {metrics}\n')

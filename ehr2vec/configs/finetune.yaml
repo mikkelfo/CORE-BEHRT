@@ -40,12 +40,13 @@ trainer_args:
   batch_size: 8
   val_batch_size: 32
   effective_batch_size: 16
-  epochs: 2
+  epochs: 4
   info: true
   gradient_clip: 
     clip_value: 1.0
   mixed_precision: false
   shuffle: true
+  checkpoint_frequency: 2
   
 optimizer:
   lr: 5e-4

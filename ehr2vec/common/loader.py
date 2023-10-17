@@ -95,25 +95,17 @@ class DatasetPreparer:
         self.run_folder = join(self.cfg.paths.output_path, self.cfg.paths.run_name)
         os.makedirs(self.run_folder, exist_ok=True)
 
-    def prepare_mlm_dataset(self, original_behrt=False):
+    def prepare_mlm_dataset(self):
         """Load data, truncate, adapt features, create dataset"""
         train_features, val_features, vocabulary = self._prepare_mlm_features()
 
-        if original_behrt:
-            train_features = BehrtAdapter().adapt_features(train_features)
-            val_features = BehrtAdapter().adapt_features(val_features)
-        
         train_dataset = MLMDataset(train_features, vocabulary, **self.cfg.data.dataset)
         val_dataset = MLMDataset(val_features, vocabulary, **self.cfg.data.dataset)
         
         return train_dataset, val_dataset
 
-    def prepare_hmlm_dataset(self, original_behrt=False):
+    def prepare_hmlm_dataset(self):
         train_features, val_features, vocabulary = self._prepare_mlm_features()
-
-        if original_behrt:
-            train_features = BehrtAdapter().adapt_features(train_features)
-            val_features = BehrtAdapter().adapt_features(val_features)
 
         tree, tree_matrix, h_vocabulary = self._load_tree()
         
@@ -402,6 +394,11 @@ class DatasetPreparer:
         datasets = self._process_datasets(datasets, self._save_sequence_lengths)
         self._check_max_segment(datasets['train'])
         self._check_max_segment(datasets['val'])
+        
+        if self.cfg.model.get('behrt_embeddings', False):
+            datasets['train'].features = BehrtAdapter().adapt_features(datasets['train'].features)
+            datasets['val'].features = BehrtAdapter().adapt_features(datasets['val'].features)
+        
         return datasets['train'].features, datasets['val'].features, datasets['train'].vocabulary
 
     def _truncate(self, data: Data)->Data:

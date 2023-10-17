@@ -16,7 +16,7 @@ class BertEHRModel(BertModel):
 
         self.cls = MLMHead(config)
 
-    def forward(self, batch):
+    def forward(self, batch, **kwargs):
         # Unpack batch
         input_ids = batch["concept"] if "concept" in batch else None
         attention_mask = batch["attention_mask"] if "attention_mask" in batch else None
@@ -36,6 +36,7 @@ class BertEHRModel(BertModel):
             token_type_ids=token_type_ids,
             position_ids=position_ids,
             inputs_embeds=inputs_embeds,
+            **kwargs,
         )
 
         sequence_output = outputs[0]  # Last hidden state

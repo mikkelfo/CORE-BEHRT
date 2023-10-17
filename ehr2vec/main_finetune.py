@@ -1,15 +1,16 @@
 import os
 from os.path import join
 
-from common.config import load_config, instantiate
+import torch
+from common.config import instantiate, load_config
 from common.loader import DatasetPreparer, load_model
 from common.setup import (add_pretrain_info_to_cfg, adjust_paths_for_finetune,
                           azure_finetune_setup, get_args, setup_run_folder)
+from data.dataset import BinaryOutcomeDataset
 from evaluation.utils import get_pos_weight, get_sampler
 from model.model import BertForFineTuning
 from torch.optim import AdamW
 from trainer.trainer import EHRTrainer
-
 
 args = get_args('finetune.yaml')
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
@@ -23,11 +24,19 @@ def main_finetune():
     cfg = add_pretrain_info_to_cfg(cfg)
     logger = setup_run_folder(cfg)
     cfg.save_to_yaml(join(cfg.paths.output_path, cfg.paths.run_name, 'finetune_config.yaml'))
-    
-    train_dataset, val_dataset = DatasetPreparer(cfg).prepare_finetune_dataset(
+    dataset_preparer = DatasetPreparer(cfg)
+    data = dataset_preparer.prepare_finetune_features(
         original_behrt = cfg.model.get('behrt_embeddings', False)
     )
     
+    train_data, val_data = data.split(cfg.data.get('val_split', 0.2))
+    torch.save(train_data.pids, join(cfg.paths.output_path, cfg.paths.run_name, 'train_pids.pt'))
+    torch.save(val_data.pids, join(cfg.paths.output_path, cfg.paths.run_name, 'val_pids.pt'))
+    
+    dataset_preparer.save_patient_nums(train_data, val_data)
+    train_dataset = BinaryOutcomeDataset(train_data.features, train_data.outcomes)
+    val_dataset = BinaryOutcomeDataset(val_data.features, val_data.outcomes)
+
     logger.info('Initializing model')
     model = load_model(BertForFineTuning, cfg, 
                        {'pos_weight':get_pos_weight(cfg, train_dataset.outcomes),

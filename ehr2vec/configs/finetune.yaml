@@ -7,15 +7,17 @@ paths:
   # censor: "outputs/outcomes/TEST/TEST.pt"
   #output_path: "outputs/finetuning"
   run_name: "test"
-  # tokenized_dir: "tokenized"
+  tokenized_dir: "tokenized"
+  tokenized_file: "tokenized_val.pt"
+  tokenized_pids: "pids_val.pt"
 
 model:
   pool_type: "mean"
   behrt_embeddings: true
 
 data:
-  num_train_patients: null #300
-  num_val_patients: null #100
+  num_patients: null #300
+  val_split: 0.2
   truncation_len: 30
   select_censored: false
   # gender: M

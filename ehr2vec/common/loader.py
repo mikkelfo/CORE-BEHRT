@@ -126,15 +126,6 @@ class DatasetPreparer:
                                             h_vocabulary, tree, tree_matrix, 
                                             **self.cfg.data.dataset)
         return train_dataset, val_dataset
-    
-    def prepare_finetune_dataset(self, original_behrt=False):
-        train_features, val_features, train_outcome, val_outcome = self._prepare_finetune_features()
-        if original_behrt:
-            train_features = BehrtAdapter().adapt_features(train_features)
-            val_features = BehrtAdapter().adapt_features(val_features)
-        train_dataset = BinaryOutcomeDataset(train_features, outcomes=train_outcome)
-        val_dataset = BinaryOutcomeDataset(val_features, outcomes=val_outcome)
-        return train_dataset, val_dataset
 
     def prepare_onehot_features(self)->Tuple[np.ndarray]:
         """Use ft features and map them onto one hot vectors with binary outcomes"""
@@ -192,7 +183,7 @@ class DatasetPreparer:
         vocabulary = torch.load(join(dir_, 'vocabulary.pt'))
         return Data(train_features, pids, outcomes, vocabulary=vocabulary, mode=mode)
 
-    def _prepare_finetune_features(self)->Tuple[dict]:
+    def prepare_finetune_features(self, original_behrt)->Tuple[dict]:
         """
         Prepare the features for fine-tuning. 
         The process includes:
@@ -216,17 +207,15 @@ class DatasetPreparer:
         paths_cfg = self.cfg.paths
 
         # 1. Loading tokenized data
-        train_features, train_pids, val_features, val_pids, vocabulary = self._load_tokenized_data()
-        train_data = Data(train_features, train_pids, vocabulary=vocabulary, mode='train')
-        val_data = Data(val_features, val_pids, vocabulary=vocabulary, mode='val')
-        datasets = {'train': train_data, 'val': val_data}
+        features, pids, vocabulary = self._load_tokenized_finetune_data()
+        data = Data(features, pids, vocabulary=vocabulary, mode='val')
+        datasets = {'val': data}
         # 2. Excluding pretrain patients
         datasets = self._process_datasets(datasets, self._exclude_pretrain_patients) 
         # 3. Patient selection
-        if data_cfg.get('num_train_patients', False) or data_cfg.get('num_val_patients', False):
+        if data_cfg.get('numpatients', False):
             datasets = self._process_datasets(datasets, self._select_random_subset, 
-                                              {'train': {'num_patients':self.cfg.data.num_train_patients},
-                                               'val': {'num_patients':self.cfg.data.num_val_patients}})
+                                              {'val': {'num_patients':data_cfg.numpatients}})
         # 4. Optinally select gender group
         if data_cfg.get('gender', False):
             datasets = self._process_datasets(datasets, self._select_by_gender)
@@ -236,8 +225,7 @@ class DatasetPreparer:
         censor_outcomes = torch.load(paths_cfg.censor) if paths_cfg.get('censor', False) else outcomes   
         logger.info("Assigning outcomes to data")
         datasets = self._process_datasets(datasets, self._retrieve_and_assign_outcomes, 
-                                          {'train': {'outcomes': outcomes, 'censor_outcomes': censor_outcomes},
-                                           'val': {'outcomes': outcomes, 'censor_outcomes': censor_outcomes}})
+                                           {'val': {'outcomes': outcomes, 'censor_outcomes': censor_outcomes}})
         self._log_pos_patients_num(datasets)
         # 6. Optionally select patients of interest
         if data_cfg.get("select_censored", False):
@@ -276,19 +264,20 @@ class DatasetPreparer:
         logger.info('Normalizing segments')
         datasets = self._process_datasets(datasets, self._normalize_segments)
 
-        datasets['train'].check_lengths()
         datasets['val'].check_lengths()
 
         self._log_pos_patients_num(datasets)
         datasets = self._process_datasets(datasets, self._save_sequence_lengths)
-        train_data, val_data = datasets['train'], datasets['val']
-        self._save_pids(train_data.pids, val_data.pids) 
-        self._save_features(train_data, val_data)
-        self._save_patient_nums(train_data, val_data)
+        data = datasets['val']
 
-        return train_data.features, val_data.features, train_data.outcomes, val_data.outcomes
+        if original_behrt:
+            data.features = BehrtAdapter().adapt_features(data.features)
+        torch.save(data.features, join(self.run_folder, 'features.pt'))
+        torch.save(data.pids, join(self.run_folder, 'pids.pt'))
+
+        return data
     
-    def _save_patient_nums(self, train_data: Data, val_data: Data)->None:
+    def save_patient_nums(self, train_data: Data=None, val_data: Data=None)->None:
         """Save patient numbers for train val including the number of positive patients to a csv file"""
         train_df = pd.DataFrame({'train': [len(train_data), len([t for t in train_data.outcomes if not pd.isna(t)])]}, 
                                 index=['total', 'positive'])
@@ -296,16 +285,6 @@ class DatasetPreparer:
                               index=['total', 'positive'])
         patient_nums = pd.concat([train_df, val_df], axis=1)
         patient_nums.to_csv(join(self.run_folder, 'patient_nums.csv'), index_label='Patient Group')
-
-    def _save_features(self, train_data: Data, val_data: Data)->None:
-        """Save features to file"""
-        torch.save(train_data.features, join(self.run_folder, 'features_train.pt'))
-        torch.save(val_data.features, join(self.run_folder, 'features_val.pt'))
-        torch.save(train_data.vocabulary, join(self.run_folder, 'vocabulary.pt'))
-        torch.save(train_data.outcomes, join(self.run_folder, 'outcomes_train.pt'))
-        torch.save(val_data.outcomes, join(self.run_folder, 'outcomes_val.pt'))
-        torch.save(train_data.censor_outcomes, join(self.run_folder, 'censor_outcomes_train.pt'))
-        torch.save(val_data.censor_outcomes, join(self.run_folder, 'censor_outcomes_val.pt'))
 
     def _log_pos_patients_num(self, datasets: Dict)->None:
         for mode, data in datasets.items():
@@ -488,6 +467,22 @@ class DatasetPreparer:
         except:
             vocabulary = torch.load(join(self.cfg.paths.data_path, VOCABULARY_FILE))
         return train_features, train_pids, val_features, val_pids, vocabulary
+
+    def _load_tokenized_finetune_data(self):
+        tokenized_dir = self.cfg.paths.get('tokenized_dir', 'tokenized')
+        tokenized_file = self.cfg.paths.get('tokenized_file', 'tokenized_val.pt')
+        tokenized_pids = self.cfg.paths.get('tokenized_pids', 'pids_val.pt')
+        logger.info('Loading tokenized data from %s', tokenized_dir)
+        tokenized_data_path = join(self.cfg.paths.data_path, tokenized_dir)
+        logger.info("Loading tokenized data")
+        features  = torch.load(join(tokenized_data_path, tokenized_file))
+        pids = torch.load(join(tokenized_data_path,  tokenized_pids))
+        logger.info("Loading vocabulary")
+        try:
+            vocabulary = torch.load(join(tokenized_data_path, VOCABULARY_FILE))
+        except:
+            vocabulary = torch.load(join(self.cfg.paths.data_path, VOCABULARY_FILE))
+        return features, pids, vocabulary
 
     def _load_tree(self):
         hierarchical_path = join(self.cfg.paths.data_path, 

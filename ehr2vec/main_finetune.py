@@ -5,14 +5,16 @@ import torch
 from common.config import instantiate, load_config
 from common.loader import DatasetPreparer, load_model
 from common.setup import (add_pretrain_info_to_cfg, adjust_paths_for_finetune,
-                          azure_finetune_setup, get_args, setup_run_folder)
+                          azure_finetune_setup, get_args, setup_run_folder, copy_data_config)
 from data.dataset import BinaryOutcomeDataset
 from evaluation.utils import get_pos_weight, get_sampler
 from model.model import BertForFineTuning
 from torch.optim import AdamW
 from trainer.trainer import EHRTrainer
 
-args = get_args('finetune.yaml')
+CONFIG_NAME = 'finetune.yaml'
+
+args = get_args(CONFIG_NAME)
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
 # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
@@ -22,14 +24,17 @@ def main_finetune():
     cfg = adjust_paths_for_finetune(cfg)
     cfg, run, mount_context = azure_finetune_setup(cfg)
     cfg = add_pretrain_info_to_cfg(cfg)
-    logger = setup_run_folder(cfg)
-    cfg.save_to_yaml(join(cfg.paths.output_path, cfg.paths.run_name, 'finetune_config.yaml'))
+    
+    logger, run_folder = setup_run_folder(cfg)
+    copy_data_config(cfg, run_folder)
+
+    cfg.save_to_yaml(join(run_folder, 'finetune_config.yaml'))
     dataset_preparer = DatasetPreparer(cfg)
     data = dataset_preparer.prepare_finetune_features()
     
     train_data, val_data = data.split(cfg.data.get('val_split', 0.2))
-    torch.save(train_data.pids, join(cfg.paths.output_path, cfg.paths.run_name, 'train_pids.pt'))
-    torch.save(val_data.pids, join(cfg.paths.output_path, cfg.paths.run_name, 'val_pids.pt'))
+    torch.save(train_data.pids, join(run_folder, 'train_pids.pt'))
+    torch.save(val_data.pids, join(run_folder, 'val_pids.pt'))
     
     dataset_preparer.save_patient_nums(train_data, val_data)
     train_dataset = BinaryOutcomeDataset(train_data.features, train_data.outcomes)

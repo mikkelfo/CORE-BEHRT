@@ -1,6 +1,5 @@
 import os
 from os.path import abspath, dirname, join
-from shutil import copyfile
 from typing import Iterator, List, Tuple
 
 import pandas as pd
@@ -8,7 +7,7 @@ import torch
 from common.config import instantiate, load_config
 from common.loader import DatasetPreparer, load_model
 from common.setup import (add_pretrain_info_to_cfg, adjust_paths_for_finetune,
-                          azure_finetune_setup, get_args, setup_logger,
+                          azure_finetune_setup, copy_data_config, get_args,
                           setup_run_folder)
 from common.utils import Data
 from data.dataset import BinaryOutcomeDataset
@@ -19,7 +18,7 @@ from torch.optim import AdamW
 from trainer.trainer import EHRTrainer
 
 CONFIG_NAME = 'finetune.yaml'
-N_SPLITS = 5  # You can change this to desired value
+N_SPLITS = 2  # You can change this to desired value
 
 args = get_args(CONFIG_NAME)
 config_path = join(dirname(abspath(__file__)), args.config_path)
@@ -102,27 +101,6 @@ def initialize_configuration():
     cfg = add_pretrain_info_to_cfg(cfg)
     return cfg, run, mount_context, model_path
 
-def setup_logging_and_folders(cfg):
-    """Setup the logger and relevant folders."""
-    logger = setup_run_folder(cfg)
-
-    run_name = cfg.paths.run_name 
-    run_folder = join(cfg.paths.output_path, run_name)
-
-    os.makedirs(run_folder, exist_ok=True)
-    tokenized_dir_name = cfg.paths.get('tokenized_dir', 'tokenized')
-    try:
-        copyfile(join(cfg.paths.data_path, tokenized_dir_name, 'data_config.yaml'), join(run_folder, 'data_config.yaml'))
-    except:
-        copyfile(join(cfg.paths.data_path, 'data_config.yaml'), join(run_folder, 'data_config.yaml'))
-
-    logger = setup_logger(run_folder)
-    logger.info(f'Run folder: {run_folder}')
-
-    finetune_folder = join(cfg.paths.output_path, cfg.paths.run_name)
-    cfg.save_to_yaml(join(finetune_folder, 'finetune_config.yaml'))
-
-    return logger, finetune_folder
 
 def compute_validation_scores_mean_std(finetune_folder: str)->None:
     """Compute mean and std of validation scores."""
@@ -141,7 +119,9 @@ def compute_validation_scores_mean_std(finetune_folder: str)->None:
 if __name__ == '__main__':
 
     cfg, run, mount_context, model_path = initialize_configuration()
-    logger, finetune_folder = setup_logging_and_folders(cfg)
+    logger, finetune_folder = setup_run_folder(cfg)
+    cfg.save_to_yaml(join(finetune_folder, 'finetune_config.yaml'))
+    copy_data_config(cfg, finetune_folder)
 
     logger.info("Prepare Features")
     dataset_preparer = DatasetPreparer(cfg)

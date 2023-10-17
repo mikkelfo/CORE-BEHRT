@@ -5,14 +5,16 @@ from os.path import join
 from common.azure import setup_azure
 from common.config import instantiate, load_config
 from common.loader import DatasetPreparer
-from common.setup import get_args, setup_run_folder
+from common.setup import get_args, setup_run_folder, copy_data_config
 from model.config import adjust_cfg_for_behrt
 from model.model import BertEHRModel
 from torch.optim import AdamW
 from trainer.trainer import EHRTrainer
 from transformers import BertConfig
 
-args = get_args('pretrain.yaml')
+CONFIG_NAME = 'pretrain.yaml'
+
+args = get_args(CONFIG_NAME)
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
 # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
@@ -23,7 +25,9 @@ def main_train(config_path):
         run, mount_context = setup_azure(cfg.paths.run_name)
         cfg.paths.data_path = join(mount_context.mount_point, cfg.paths.data_path)
 
-    logger = setup_run_folder(cfg)
+    logger, run_folder = setup_run_folder(cfg)
+    copy_data_config(cfg, run_folder)
+
     train_dataset, val_dataset = DatasetPreparer(cfg).prepare_mlm_dataset()
     
     if cfg.model.get('behrt_embeddings', False):

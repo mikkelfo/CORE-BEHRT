@@ -28,7 +28,7 @@ def main_train(config_path):
     
     logger.info(f"Loading data from {cfg.paths.data_path}")
     train_dataset, val_dataset = DatasetPreparer(cfg).prepare_hmlm_dataset()
-    
+
     torch.save(train_dataset.target_mapping, join(cfg.paths.output_path, cfg.paths.run_name, 'target_mapping.pt'))
     logger.info("Setup model")
     if cfg.model.get('behrt_embeddings', False):
@@ -73,7 +73,8 @@ def main_train(config_path):
     if cfg.env == 'azure':
         try:
             from azure_run import file_dataset_save
-            file_dataset_save(local_path=join('outputs', cfg.paths.run_name), datastore_name = "workspaceblobstore",
+            output_path = 'outputs' if not os.path.exists(join('outputs', 'retry_001')) else join('outputs', 'retry_001')
+            file_dataset_save(local_path=join(output_path, cfg.paths.run_name), datastore_name = "workspaceblobstore",
                         remote_path = join("PHAIR", 'models', cfg.paths.type, cfg.paths.run_name))
             logger.info("Saved model to blob")
         except:

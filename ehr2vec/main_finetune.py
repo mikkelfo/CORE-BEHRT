@@ -78,7 +78,8 @@ def main_finetune():
     if cfg.env=='azure':
         try:
             from azure_run import file_dataset_save
-            file_dataset_save(local_path=join('outputs', cfg.paths.run_name), datastore_name = "workspaceblobstore",
+            output_path = 'outputs' if not os.path.exists(join('outputs', 'retry_001')) else join('outputs', 'retry_001')
+            file_dataset_save(local_path=join(output_path, cfg.paths.run_name), datastore_name = "workspaceblobstore",
                         remote_path = join("PHAIR", model_path, cfg.paths.run_name))
             logger.info("Saved to Azure Blob Storage")
         except:

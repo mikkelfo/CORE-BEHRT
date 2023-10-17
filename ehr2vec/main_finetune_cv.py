@@ -1,8 +1,9 @@
 import os
-from os.path import join, dirname, abspath
+from os.path import abspath, dirname, join
 from shutil import copyfile
 from typing import Iterator, List, Tuple
 
+import pandas as pd
 import torch
 from common.config import instantiate, load_config
 from common.loader import DatasetPreparer, load_model
@@ -123,6 +124,20 @@ def setup_logging_and_folders(cfg):
 
     return logger, finetune_folder
 
+def compute_validation_scores_mean_std(finetune_folder: str)->None:
+    """Compute mean and std of validation scores."""
+    logger.info("Compute mean and std of validation scores")
+    val_scores = []
+    for fold in range(1, N_SPLITS+1):
+        fold_checkpoints_folder = join(finetune_folder, f'fold_{fold}', 'checkpoints')
+        last_epoch = max([int(f.split('_')[-1][:-4]) for f in os.listdir(fold_checkpoints_folder) if f.startswith('validation_scores')])
+        fold_validation_scores = pd.read_csv(join(fold_checkpoints_folder, f'validation_scores_{last_epoch}.csv'))
+        val_scores.append(fold_validation_scores)
+    val_scores = pd.concat(val_scores)
+    val_scores_mean_std = val_scores.groupby('metric')['value'].agg(['mean', 'std'])
+    val_scores_mean_std.to_csv(join(finetune_folder, 'validation_scores_mean_std.csv'))
+
+
 if __name__ == '__main__':
 
     cfg, run, mount_context, model_path = initialize_configuration()
@@ -137,6 +152,8 @@ if __name__ == '__main__':
         logger.info(f"Training fold {fold}/{N_SPLITS}")
         finetune_fold(data, train_indices, val_indices, fold)
         
+    compute_validation_scores_mean_std(finetune_folder)
+    
     if cfg.env=='azure':
         logger.info("Saving results to blob")
         try:

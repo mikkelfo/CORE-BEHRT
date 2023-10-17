@@ -74,6 +74,10 @@ class Accuracy(BaseMetric):
             logger.warn("Accuracy score could not be computed")
             return 0
         
+class Dice(BaseMetric):
+    def __call__(self, outputs, batch):
+        tn, fp, fn, tp = self._return_confusion_matrix(outputs, batch)
+        return (2. * tp) / (2 * tp + fp + fn)
 class Balanced_Accuracy(BaseMetric):
     def __call__(self, outputs, batch):
         predictions, targets = self._return_predictions_and_targrets(outputs, batch)

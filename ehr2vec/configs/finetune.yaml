@@ -71,6 +71,8 @@ metrics:
     _target_: evaluation.metrics.ROC_AUC
   pr_auc:
     _target_: evaluation.metrics.PR_AUC
+  dice:
+    _target_: evaluation.metrics.Dice
   f1:
     _target_: evaluation.metrics.F1
   precentage_positives:

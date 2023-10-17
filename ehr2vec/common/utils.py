@@ -57,24 +57,24 @@ class Data:
         if self.censor_outcomes is not None:
             assert len(self.censor_outcomes) == len(self.pids), "Length of censor outcomes does not match length of pids"
 
-    def split(self, val_split: float)->Tuple:
+    def split(self, val_split: float)->Tuple['Data', 'Data']:
         """Split data into train and validation. Returns two Data objects"""
         train_indices, val_indices = self._get_train_val_splits(val_split)
 
-        train_data = Data(features={key: [values[i] for i in train_indices] for key, values in self.features.items()},
-                          pids=[self.pids[i] for i in train_indices],
-                          outcomes=[self.outcomes[i] for i in train_indices],
-                          censor_outcomes=[self.censor_outcomes[i] for i in train_indices] if self.censor_outcomes is not None else None,
-                          vocabulary=self.vocabulary,
-                          mode='train')
-        val_data = Data(features={key: [values[i] for i in val_indices] for key, values in self.features.items()},
-                        pids=[self.pids[i] for i in val_indices],
-                        outcomes=[self.outcomes[i] for i in val_indices],
-                        censor_outcomes=[self.censor_outcomes[i] for i in val_indices] if self.censor_outcomes is not None else None,
-                        vocabulary=self.vocabulary,
-                        mode='val')
+        train_data = self.select_data_subset_by_indices(train_indices, 'train')
+        val_data = self.select_data_subset_by_indices(val_indices, 'val')
         return train_data, val_data
     
+    def select_data_subset_by_indices(self, indices: list, mode: str)->'Data':
+        return Data(features={key: [values[i] for i in indices] for key, values in self.features.items()}, 
+                        pids=[self.pids[i] for i in indices],
+                        outcomes=[self.outcomes[i] for i in indices],
+                        censor_outcomes=[self.censor_outcomes[i] for i in indices] if self.censor_outcomes is not None else None,
+                        vocabulary=self.vocabulary,
+                        mode=mode)
+
+
+
     def _get_train_val_splits(self, split: float)->Tuple[list, list]:
         """Randomly split a list of items into two lists of lengths determined by split"""
         assert split < 1 and split > 0, "Split must be between 0 and 1"

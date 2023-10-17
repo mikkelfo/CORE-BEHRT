@@ -26,12 +26,13 @@ class EHRTrainer():
         cfg = None,
         logger = None,
         run = None,
-        accumulate_logits = False
+        accumulate_logits = False,
+        run_folder = None,
     ):
         self.logger = logger
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         self.log(f"Run on {self.device}")
-        self.run_folder = os.path.join(cfg.paths.output_path, cfg.paths.run_name)
+        self.run_folder = run_folder if run_folder else os.path.join(cfg.paths.output_path, cfg.paths.run_name)
         self.log(f"Run folder: {self.run_folder}")
         self.log("Send model to device")
         self.model = model.to(self.device)
@@ -283,6 +284,7 @@ class EHRTrainer():
     def save_checkpoint(self, id, **kwargs):
         """Saves a checkpoint"""
         # Model/training specific
+        os.makedirs(os.path.join(self.run_folder, 'checkpoints'), exist_ok=True)
         checkpoint_name = os.path.join(self.run_folder, 'checkpoints', f'checkpoint_{id}.pt')
 
         torch.save({

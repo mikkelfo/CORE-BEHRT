@@ -175,7 +175,7 @@ class DatasetPreparer:
         vocabulary = torch.load(join(dir_, 'vocabulary.pt'))
         return Data(train_features, pids, outcomes, vocabulary=vocabulary, mode=mode)
 
-    def prepare_finetune_features(self, original_behrt)->Tuple[dict]:
+    def prepare_finetune_features(self)->Tuple[dict]:
         """
         Prepare the features for fine-tuning. 
         The process includes:
@@ -262,21 +262,23 @@ class DatasetPreparer:
         datasets = self._process_datasets(datasets, self._save_sequence_lengths)
         data = datasets['val']
 
-        if original_behrt:
+        if self.cfg.model.get('behrt_embeddings', False):
             data.features = BehrtAdapter().adapt_features(data.features)
         torch.save(data.features, join(self.run_folder, 'features.pt'))
         torch.save(data.pids, join(self.run_folder, 'pids.pt'))
 
         return data
     
-    def save_patient_nums(self, train_data: Data=None, val_data: Data=None)->None:
+    def save_patient_nums(self, train_data: Data=None, val_data: Data=None, folder:str=None)->None:
         """Save patient numbers for train val including the number of positive patients to a csv file"""
         train_df = pd.DataFrame({'train': [len(train_data), len([t for t in train_data.outcomes if not pd.isna(t)])]}, 
                                 index=['total', 'positive'])
         val_df = pd.DataFrame({'val': [len(val_data), len([t for t in val_data.outcomes if not pd.isna(t)])]},
                               index=['total', 'positive'])
         patient_nums = pd.concat([train_df, val_df], axis=1)
-        patient_nums.to_csv(join(self.run_folder, 'patient_nums.csv'), index_label='Patient Group')
+        patient_nums.to_csv(join(
+            self.run_folder if folder is None else folder, 'patient_nums.csv'), 
+                            index_label='Patient Group')
 
     def _log_pos_patients_num(self, datasets: Dict)->None:
         for mode, data in datasets.items():

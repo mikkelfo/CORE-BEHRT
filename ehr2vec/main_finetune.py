@@ -25,9 +25,7 @@ def main_finetune():
     logger = setup_run_folder(cfg)
     cfg.save_to_yaml(join(cfg.paths.output_path, cfg.paths.run_name, 'finetune_config.yaml'))
     dataset_preparer = DatasetPreparer(cfg)
-    data = dataset_preparer.prepare_finetune_features(
-        original_behrt = cfg.model.get('behrt_embeddings', False)
-    )
+    data = dataset_preparer.prepare_finetune_features()
     
     train_data, val_data = data.split(cfg.data.get('val_split', 0.2))
     torch.save(train_data.pids, join(cfg.paths.output_path, cfg.paths.run_name, 'train_pids.pt'))

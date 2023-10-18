@@ -24,9 +24,8 @@ def main_finetune():
     cfg = adjust_paths_for_finetune(cfg)
     cfg, run, mount_context = azure_finetune_setup(cfg)
     cfg = add_pretrain_info_to_cfg(cfg)
-    
     logger, run_folder = setup_run_folder(cfg)
-    
+
     copy_data_config(cfg, run_folder)
 
     cfg.save_to_yaml(join(run_folder, 'finetune_config.yaml'))

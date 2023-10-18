@@ -73,7 +73,6 @@ def azure_finetune_setup(cfg: Config):
     """Azure setup for finetuning. Prepend mount folder."""
     if cfg.env=='azure':
         run, mount_context = setup_azure(cfg.paths.run_name)
-        cfg.paths.data_path = join(mount_context.mount_point, cfg.paths.data_path)
         cfg.paths.model_path = join(mount_context.mount_point, cfg.paths.model_path)
         cfg.paths.outcome = join(mount_context.mount_point, cfg.paths.outcome)
         if cfg.paths.get('censor', None) is not None:
@@ -96,13 +95,15 @@ def adjust_paths_for_finetune(cfg: Config)->Config:
     cfg.paths.run_name = construct_finetune_model_dir_name(cfg)
     return cfg
 
-def add_pretrain_info_to_cfg(cfg:Config)->Config:
+def add_pretrain_info_to_cfg(cfg:Config, mount_context=None)->Config:
     """Add information about pretraining to the config."""
     pretrain_cfg = load_config(join(cfg.paths.model_path, 'pretrain_config.yaml'))
-    cfg.data.remove_background = pretrain_cfg.data.remove_background
-    cfg.paths.tokenized_dir = pretrain_cfg.paths.tokenized_dir
     pretrain_data_path = remove_mount_folder(pretrain_cfg.paths.data_path)
     cfg.paths.data_path = pretrain_data_path 
+    if cfg.env=='azure':
+        cfg.paths.data_path = join(mount_context.mount_point, cfg.paths.data_path)
+    cfg.data.remove_background = pretrain_cfg.data.remove_background
+    cfg.paths.tokenized_dir = pretrain_cfg.paths.tokenized_dir
     return cfg
 
 def remove_mount_folder(path_str: str) -> str:

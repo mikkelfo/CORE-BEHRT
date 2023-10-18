@@ -98,7 +98,7 @@ def initialize_configuration():
     cfg = adjust_paths_for_finetune(cfg)
     
     cfg, run, mount_context = azure_finetune_setup(cfg)
-    cfg = add_pretrain_info_to_cfg(cfg)
+    cfg = add_pretrain_info_to_cfg(cfg, mount_context)
     return cfg, run, mount_context, model_path
 
 

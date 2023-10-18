@@ -101,6 +101,8 @@ def add_pretrain_info_to_cfg(cfg:Config, mount_context=None)->Config:
     pretrain_data_path = remove_mount_folder(pretrain_cfg.paths.data_path)
     cfg.paths.data_path = pretrain_data_path 
     if cfg.env=='azure':
+        if mount_context is None:
+            raise ValueError('mount_context must be provided when env is azure')
         cfg.paths.data_path = join(mount_context.mount_point, cfg.paths.data_path)
     cfg.data.remove_background = pretrain_cfg.data.remove_background
     cfg.paths.tokenized_dir = pretrain_cfg.paths.tokenized_dir
@@ -109,14 +111,18 @@ def add_pretrain_info_to_cfg(cfg:Config, mount_context=None)->Config:
 def remove_mount_folder(path_str: str) -> str:
     """Remove mount folder from path."""
     path_parts = split_path(path_str)
-    return os.path.join(*[part for part in path_parts if part != 'tmp'])
+    return os.path.join(*[part for part in path_parts if not part.startswith('tmp')])
 
 def split_path(path_str: str) -> list:
     """Split path into its components."""
     directories = []
     while path_str:
         path_str, directory = os.path.split(path_str)
-        directories.append(directory or path_str)
+        # If we've reached the root directory
+        if directory:
+            directories.append(directory)
+        elif path_str:
+            break
     return directories[::-1]  # Reverse the list to get original order
 
 def construct_finetune_model_dir_name(cfg: Config)->str:

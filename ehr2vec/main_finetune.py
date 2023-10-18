@@ -23,7 +23,7 @@ def main_finetune():
     model_path = cfg.paths.model_path
     cfg = adjust_paths_for_finetune(cfg)
     cfg, run, mount_context = azure_finetune_setup(cfg)
-    cfg = add_pretrain_info_to_cfg(cfg)
+    cfg = add_pretrain_info_to_cfg(cfg, mount_context)
     logger, run_folder = setup_run_folder(cfg)
 
     copy_data_config(cfg, run_folder)

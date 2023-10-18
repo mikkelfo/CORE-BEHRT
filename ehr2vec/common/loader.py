@@ -205,9 +205,9 @@ class DatasetPreparer:
         # 2. Excluding pretrain patients
         datasets = self._process_datasets(datasets, self._exclude_pretrain_patients) 
         # 3. Patient selection
-        if data_cfg.get('numpatients', False):
+        if data_cfg.get('num_patients', False):
             datasets = self._process_datasets(datasets, self._select_random_subset, 
-                                              {'val': {'num_patients':data_cfg.numpatients}})
+                                              {'val': {'num_patients':data_cfg.num_patients}})
         # 4. Optinally select gender group
         if data_cfg.get('gender', False):
             datasets = self._process_datasets(datasets, self._select_by_gender)

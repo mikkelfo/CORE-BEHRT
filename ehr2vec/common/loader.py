@@ -212,7 +212,7 @@ class DatasetPreparer:
         if data_cfg.get('gender', False):
             datasets = self._process_datasets(datasets, self._select_by_gender)
         # 5. Loading and processing outcomes
-        logger.info('Load outcomes')
+        logger.info(f'Load outcomes from {paths_cfg.outcome} and censoring outcomes from {paths_cfg.censor if paths_cfg.get("censor", False) else paths_cfg.outcome}')
         outcomes = torch.load(paths_cfg.outcome)
         censor_outcomes = torch.load(paths_cfg.censor) if paths_cfg.get('censor', False) else outcomes   
         logger.info("Assigning outcomes to data")
@@ -577,15 +577,19 @@ class DatasetPreparer:
     @staticmethod
     def _select_and_order_outcomes_for_patients(all_outcomes: Dict, pids: List, outcome: str) -> List:
         """Select outcomes for patients and order them based on the order of pids"""
-        # Create a dictionary of positions for each PID for quick lookup
-        pid_to_index = {pid: idx for idx, pid in enumerate(all_outcomes[PID_KEY])}
-        
-        outcome_pids = set(all_outcomes[PID_KEY])
-        if not set(pids).issubset(outcome_pids):
-            logger.warn(f"PIDs is not a subset of outcome PIDs, there is a \
-                        mismatch of {len(set(pids).difference(outcome_pids))} patients") 
+        outcome_pids = all_outcomes[PID_KEY]
         outcome_group = all_outcomes[outcome]
+        assert len(outcome_pids) == len(outcome_group), "Mismatch between PID_KEY length and outcome_group length"
+
+        # Create a dictionary of positions for each PID for quick lookup
+        pid_to_index = {pid: idx for idx, pid in enumerate(outcome_pids)}
+        
+        outcome_pids = set(outcome_pids)
+        if not set(pids).issubset(outcome_pids):
+            logger.warn(f"PIDs is not a subset of outcome PIDs, there is a mismatch of {len(set(pids).difference(outcome_pids))} patients") 
+        
         outcomes = [outcome_group[pid_to_index[pid]] if pid in outcome_pids else None for pid in pids]
+
         return outcomes
 
     def _save_pids(self, train_pids: list, val_pids: list)->None:

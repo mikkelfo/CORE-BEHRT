@@ -1,10 +1,8 @@
 env: local
 paths:
-  data_path: "../outputs/data_icd10"
   model_path: "outputs/pretraining/behrt_test"
   checkpoint_epoch: 2
   outcome: "../outputs/data_icd10/outcomes/TEST_CENSOR/TEST_CENSOR.pt"
-  # censor: "outputs/outcomes/TEST/TEST.pt"
   #output_path: "outputs/finetuning"
   run_name: "test"
   tokenized_dir: "tokenized"

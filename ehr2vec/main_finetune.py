@@ -26,6 +26,7 @@ def main_finetune():
     cfg = add_pretrain_info_to_cfg(cfg)
     
     logger, run_folder = setup_run_folder(cfg)
+    
     copy_data_config(cfg, run_folder)
 
     cfg.save_to_yaml(join(run_folder, 'finetune_config.yaml'))
@@ -62,8 +63,7 @@ def main_finetune():
         cfg.trainer_args.shuffle = False
 
     if cfg.scheduler:
-        cfg.scheduler.optimizer = optimizer
-        scheduler = instantiate(cfg.scheduler)
+        scheduler = instantiate(cfg.scheduler, **{'optimizer': optimizer})
 
     trainer = EHRTrainer( 
         model=model, 

@@ -97,10 +97,26 @@ def adjust_paths_for_finetune(cfg: Config)->Config:
     return cfg
 
 def add_pretrain_info_to_cfg(cfg:Config)->Config:
+    """Add information about pretraining to the config."""
     pretrain_cfg = load_config(join(cfg.paths.model_path, 'pretrain_config.yaml'))
     cfg.data.remove_background = pretrain_cfg.data.remove_background
     cfg.paths.tokenized_dir = pretrain_cfg.paths.tokenized_dir
+    pretrain_data_path = remove_mount_folder(pretrain_cfg.paths.data_path)
+    cfg.paths.data_path = pretrain_data_path 
     return cfg
+
+def remove_mount_folder(path_str: str) -> str:
+    """Remove mount folder from path."""
+    path_parts = split_path(path_str)
+    return os.path.join(*[part for part in path_parts if part != 'tmp'])
+
+def split_path(path_str: str) -> list:
+    """Split path into its components."""
+    directories = []
+    while path_str:
+        path_str, directory = os.path.split(path_str)
+        directories.append(directory or path_str)
+    return directories[::-1]  # Reverse the list to get original order
 
 def construct_finetune_model_dir_name(cfg: Config)->str:
     """Constructs the name of the finetune model directory. Based on the outcome type, the censor type, and the number of hours pre- or post- outcome."""

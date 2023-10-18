@@ -65,8 +65,7 @@ def finetune_fold(data:Data, train_indices:List[int], val_indices:List[int], fol
         cfg.trainer_args.shuffle = False
 
     if cfg.scheduler:
-        cfg.scheduler.optimizer = optimizer
-        scheduler = instantiate(cfg.scheduler)
+        scheduler = instantiate(cfg.scheduler, **{'optimizer': optimizer})
 
     trainer = EHRTrainer( 
         model=model, 

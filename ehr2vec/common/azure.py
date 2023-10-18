@@ -10,12 +10,6 @@ def get_workspace():
     workspace = Workspace(subscription_id, resource_group, workspace_name)
     return workspace
 
-def get_datastore(name):
-    from azureml.core import Datastore
-    workspace = get_workspace()
-    datastore = Datastore.get(workspace, name)
-    return datastore
-
 def setup_azure(run_name, datastore_name='workspaceblobstore', dataset_name='PHAIR'):
     """Sets up azure run and mounts data on PHAIR blobstore"""
     from azure_run.run import Run

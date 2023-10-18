@@ -16,6 +16,7 @@ class DataSet:
         self.file_ids = None
 
 class Batches:
+    """Class for splitting batches into train, validation and test sets"""
     def __init__(self, cfg, pids: List[List[str]]):
         self.pids = pids
         self.cfg = cfg
@@ -69,7 +70,7 @@ class Batches:
             raise ValueError(f'Invalid set {set_}')
         return self.flatten([self.pids[i] for i in file_ids])
     
-    def load_splits(self, data_dir)-> None:
+    def load_splits(self, data_dir: str)-> None:
         self.train.pids = torch.load(join(data_dir, 'train_pids.pt'))
         self.val.pids = torch.load(join(data_dir, 'val_pids.pt'))
         self.test.pids = torch.load(join(data_dir, 'test_pids.pt'))
@@ -82,7 +83,7 @@ class Batches:
         return [item for sublist in ls_of_ls for item in sublist] 
 
 class BatchTokenize:
-    def __init__(self, tokenizer, cfg, tokenized_dir_name='tokenized'):
+    def __init__(self, tokenizer, cfg, tokenized_dir_name:str='tokenized'):
         self.tokenizer = tokenizer
         self.cfg = cfg
         self.tokenized_dir_name = tokenized_dir_name
@@ -96,7 +97,7 @@ class BatchTokenize:
         test_files = self.batch_tokenize(batches.test.file_ids, mode='test')
         return train_files, val_files, test_files
 
-    def batch_tokenize(self, batches, mode='train'):
+    def batch_tokenize(self, batches: Batches, mode:str='train')->None:
         """Tokenizes batches and saves them"""
         if check_directory_for_features(self.cfg.loader.data_dir):
             features_dir = join(self.cfg.loader.data_dir, 'features')
@@ -115,8 +116,8 @@ class BatchTokenize:
         assert len(pids) == len(encoded['concept']), f"Length of pids ({len(pids)}) does not match length of encoded ({len(encoded['concept'])})"
         
     @staticmethod
-    def merge_dicts(dict1:dict, dict2:dict):
-        """Merges two dictionaries"""
+    def merge_dicts(dict1:dict, dict2:dict)->None:
+        """Merges two dictionaries in place (dict1)"""
         for key, value in dict2.items():
             dict1.setdefault(key, []).extend(value)
         

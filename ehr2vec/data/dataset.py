@@ -3,6 +3,7 @@ import logging
 import pandas as pd
 import torch
 from torch.utils.data import Dataset
+from typing import Iterator, Tuple
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
 
@@ -11,7 +12,7 @@ class BaseEHRDataset(Dataset):
     def __init__(self, features:dict):
         self.features = features
 
-    def _getpatient(self, index):
+    def _getpatient(self, index)->dict:
         return {
             key: torch.as_tensor(values[index]) for key, values in self.features.items()
         }
@@ -40,7 +41,7 @@ class MLMDataset(BaseEHRDataset):
         else:
             self.n_special_tokens = 0
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int)->dict:
         patient = super().__getitem__(index)
 
         masked_concepts, target = self._mask(patient)
@@ -49,7 +50,7 @@ class MLMDataset(BaseEHRDataset):
 
         return patient
 
-    def _mask(self, patient: dict):
+    def _mask(self, patient: dict)->Tuple[torch.Tensor, torch.Tensor]:
         concepts = patient["concept"]
 
         N = len(concepts)
@@ -119,7 +120,7 @@ class HierarchicalMLMDataset(MLMDataset):
         self.target_mapping = self.get_target_mapping()
         self.levels = self.tree_matrix.shape[0]
 
-    def __getitem__(self, index):
+    def __getitem__(self, index:int)->dict:
         patient = super().__getitem__(index)
 
         target_mask = patient['target'] != -100

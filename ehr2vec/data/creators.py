@@ -6,7 +6,7 @@ class BaseCreator():
     def __init__(self, config: dict):
         self.config = config
 
-    def __call__(self, concepts: pd.DataFrame, patients_info: pd.DataFrame):
+    def __call__(self, concepts: pd.DataFrame, patients_info: pd.DataFrame)-> pd.DataFrame:
          # Create PID -> BIRTHDATE dict
         if 'BIRTHDATE' not in patients_info.columns:
             if 'DATE_OF_BIRTH' in patients_info.columns:
@@ -17,7 +17,7 @@ class BaseCreator():
 
 class AgeCreator(BaseCreator):
     feature = id = 'age'
-    def create(self, concepts: pd.DataFrame, patients_info: pd.DataFrame):
+    def create(self, concepts: pd.DataFrame, patients_info: pd.DataFrame)-> pd.DataFrame:
         birthdates = pd.Series(patients_info['BIRTHDATE'].values, index=patients_info['PID']).to_dict()
         # Calculate approximate age
         ages = (((concepts['TIMESTAMP'] - concepts['PID'].map(birthdates)).dt.days / 365.25) + 0.5).round()
@@ -28,7 +28,7 @@ class AgeCreator(BaseCreator):
 class AbsposCreator(BaseCreator):
     
     feature = id = 'abspos'
-    def create(self, concepts: pd.DataFrame, patients_info: pd.DataFrame):
+    def create(self, concepts: pd.DataFrame, patients_info: pd.DataFrame)-> pd.DataFrame:
         origin_point = datetime(**self.config.abspos)
         # Calculate hours since origin point
         abspos = (concepts['TIMESTAMP'] - origin_point).dt.total_seconds() / 60 / 60
@@ -38,7 +38,7 @@ class AbsposCreator(BaseCreator):
 
 class SegmentCreator(BaseCreator):
     feature = id = 'segment'
-    def create(self, concepts: pd.DataFrame, patients_info: pd.DataFrame):
+    def create(self, concepts: pd.DataFrame, patients_info: pd.DataFrame)-> pd.DataFrame:
         if 'ADMISSION_ID' in concepts.columns:
             seg_col = 'ADMISSION_ID'
         elif 'SEGMENT' in concepts.columns:
@@ -54,7 +54,7 @@ class SegmentCreator(BaseCreator):
 class BackgroundCreator(BaseCreator):
     id = 'background'
     prepend_token = "BG_"
-    def create(self, concepts: pd.DataFrame, patients_info: pd.DataFrame):
+    def create(self, concepts: pd.DataFrame, patients_info: pd.DataFrame)-> pd.DataFrame:
         # Create background concepts
         background = {
             'PID': patients_info['PID'].tolist() * len(self.config.background),
@@ -72,8 +72,6 @@ class BackgroundCreator(BaseCreator):
             origin_point = datetime(**self.config.abspos)
             start = (patients_info['BIRTHDATE'] - origin_point).dt.total_seconds() / 60 / 60
             background['ABSPOS'] = start.tolist() * len(self.config.background)
-
-        # background['AGE'] = -1
 
         # Prepend background to concepts
         background = pd.DataFrame(background)

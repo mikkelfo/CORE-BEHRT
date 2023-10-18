@@ -1,21 +1,23 @@
 import glob
 import os
+import random
 from datetime import datetime
 from os.path import join, split
+from typing import Iterator, Tuple
 
 import dateutil
 import pandas as pd
 import pyarrow.parquet as pq
 
-import random
 
 class ConceptLoader():
+    """Load concepts and patient data"""
     def __init__(self, concepts=['diagnose', 'medication'], data_dir: str = 'formatted_data', patients_info: str = 'patients_info.csv', **kwargs):
         self.concepts = concepts
         self.data_dir = data_dir
         self.patients_info = patients_info
 
-    def __call__(self):
+    def __call__(self)->Tuple[pd.DataFrame, pd.DataFrame]:
         # Get all concept files
         concept_paths = os.path.join(self.data_dir, 'concept.*')
         path = glob.glob(concept_paths)
@@ -46,7 +48,7 @@ class ConceptLoader():
 
         return df
     @staticmethod
-    def detect_date_columns(df: pd.DataFrame):
+    def detect_date_columns(df: pd.DataFrame)-> list:
         date_columns = []
         for col in df.columns:
             if isinstance(df[col], datetime):
@@ -61,6 +63,7 @@ class ConceptLoader():
         return date_columns
 
 class ConceptLoaderLarge(ConceptLoader):
+    """Load concepts and patient data in chunks"""
     def __init__(self, concepts: list = ['diagnosis', 'medication'], data_dir: str = 'formatted_data', patients_info: str = 'patients_info.csv', **kwargs):
         
         concept_paths = glob.glob(os.path.join(data_dir, 'concept.*'))
@@ -73,7 +76,7 @@ class ConceptLoaderLarge(ConceptLoader):
         self.batch_size = kwargs.get('batch_size', 100000)
         self.test = kwargs.get('test', False)
 
-    def __call__(self):
+    def __call__(self)->Iterator[Tuple[pd.DataFrame, pd.DataFrame]]:
         for patients in self.get_patient_batch():
             # Load concepts
             concepts = pd.concat([self._read_file(p, patients) for p in self.concept_paths], ignore_index=True).drop_duplicates()
@@ -82,41 +85,47 @@ class ConceptLoaderLarge(ConceptLoader):
             patients_info = self.patients_df[self.patients_df['PID'].isin(patients)]
             yield concepts, patients_info
 
-    def _read_file(self, file_path, patients: list = None):
-        file_type = file_path.split(".")[-1]
-        if file_type == 'csv':
-            if patients is None:
-                df = pd.read_csv(file_path)
-            else:
-                df_chunks = pd.read_csv(file_path, chunksize=self.chunksize)
-        elif file_type == 'parquet':
-            if patients is None:
-                df = pq.read_table(file_path).to_pandas()
-            else:
-                df_chunks = ParquetIterator(file_path, self.chunksize)
-        else:
-            raise ValueError(f'Unknown file type {file_type}')
+    def _read_file(self, file_path: str, patients: list = None)-> pd.DataFrame:
+        def get_dataframe_from_file(file_path: str, chunksize: int = None):
+            file_type = file_path.split(".")[-1]
             
+            if file_type == 'csv':
+                return pd.read_csv(file_path, chunksize=chunksize)
+            
+            if file_type == 'parquet':
+                if chunksize is None:
+                    return pq.read_table(file_path).to_pandas()
+                return ParquetIterator(file_path, chunksize)
+            
+            raise ValueError(f'Unknown file type {file_type}')
+
+        # If patients list is not provided, read the entire file and handle datetime
+        if patients is None:
+            df = get_dataframe_from_file(file_path)
+            return self.handle_datetime_columns(df)
+
+        # If patients list is provided, read the file in chunks and filter it
+
+
         if patients is None:
             return self.handle_datetime_columns(df)
         else:
             chunks = []
-            for chunk in df_chunks:
+            for chunk in get_dataframe_from_file(file_path, self.chunksize):
                 chunk = self.handle_datetime_columns(chunk)
                 filtered_chunk = chunk[chunk['PID'].isin(patients)]  # assuming 'PID' is the patient ID column in this file too
                 chunks.append(filtered_chunk)
 
-            # Combine all the filtered chunks
-            filtered_df = pd.concat(chunks, ignore_index=True)
-            return filtered_df
+            return pd.concat(chunks, ignore_index=True)
 
-    def handle_datetime_columns(self, df):
+    def handle_datetime_columns(self, df: pd.DataFrame)-> pd.DataFrame:
+        """Convert all datetime columns to datetime objects"""
         for col in self.detect_date_columns(df):
             df[col] = pd.to_datetime(df[col], errors='coerce')
             df[col] = df[col].dt.tz_localize(None)
         return df
     
-    def get_patient_batch(self):
+    def get_patient_batch(self)-> Iterator[list]:
         """Yield successive batches of patient IDs from patient_ids."""
         for i in range(0, len(self.patient_ids), self.batch_size):
             if self.test:

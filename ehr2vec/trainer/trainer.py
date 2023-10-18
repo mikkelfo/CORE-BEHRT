@@ -51,7 +51,7 @@ class EHRTrainer():
         
         if self.cfg.trainer_args.get('mixed_precision', False):
             raise ValueError("Mixed precision produces unstable results (nan loss). Please use full precision.")
-            self.scaler = GradScaler()
+            # self.scaler = GradScaler()
         else:
             self.scaler = None
         default_args = {

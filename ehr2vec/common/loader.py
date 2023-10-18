@@ -39,7 +39,7 @@ def load_model(model_class, cfg, add_config={}):
 
     if len([k for k in missing_keys if k.startswith('embeddings')])>0:
         pretrained_model_embeddings = model.embeddings.__class__.__name__
-        raise ValueError("Embeddings not loaded. Ensure that model.behrt_embeddings is compatible with pretrained model embeddings {pretrained_model_embeddings}.")
+        raise ValueError(f"Embeddings not loaded. Ensure that model.behrt_embeddings is compatible with pretrained model embeddings {pretrained_model_embeddings}.")
     logger.warning("missing state dict keys: %s", missing_keys)
     return model
 
@@ -118,62 +118,6 @@ class DatasetPreparer:
                                             h_vocabulary, tree, tree_matrix, 
                                             **self.cfg.data.dataset)
         return train_dataset, val_dataset
-
-    def prepare_onehot_features(self)->Tuple[np.ndarray]:
-        """Use ft features and map them onto one hot vectors with binary outcomes"""
-        train_data = self._load_finetune_data(mode='train')
-        val_data = self._load_finetune_data(mode='val')
-        token2index, new_vocab = self._get_token_to_index_map(train_data.vocabulary)
-        X_train, y_train = self._encode_to_onehot(train_data, token2index)
-        X_val, y_val = self._encode_to_onehot(val_data, token2index)
-        return X_train, y_train, X_val, y_val, new_vocab
-    
-    def _encode_to_onehot(self, data:Data, token2index: dict)->Tuple[np.ndarray]:
-        """Encode features to one hot and age at the time of last event"""
-        AGE_INDEX = 0
-         # Initialize arrays
-        num_samples = len(data)
-        num_features = len(token2index) + 1 # +1 for age
-        X = np.zeros((num_samples, num_features), dtype=np.int16)
-        y = np.zeros(num_samples, dtype=np.int16)
-        # Create an array of keys for faster lookup
-        keys_array = np.array(list(token2index.keys())) 
-        
-        # Vectorized function to map tokens to indices
-        token2index_map = np.vectorize(token2index.get)
-
-        for i, (concepts, outcome) in enumerate(zip(data.features['concept'], data.outcomes)):
-            y[i] = int(not pd.isna(outcome))
-            age = data.features['age'][i][-1]    
-            X[i, AGE_INDEX] = age
-            
-            # Filter and encode unique concepts
-            concepts = np.array(concepts)
-            unique_concepts = np.unique(concepts)
-            valid_concepts_mask = np.isin(unique_concepts, keys_array) # Only keep concepts that are in the token2index map
-            filtered_concepts = unique_concepts[valid_concepts_mask]
-            concept_indices = token2index_map(filtered_concepts) + 1
-            X[i, concept_indices] = 1
-        return X, y
-                
-    # ! Potentially map gender onto one index?
-    def _get_token_to_index_map(self, vocabulary:dict)->Tuple[dict]:
-        """
-        Creates a new mapping from vocbulary values to new integers excluding special tokens
-        """
-        filtered_tokens = set([v for k, v in vocabulary.items() if not k.startswith('[')])
-        token2index = {token: i for i, token in enumerate(filtered_tokens)}        
-        new_vocab = {k: token2index[v] for k, v in vocabulary.items() if v in token2index}
-        return token2index, new_vocab
-
-    def _load_finetune_data(self, mode: str)->Data:
-        """Load features for finetuning"""
-        dir_ = self.cfg.paths.finetune_features_path
-        train_features = torch.load(join(dir_, f'features_{mode}.pt'))
-        outcomes = torch.load(join(dir_, f'outcomes_{mode}.pt'))
-        pids = torch.load(join(dir_, f'pids_{mode}.pt'))
-        vocabulary = torch.load(join(dir_, 'vocabulary.pt'))
-        return Data(train_features, pids, outcomes, vocabulary=vocabulary, mode=mode)
 
     def prepare_finetune_features(self)->Tuple[dict]:
         """
@@ -268,7 +212,63 @@ class DatasetPreparer:
         torch.save(data.pids, join(self.run_folder, 'pids.pt'))
 
         return data
+
+    def prepare_onehot_features(self)->Tuple[np.ndarray]:
+        """Use ft features and map them onto one hot vectors with binary outcomes"""
+        train_data = self._load_finetune_data(mode='train')
+        val_data = self._load_finetune_data(mode='val')
+        token2index, new_vocab = self._get_token_to_index_map(train_data.vocabulary)
+        X_train, y_train = self._encode_to_onehot(train_data, token2index)
+        X_val, y_val = self._encode_to_onehot(val_data, token2index)
+        return X_train, y_train, X_val, y_val, new_vocab
     
+    def _encode_to_onehot(self, data:Data, token2index: dict)->Tuple[np.ndarray]:
+        """Encode features to one hot and age at the time of last event"""
+        AGE_INDEX = 0
+         # Initialize arrays
+        num_samples = len(data)
+        num_features = len(token2index) + 1 # +1 for age
+        X = np.zeros((num_samples, num_features), dtype=np.int16)
+        y = np.zeros(num_samples, dtype=np.int16)
+        # Create an array of keys for faster lookup
+        keys_array = np.array(list(token2index.keys())) 
+        
+        # Vectorized function to map tokens to indices
+        token2index_map = np.vectorize(token2index.get)
+
+        for i, (concepts, outcome) in enumerate(zip(data.features['concept'], data.outcomes)):
+            y[i] = int(not pd.isna(outcome))
+            age = data.features['age'][i][-1]    
+            X[i, AGE_INDEX] = age
+            
+            # Filter and encode unique concepts
+            concepts = np.array(concepts)
+            unique_concepts = np.unique(concepts)
+            valid_concepts_mask = np.isin(unique_concepts, keys_array) # Only keep concepts that are in the token2index map
+            filtered_concepts = unique_concepts[valid_concepts_mask]
+            concept_indices = token2index_map(filtered_concepts) + 1
+            X[i, concept_indices] = 1
+        return X, y
+                
+    # ! Potentially map gender onto one index?
+    def _get_token_to_index_map(self, vocabulary:dict)->Tuple[dict]:
+        """
+        Creates a new mapping from vocbulary values to new integers excluding special tokens
+        """
+        filtered_tokens = set([v for k, v in vocabulary.items() if not k.startswith('[')])
+        token2index = {token: i for i, token in enumerate(filtered_tokens)}        
+        new_vocab = {k: token2index[v] for k, v in vocabulary.items() if v in token2index}
+        return token2index, new_vocab
+
+    def _load_finetune_data(self, mode: str)->Data:
+        """Load features for finetuning"""
+        dir_ = self.cfg.paths.finetune_features_path
+        train_features = torch.load(join(dir_, f'features_{mode}.pt'))
+        outcomes = torch.load(join(dir_, f'outcomes_{mode}.pt'))
+        pids = torch.load(join(dir_, f'pids_{mode}.pt'))
+        vocabulary = torch.load(join(dir_, 'vocabulary.pt'))
+        return Data(train_features, pids, outcomes, vocabulary=vocabulary, mode=mode)
+
     def save_patient_nums(self, train_data: Data=None, val_data: Data=None, folder:str=None)->None:
         """Save patient numbers for train val including the number of positive patients to a csv file"""
         train_df = pd.DataFrame({'train': [len(train_data), len([t for t in train_data.outcomes if not pd.isna(t)])]}, 
@@ -442,13 +442,6 @@ class DatasetPreparer:
         if data.vocabulary['[SEP]'] in example_concepts:
             background_indices.append(max(background_indices)+1)
         return background_indices
-
-    def _remove_short_sequences(self, data: Data)->Data:
-        kept_indices = []
-        for i, concepts in enumerate(data.features['concept']):
-            if len(concepts) >= self.cfg.data.get('min_len', 2):
-                kept_indices.append(i)
-        return self._select_entries(data, kept_indices)
 
     def _load_tokenized_data(self):
         tokenized_dir = self.cfg.paths.get('tokenized_dir', 'tokenized')

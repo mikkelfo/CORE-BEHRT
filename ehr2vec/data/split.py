@@ -1,5 +1,7 @@
-import torch
 from os.path import join
+
+import torch
+
 
 class Splitter():
     def __init__(self, ratios: dict = {'train':0.7, 'val':0.2, 'test':0.1}) -> None:
@@ -41,11 +43,6 @@ class Splitter():
 
         print(f'Resulting split ratios: {[round(len(s) / N, 2) for s in self.splits.values()]}')
         
-    def split_outcomes(self, outcomes: list)-> dict:
-        outcomes_splits = {}
-        for set_, split in self.splits.items():
-            outcomes_splits[set_] = outcomes[split] 
-        return outcomes_splits
     def save(self, dest: str):
         torch.save(self.splits, join(dest, 'splits.pt'))
 

@@ -124,20 +124,19 @@ class DatasetPreparer:
         Prepare the features for fine-tuning. 
         The process includes:
         1. Loading tokenized data
-        2. Excluding pretrain patients
-        3. Optional select random subset
-        4. Optional: Select male/female
+        2. Excluding pretrain patients 
+        3. Optional: Select male/female
+        4. Optional: Select age group
         5. Loading and processing outcomes
         6. Optional: Select only patients with a censoring outcome
         7. Filter patients with outcome before censoring
         8. Optional: Filter code types (e.g. only diagnoses)
         9. Data censoring
         10. Exclude patients with less than k concepts
-        11. Optional: Select patients by age
+        11. Optional select random subset
         12. Optional: Remove background tokens
         13. Truncation
         14. Normalize segments
-        
         """
         data_cfg = self.cfg.data
         paths_cfg = self.cfg.paths
@@ -146,15 +145,18 @@ class DatasetPreparer:
         features, pids, vocabulary = self._load_tokenized_finetune_data()
         data = Data(features, pids, vocabulary=vocabulary, mode='val')
         datasets = {'val': data}
+        
         # 2. Excluding pretrain patients
         datasets = self._process_datasets(datasets, self._exclude_pretrain_patients) 
-        # 3. Patient selection
-        if data_cfg.get('num_patients', False):
-            datasets = self._process_datasets(datasets, self._select_random_subset, 
-                                              {'val': {'num_patients':data_cfg.num_patients}})
-        # 4. Optinally select gender group
+        
+        # 3. Optinally select gender group
         if data_cfg.get('gender', False):
             datasets = self._process_datasets(datasets, self._select_by_gender)
+        
+        # 4. Select Patients By Age
+        if data_cfg.get('min_age', False) or data_cfg.get('max_age', False):
+            datasets = self._process_datasets(datasets, self._select_by_age)
+
         # 5. Loading and processing outcomes
         logger.info(f'Load outcomes from {paths_cfg.outcome} and censoring outcomes from {paths_cfg.censor if paths_cfg.get("censor", False) else paths_cfg.outcome}')
         outcomes = torch.load(paths_cfg.outcome)
@@ -167,6 +169,7 @@ class DatasetPreparer:
         if data_cfg.get("select_censored", False):
             datasets = self._process_datasets(datasets, self._select_censored)
             self._log_pos_patients_num(datasets)
+        
         # 7. Filter patients with outcome before censoring
         if self.cfg.outcome.type != self.cfg.outcome.get('censor_type', None):
             datasets = self._process_datasets(datasets, self._filter_outcome_before_censor) # !Timeframe (earlier instance of outcome)
@@ -176,18 +179,20 @@ class DatasetPreparer:
         if data_cfg.get('code_types', False):
             datasets = self._process_datasets(datasets, self._filter_code_types)
             self._log_pos_patients_num(datasets)
+
         # 9. Data censoring
         datasets = self._process_datasets(datasets, self._censor_data)
         self._log_pos_patients_num(datasets)
 
         # 10. Exclude patients with less than k concepts
         datasets = self._process_datasets(datasets, self._exclude_short_sequences)
-
-        # 11. Select Patients By Age
-        if data_cfg.get('min_age', False) or data_cfg.get('max_age', False):
-            datasets = self._process_datasets(datasets, self._select_by_age)
+        self._log_pos_patients_num(datasets)
+        # 11. Patient selection
+        if data_cfg.get('num_patients', False):
+            datasets = self._process_datasets(datasets, self._select_random_subset, 
+                                              {'val': {'num_patients':data_cfg.num_patients}})
             self._log_pos_patients_num(datasets)
-
+        
         # 12. Optionally Remove Background Tokens
         if data_cfg.get("remove_background", False):
             datasets = self._process_datasets(datasets, self._remove_background)
@@ -202,11 +207,11 @@ class DatasetPreparer:
 
         datasets['val'].check_lengths()
 
-        self._log_pos_patients_num(datasets)
         datasets = self._process_datasets(datasets, self._save_sequence_lengths)
         data = datasets['val']
 
         if self.cfg.model.get('behrt_embeddings', False):
+            logger.info('Adapting features for behrt embeddings')
             data.features = BehrtAdapter().adapt_features(data.features)
         torch.save(data.features, join(self.run_folder, 'features.pt'))
         torch.save(data.pids, join(self.run_folder, 'pids.pt'))
@@ -284,7 +289,7 @@ class DatasetPreparer:
         for mode, data in datasets.items():
             num_positive_patiens = len([t for t in data.outcomes if not pd.isna(t)])
             if num_positive_patiens < MIN_POSITIVES[mode]:
-                raise ValueError(f"Number of positive patients is less than 10: {num_positive_patiens}")
+                raise ValueError(f"Number of positive patients is less than {MIN_POSITIVES[mode]}: {num_positive_patiens}")
             logger.info(f"Positive {mode} patients: {num_positive_patiens}")
 
     def _process_datasets(self, datasets: Dict, func: callable, args_for_func: Dict=None)->Dict:
@@ -367,27 +372,33 @@ class DatasetPreparer:
     def _prepare_mlm_features(self)->Tuple[dict, dict, dict]:   
         """
         1. Load tokenized data
-        2. Optional: Select random subset
-        3. Truncation
-        4. Optional: Remove background tokens        
+        2. Optional: Remove background tokens
+        3. Exclude short sequences
+        4. Optional: Select subset of patients
+        5. Truncation      
+        6. Normalize segments
         """
         train_features, train_pids, val_features, val_pids, vocabulary = self._load_tokenized_data()
         torch.save(vocabulary, join(self.run_folder, VOCABULARY_FILE))
         datasets = {'train': Data(train_features, train_pids, vocabulary=vocabulary, mode='train'),
                     'val': Data(val_features, val_pids, vocabulary=vocabulary, mode='val')}
-        # Patient Selection
+        
+        # Optional: Remove background tokens
+        if self.cfg.data.get("remove_background", False):
+            datasets = self._process_datasets(datasets, self._remove_background)
+
+        # Exclude short sequences
+        datasets = self._process_datasets(datasets, self._exclude_short_sequences)
+
+        # Patient Subset Selection
         if self.cfg.data.get('num_train_patients', False) or self.cfg.data.get('num_val_patients', False):
             datasets = self._process_datasets(datasets, self._select_random_subset, 
                                               {'train': {'num_patients':self.cfg.data.num_train_patients},
                                                'val': {'num_patients':self.cfg.data.num_val_patients}})
-            
-        if self.cfg.data.get("remove_background", False):
-            logger.info("Removing background tokens")
-            datasets = self._process_datasets(datasets, self._remove_background)
-       
+
         logger.info(f"Truncating data to {self.cfg.data.truncation_len} tokens")
         datasets = self._process_datasets(datasets, self._truncate)
-        logger.info("Normalizing segments")
+
         datasets = self._process_datasets(datasets, self._normalize_segments)
 
         datasets['train'].check_lengths()
@@ -398,6 +409,7 @@ class DatasetPreparer:
         self._check_max_segment(datasets['val'])
         
         if self.cfg.model.get('behrt_embeddings', False):
+            logger.info("Adapting features for BEHRT embeddings")
             datasets['train'].features = BehrtAdapter().adapt_features(datasets['train'].features)
             datasets['val'].features = BehrtAdapter().adapt_features(datasets['val'].features)
         
@@ -443,7 +455,7 @@ class DatasetPreparer:
             background_indices.append(max(background_indices)+1)
         return background_indices
 
-    def _load_tokenized_data(self):
+    def _load_tokenized_data(self)->Tuple[dict, list, dict, list, dict]:
         tokenized_dir = self.cfg.paths.get('tokenized_dir', 'tokenized')
         logger.info('Loading tokenized data from %s', tokenized_dir)
         tokenized_data_path = join(self.cfg.paths.data_path, tokenized_dir)
@@ -460,7 +472,7 @@ class DatasetPreparer:
             vocabulary = torch.load(join(self.cfg.paths.data_path, VOCABULARY_FILE))
         return train_features, train_pids, val_features, val_pids, vocabulary
 
-    def _load_tokenized_finetune_data(self):
+    def _load_tokenized_finetune_data(self)->Tuple[dict, list, dict]:
         tokenized_dir = self.cfg.paths.get('tokenized_dir', 'tokenized')
         tokenized_file = self.cfg.paths.get('tokenized_file', 'tokenized_val.pt')
         tokenized_pids = self.cfg.paths.get('tokenized_pids', 'pids_val.pt')
@@ -475,7 +487,7 @@ class DatasetPreparer:
             vocabulary = torch.load(join(self.cfg.paths.data_path, VOCABULARY_FILE))
         return features, pids, vocabulary
 
-    def _load_tree(self):
+    def _load_tree(self)->Tuple[dict, torch.Tensor, dict]:
         hierarchical_path = join(self.cfg.paths.data_path, 
                                  self.cfg.paths.hierarchical_dir)
         tree = torch.load(join(hierarchical_path, 'tree.pt'))
@@ -483,7 +495,7 @@ class DatasetPreparer:
         h_vocabulary = torch.load(join(hierarchical_path, VOCABULARY_FILE))
         return tree, tree_matrix, h_vocabulary 
 
-    def _exclude_pretrain_patients(self, data: Data):
+    def _exclude_pretrain_patients(self, data: Data)->Data:
         pretrain_pids = set(torch.load(join(self.cfg.paths.model_path, f'pids_{data.mode}.pt')))
         kept_indices = [i for i, pid in enumerate(data.pids) if pid not in pretrain_pids]
         return self._select_entries(data, kept_indices)
@@ -494,8 +506,10 @@ class DatasetPreparer:
         censor_outcomes = all_censor_outcomes.get(self.cfg.outcome.get('censor_type', None), [None]*len(outcomes))
         return outcomes, censor_outcomes
 
-    def _select_random_subset(self, data, num_patients, seed=0):
+    def _select_random_subset(self, data, num_patients, seed=0)->Data:
         """Select a num_patients random patients"""
+        if len(data.pids) <= num_patients:
+            return data
         np.random.seed(seed)
         indices = np.arange(len(data.pids))
         np.random.shuffle(indices)
@@ -514,13 +528,13 @@ class DatasetPreparer:
                 if min_age <= ages[-1] <= max_age]
         return self._select_entries(data, kept_indices)
 
-    def _select_by_gender(self, data):
+    def _select_by_gender(self, data: Data)->Data:
         """Select only patients of a certain gender"""
         gender_token = self._get_gender_token(data.vocabulary, self.cfg.data.gender)
         kept_indices = [i for i, concepts in enumerate(data.features['concept']) if gender_token in set(concepts)]
         return self._select_entries(data, kept_indices)
     
-    def _get_gender_token(self, vocabulary, key):
+    def _get_gender_token(self, vocabulary: dict, key: str)->int:
         """Get the token from the vocabulary corresponding to the gender provided in the config"""
         
         # Determine the gender category
@@ -590,12 +604,12 @@ class DatasetPreparer:
         torch.save(val_pids, join(self.run_folder, 'pids_val.pt'))
 
     @staticmethod
-    def _log_patient_nums(operation:str, datasets: Dict):
+    def _log_patient_nums(operation:str, datasets: Dict)->None:
         logger.info(f"After applying {operation}:")
         for split, data in datasets.items():
             logger.info(f"{split}: {len(data.pids)} patients")
 
-    def _save_sequence_lengths(self, data):
+    def _save_sequence_lengths(self, data: Data)->Data:
         if not data.outcomes:
             sequence_lens = torch.tensor([len(concepts) for concepts in data.features['concept']])
             torch.save(sequence_lens, join(self.run_folder, f'sequences_lengths_{data.mode}.pt'))

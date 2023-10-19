@@ -3,7 +3,7 @@ from os.path import join
 
 import torch
 from common.config import instantiate, load_config
-from common.loader import DatasetPreparer, load_model
+from common.loader import DatasetPreparer, Loader
 from common.setup import (add_pretrain_info_to_cfg, adjust_paths_for_finetune,
                           azure_finetune_setup, get_args, setup_run_folder, copy_data_config)
 from data.dataset import BinaryOutcomeDataset
@@ -36,12 +36,12 @@ def main_finetune():
     torch.save(train_data.pids, join(run_folder, 'train_pids.pt'))
     torch.save(val_data.pids, join(run_folder, 'val_pids.pt'))
     
-    dataset_preparer.save_patient_nums(train_data, val_data)
+    dataset_preparer.saver.save_patient_nums(train_data, val_data)
     train_dataset = BinaryOutcomeDataset(train_data.features, train_data.outcomes)
     val_dataset = BinaryOutcomeDataset(val_data.features, val_data.outcomes)
 
     logger.info('Initializing model')
-    model = load_model(BertForFineTuning, cfg, 
+    model = Loader(cfg).load_model(BertForFineTuning,  
                        {'pos_weight':get_pos_weight(cfg, train_dataset.outcomes),
                         'embedding':'original_behrt' if cfg.model.get('behrt_embeddings', False) else None,
                         'pool_type': cfg.model.get('pool_type', 'mean')})

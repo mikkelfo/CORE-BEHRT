@@ -8,7 +8,7 @@ from os.path import join
 import torch
 from common.azure import setup_azure
 from common.config import load_config
-from common.loader import load_model
+from common.loader import Loader
 from common.setup import get_args, prepare_encodings_directory
 from common.utils import ConcatIterableDataset
 from common.io import ConceptHDF5Writer
@@ -36,7 +36,7 @@ def main(config_path):
         cfg.output_dir = join('outputs', cfg.paths.run_name)
     logger = prepare_encodings_directory(config_path, cfg)
     logger.info('Initializing model')
-    model = load_model(BertEHREncoder, cfg)
+    model = Loader(cfg).load_model(BertEHREncoder)
     logger.info(f"Access data from {cfg.paths.data_path}")
     logger.info(f"Access outcomes from {cfg.paths.outcomes_path}")
     dataset = get_dataset(cfg)

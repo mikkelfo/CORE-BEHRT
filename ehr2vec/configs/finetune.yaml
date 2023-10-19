@@ -14,7 +14,7 @@ model:
   behrt_embeddings: true
 
 data:
-  num_patients: null #300
+  num_patients: 30 #300
   val_split: 0.2
   truncation_len: 30
   select_censored: false
@@ -45,6 +45,7 @@ trainer_args:
   mixed_precision: false
   shuffle: true
   checkpoint_frequency: 2
+  early_stopping: 20
   
 optimizer:
   lr: 5e-4

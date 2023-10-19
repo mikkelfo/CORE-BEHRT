@@ -20,13 +20,14 @@ data:
 trainer_args:
   batch_size: 8
   effective_batch_size: 16
-  epochs: 5
+  epochs: 10
   info: true
   sampler: null
   gradient_clip: 
     clip_value: 1.0
   mixed_precision: false
   shuffle: true
+  early_stopping: null # num_epochs or null/false
 
 model:
   # type_vocab_size should be > truncation_len//2 if sep token else >truncation len

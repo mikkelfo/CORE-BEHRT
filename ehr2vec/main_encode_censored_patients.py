@@ -5,7 +5,7 @@ from os.path import join
 import torch
 from common.azure import setup_azure
 from common.config import load_config
-from common.loader import create_binary_outcome_datasets, load_model
+from common.loader import create_binary_outcome_datasets, Loader
 from common.logger import close_handlers
 from common.setup import prepare_encodings_directory, setup_logger, get_args
 from common.utils import ConcatIterableDataset
@@ -82,7 +82,7 @@ def main_encode():
             
         logger.info(f"Store in directory with name: {_get_output_path_name(dataset, cfg)}")
         logger.info('Initializing model')
-        model = load_model(BertEHREncoder, cfg)
+        model = Loader(cfg).load_model(BertEHREncoder)
 
         forwarder = Forwarder( 
             model=model, 

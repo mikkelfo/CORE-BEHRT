@@ -1,4 +1,5 @@
 import pandas as pd
+from typing import Tuple
 
 class Excluder():
     def __init__(self, min_len: int, min_count: int=0, vocabulary:dict=None):
@@ -12,6 +13,8 @@ class Excluder():
 
     # Currently unused
     def exclude_rare_concepts(self, features: dict) -> pd.DataFrame:
+        """Excludes concepts that occur less than min_count times."""
+        raise DeprecationWarning # This function is not used
         unique_codes = {}
         for patient in features['concept']:
             for code in patient:
@@ -35,7 +38,7 @@ class Excluder():
             outcomes = [outcomes[i] for i in kept_indices]
         return features, outcomes, kept_indices
 
-    def _exclude(self, features: dict):
+    def _exclude(self, features: dict)->list:
         kept_indices = []
         tokenized_features = self._is_tokenized(features['concept'])
         
@@ -52,7 +55,7 @@ class Excluder():
 
         return kept_indices
     
-    def _is_tokenized(self, concepts_list):
+    def _is_tokenized(self, concepts_list)->bool:
         """
         Determines if a list of concepts is tokenized or not.
         Returns True if tokenized, otherwise False.
@@ -63,7 +66,7 @@ class Excluder():
         return False
     
     @staticmethod
-    def exclude_covid_negative(features: dict, outcomes: dict):
+    def exclude_covid_negative(features: dict, outcomes: dict)->Tuple[dict, list]:
         kept_indices = []
         for i, result in enumerate(outcomes['COVID']):
             if pd.notna(result):

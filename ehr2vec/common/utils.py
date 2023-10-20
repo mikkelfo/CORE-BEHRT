@@ -10,6 +10,11 @@ from torch.utils.data import IterableDataset
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
 
+def iter_patients(features: dict) -> dict:
+    """Iterate over patients in a features dict."""
+    for i in range(len(features["concept"])):
+        yield {key: values[i] for key, values in features.items()}
+
 def check_patient_counts(concepts, patients_info, logger):
     if concepts.PID.nunique() != patients_info.PID.nunique():
             logger.warning(f"patients info contains {patients_info.PID.nunique()} patients != \

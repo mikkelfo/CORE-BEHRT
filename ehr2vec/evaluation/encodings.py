@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 import torch
 from common.config import instantiate
-from common.io import PatientHDF5Writer
 from common.logger import TqdmToLogger
 from dataloader.collate_fn import dynamic_padding
 from torch.utils.data import DataLoader
@@ -89,7 +88,8 @@ class Forwarder(EHRTrainer):
             return torch.cat(encodings), torch.cat(labels)
         else:
             return None
-    def obtain_filter_mask(self, input, selected_concept_ints):
+        
+    def obtain_filter_mask(self, input:torch.Tensor, selected_concept_ints:torch.Tensor)->torch.Tensor:
         # Expand dimensions to make tensors broadcastable
         input = input.unsqueeze(1)  # Add a new dimension to tensor1
         selected_concept_ints = selected_concept_ints.unsqueeze(0)  # Add a new dimension to tensor2
@@ -98,7 +98,7 @@ class Forwarder(EHRTrainer):
         # Check if any value in tensor2 matches a value in tensor1
         return torch.any(equality_check, dim=1)
 
-    def produce_patient_trajectory_embeddings(self, start_code_id=4)->dict:
+    def produce_patient_trajectory_embeddings(self, start_code_id:int=4)->dict:
         """Produce embedding for each patient. Showing an increasing number of codes to the model,
         starting with start_code_id. 
         Returns:
@@ -182,14 +182,14 @@ class Forwarder(EHRTrainer):
         return df    
     
     @staticmethod
-    def censor(batch: dict, length: int):
+    def censor(batch: dict, length: int)->dict:
         """Censor a patient based on indices (bs=1)"""
         return {k:v[:,:length] for k,v in batch.items()}
 
-    def retrieve_selected_concept_ints(self, cfg):
+    def retrieve_selected_concept_ints(self, cfg)->torch.tensor:
         vocabulary = torch.load(join(cfg.paths.model_path, 'vocabulary.pt'))
         return self.get_relevant_ids(cfg, vocabulary)
 
-    def get_relevant_ids(self, cfg, vocabulary)->torch.tensor:
+    def get_relevant_ids(self, cfg, vocabulary:dict)->torch.tensor:
         return torch.tensor([v for k,v in vocabulary.items() if any(k.startswith(char) for char in cfg.filter_concepts)], dtype=int)
 

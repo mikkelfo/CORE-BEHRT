@@ -19,7 +19,7 @@ class FeatureMaker():
         self.pipeline = self.create_pipeline()
         
 
-    def __call__(self, concepts: pd.DataFrame, patients_info: pd.DataFrame):
+    def __call__(self, concepts: pd.DataFrame, patients_info: pd.DataFrame)->dict:
         for creator in self.pipeline:
             concepts = creator(concepts, patients_info)
             concepts['CONCEPT'] = concepts['CONCEPT'].astype(str)
@@ -27,7 +27,8 @@ class FeatureMaker():
 
         return features
     
-    def create_pipeline(self):
+    def create_pipeline(self)->list:
+        """Create the pipeline of feature creators."""
         # Pipeline creation
         pipeline = []
         for id in self.config:

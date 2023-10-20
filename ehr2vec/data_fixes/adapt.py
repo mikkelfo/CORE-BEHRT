@@ -1,13 +1,15 @@
 
 class BehrtAdapter:
-    def adapt_features(self, features: dict):
+    def adapt_features(self, features: dict)->dict:
+        """Adapt features to behrt embeddings format. Continuous age is converted to integer and segment is stored as position_ids. 
+        New segment is created from old segment."""
         del features['abspos']
         features['age'] = [self.convert_to_int(ages) for ages in features['age']]
         features['position_ids'] = features['segment'] # segment is the same as position_ids
         features['segment'] = [self.convert_segment(segments) for segments in features['segment']]
         return features
     @staticmethod
-    def convert_to_int(ages: list):
+    def convert_to_int(ages: list)->list:
         """Convert ages to int and replace negative values with 0"""
         converted_ages = []
         for age in ages:
@@ -19,7 +21,7 @@ class BehrtAdapter:
                 converted_ages.append(int(age))
         return converted_ages
     @staticmethod
-    def convert_segment(segments: list):
+    def convert_segment(segments: list)->list:
         """From segment AABBCC to segment 001100111"""
         converted_segments = []
         flag = 0

@@ -1,6 +1,7 @@
+from common.config import instantiate
 from sklearn.manifold import TSNE
 from umap import UMAP
-from common.config import instantiate
+
 
 def dimensionality_reduction(embedding):
     tsne = TSNE(n_components=2, random_state=0)

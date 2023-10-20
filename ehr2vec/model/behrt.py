@@ -1,9 +1,11 @@
-import torch.nn as nn
-import pytorch_pretrained_bert as Bert
-import numpy as np
-import torch
 import os
 from collections import namedtuple
+
+import numpy as np
+import pytorch_pretrained_bert as Bert
+import torch
+import torch.nn as nn
+
 
 class BertConfig(Bert.modeling.BertConfig):
     def __init__(self, config):

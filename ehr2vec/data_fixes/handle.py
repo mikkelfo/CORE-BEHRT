@@ -6,10 +6,12 @@ class Handler():
         self.concept_fill = concept_fill
         self.num_fill = num_fill
         self.drop = drop
-    def __call__(self, features: dict):
+
+    def __call__(self, features: dict)->dict:
         return self.handle(features)
 
-    def handle(self, features: dict):
+    def handle(self, features: dict)->dict:
+        """Handle the features, including: incorrect ages, nans, and segments."""
         handled_patients = {k: [] for k in features}
         for i in range(len(features['concept'])):
             patient = {k: v[i] for k, v in features.items()}
@@ -25,7 +27,7 @@ class Handler():
 
         return handled_patients
 
-    def handle_incorrect_ages(self, patient: dict):
+    def handle_incorrect_ages(self, patient: dict)->dict:
         correct_indices = [i for i, age in enumerate(patient['age']) if -1 <= age <= 120]
         if self.drop:
             for key, values in patient.items():
@@ -36,7 +38,7 @@ class Handler():
 
         return patient
 
-    def handle_nans(self, patient: dict):
+    def handle_nans(self, patient: dict)->dict:
         if self.drop:
             nan_indices = []
             for values in patient.values():

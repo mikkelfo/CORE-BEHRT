@@ -2,7 +2,7 @@ import torch
 
 
 class Time2Vec(torch.nn.Module):
-    def __init__(self, input_dim=1, output_dim=768, function=torch.cos):
+    def __init__(self, input_dim:int=1, output_dim:int=768, function:callable=torch.cos):
         super().__init__()
         self.f = function
 
@@ -13,7 +13,7 @@ class Time2Vec(torch.nn.Module):
         self.w = torch.nn.Parameter(torch.randn(input_dim, output_dim-1))
         self.phi = torch.nn.Parameter(torch.randn(output_dim-1))
 
-    def forward(self, tau: torch.Tensor):
+    def forward(self, tau: torch.Tensor)->torch.Tensor:
         tau = tau.unsqueeze(2)
         v1 = torch.matmul(tau, self.w0)+ self.phi0
         v2 = self.f(torch.matmul(tau, self.w)+ self.phi)

@@ -124,13 +124,13 @@ class HierarchicalMLMDataset(MLMDataset):
         patient = super().__getitem__(index)
 
         target_mask = patient['target'] != -100
-        patient['attention_mask'] = target_mask
 
-        patient['target'] = self._hierarchical_target(patient['target'][patient['attention_mask']])
+        patient['attention_mask'] = target_mask
+        patient['target'] = self._hierarchical_target(patient['target'][target_mask])
 
         return patient
 
-    def _hierarchical_target(self, target):
+    def _hierarchical_target(self, target: torch.Tensor)->torch.Tensor:
         target_levels = torch.tensor(
             [self.target_mapping[t.item()] for t in target]
         )  # Converts target to target for each level
@@ -138,7 +138,7 @@ class HierarchicalMLMDataset(MLMDataset):
             target_levels
         )  # Converts target for each level to probabilities
 
-    def expand_to_class_probabilities(self, target_levels):
+    def expand_to_class_probabilities(self, target_levels: torch.Tensor)->torch.Tensor:
         levels = self.tree_matrix.shape[0]
         seq_len = len(target_levels)
         target_levels = target_levels.view(-1, levels)
@@ -155,12 +155,12 @@ class HierarchicalMLMDataset(MLMDataset):
                 
         return probabilities
     
-    def probs_above_target(self, probabilities, mask, target_levels):
+    def probs_above_target(self, probabilities:torch.Tensor, mask:torch.Tensor, target_levels:torch.Tensor)->torch.Tensor:
         """Sets the probabilities for values up to target level. Simple one-hot encoding."""
         probabilities[mask, target_levels[mask]] = 1
         return probabilities
 
-    def probs_below_target(self, probabilities, mask, target_levels, seq_len):
+    def probs_below_target(self, probabilities:torch.Tensor, mask:torch.Tensor, target_levels:torch.Tensor, seq_len:int)->torch.Tensor:
         """Sets the probabilities for values below target level. Uses the tree matrix to calculate the probabilities based on occurence frequency."""
         last_parents_idx = mask.sum(1)-1
         seq_class_idx = zip(last_parents_idx, target_levels[range(seq_len), last_parents_idx])  # tuple indices of (class_level, class_idx)
@@ -175,7 +175,7 @@ class HierarchicalMLMDataset(MLMDataset):
         probabilities[~mask] = unknown_probabilities
         return probabilities
     
-    def get_target_mapping(self):
+    def get_target_mapping(self)->dict:
         """
         Creates a mapping between the vocabulary and the target mapping created from the tree.
         

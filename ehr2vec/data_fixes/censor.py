@@ -1,6 +1,9 @@
-import pandas as pd
-from data_fixes.exclude import Excluder
 from typing import List, Union
+
+import pandas as pd
+from common.utils import iter_patients
+from data_fixes.exclude import Excluder
+
 
 class Censorer:
     def __init__(self, n_hours: int, min_len: int = 3, vocabulary:dict=None) -> None:
@@ -20,7 +23,7 @@ class Censorer:
 
     def censor(self, features: dict, censor_outcomes: list) -> dict:
         censored_features = {key: [] for key in features}
-        for i, patient in enumerate(self._iter_patients(features)):
+        for i, patient in enumerate(iter_patients(features)):
             censor_timestamp = censor_outcomes[i]
             censored_patient = self._censor(patient, censor_timestamp)
 
@@ -71,11 +74,7 @@ class Censorer:
         else:
             return [concept.startswith('BG_') for concept in concepts]
 
-    def _identify_if_tokenized(self, concepts):
+    def _identify_if_tokenized(self, concepts:list)->bool:
         """Identify if the features are tokenized."""
         return concepts and isinstance(concepts[0], int)
 
-    @staticmethod
-    def _iter_patients(features: dict) -> dict:
-        for i in range(len(features["concept"])):
-            yield {key: values[i] for key, values in features.items()}

@@ -1,7 +1,9 @@
-from sklearn.ensemble import RandomForestClassifier
 from itertools import product
-from tqdm import tqdm
+
 from joblib import Parallel, delayed
+from sklearn.ensemble import RandomForestClassifier
+from tqdm import tqdm
+
 
 def get_all_combinations(param_grid):
     return [dict(zip(param_grid.keys(), values)) for values in product(*param_grid.values())]

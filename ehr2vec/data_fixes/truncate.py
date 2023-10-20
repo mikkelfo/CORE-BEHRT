@@ -1,4 +1,4 @@
-
+from common.utils import iter_patients
 
 class Truncator:
     def __init__(self, max_len: int, vocabulary: dict) -> None:
@@ -10,9 +10,9 @@ class Truncator:
     def __call__(self, features: dict)-> dict:
         return self.truncate(features)
 
-    def truncate(self, features: dict):
+    def truncate(self, features: dict)-> dict:
         background_length = self._get_background_length(features)
-        for index, patient in enumerate(self._iter_patients(features)):
+        for index, patient in enumerate(iter_patients(features)):
             truncated_patient = self._truncate_patient(patient, background_length)
             for key, value in truncated_patient.items():
                 features[key][index] = value
@@ -39,14 +39,9 @@ class Truncator:
             for key, value in patient.items()
         }
 
-    def _get_background_length(self, features: dict):
+    def _get_background_length(self, features: dict)-> int:
         """Get the length of the background sentence, first SEP token included."""
         background_tokens = set([v for k, v in self.vocabulary.items() if k.startswith('BG_')])
         example_concepts = features['concept'][0] # Assume that all patients have the same background length
         background_length = len(set(example_concepts) & background_tokens)
         return background_length + int((background_length > 0) and self.sep_token)
-
-    @staticmethod
-    def _iter_patients(features: dict):
-        for i in range(len(features["concept"])):
-            yield {key: values[i] for key, values in features.items()}

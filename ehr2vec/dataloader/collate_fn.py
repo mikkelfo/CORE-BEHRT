@@ -1,6 +1,6 @@
 import torch
 
-def static(data: list):
+def static(data: list)->dict:
     padded_data = {
         key: torch.stack([torch.tensor(patient[key]) for patient in data])
         for key in data[0].keys()
@@ -9,7 +9,7 @@ def static(data: list):
     return padded_data
 
 
-def dynamic_padding(data: list):
+def dynamic_padding(data: list)->dict:
     max_len = max([len(patient["concept"]) for patient in data])
     for patient in data:
         difference = max_len - len(patient["concept"])

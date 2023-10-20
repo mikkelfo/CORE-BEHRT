@@ -13,7 +13,7 @@ class OutcomeMaker:
 
     def __call__(
         self, concepts_plus: pd.DataFrame, patients_info: pd.DataFrame, patient_set=None
-    ):
+    )->dict:
         
         concepts_plus = self.remove_missing_timestamps(concepts_plus)
         patients_info_dict = patients_info.set_index("PID").to_dict()
@@ -42,18 +42,18 @@ class OutcomeMaker:
         return outcomes
     
     @staticmethod
-    def remove_missing_timestamps(concepts_plus):
+    def remove_missing_timestamps(concepts_plus: pd.DataFrame )->pd.DataFrame:
         return concepts_plus[concepts_plus.TIMESTAMP.notna()]
 
     def get_relative_timestamps_in_hours(self, timestamps, origin_point):
         return (timestamps - origin_point).dt.total_seconds() / 60 / 60
 
-    def match_patient_info(self, outcome_df, patients_info_dict, matches):
-        timestamps = outcome_df.PID.map(
-                    lambda pid: patients_info_dict[matches].get(pid, pd.NaT)
+    def match_patient_info(self, outcome: pd.DataFrame, patients_info: dict, matches: list)->pd.Series:
+        timestamps = outcome.PID.map(
+                    lambda pid: patients_info[matches].get(pid, pd.NaT)
         )  # Get from dict [outcome] [pid]
         timestamps = pd.Series(
-            timestamps.values, index=outcome_df.PID
+            timestamps.values, index=outcome.PID
         )  # Convert to series
         return timestamps
 
@@ -77,7 +77,7 @@ class OutcomeMaker:
             col_booleans.append(col_bool)
         return col_booleans
     
-    def load_patient_set(self):
+    def load_patient_set(self)->list:
         pids = torch.load(
                 os.path.join(self.config.paths.extra_dir, "PIDs.pt")
         )  # Load PIDs

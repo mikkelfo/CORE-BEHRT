@@ -1,6 +1,8 @@
 import torch
 from transformers import BatchEncoding
 from data_fixes.handle import Handler
+from typing import Iterator
+from common.utils import iter_patients
 
 class EHRTokenizer():
     def __init__(self, config, vocabulary=None):
@@ -21,18 +23,18 @@ class EHRTokenizer():
         self.padding = config.get('padding', False)
         self.cutoffs = config.get('cutoffs', None)
         
-    def __call__(self, features: dict, padding=None, truncation=None):
+    def __call__(self, features: dict, padding=None, truncation=None)->BatchEncoding:
         if not padding:
             padding = self.padding
         if not truncation:
             truncation = self.truncation
         return self.batch_encode(features, padding, truncation)
 
-    def batch_encode(self, features: dict, padding=True, truncation=512):
+    def batch_encode(self, features: dict, padding=True, truncation=512)->BatchEncoding:
         data = {key: [] for key in features}
         data['attention_mask'] = []
 
-        for patient in self._patient_iterator(features):
+        for patient in iter_patients(features):
             patient = self.insert_special_tokens(patient)                   # Insert SEP and CLS tokens
 
             if truncation and (len(patient['concept']) > truncation):
@@ -52,7 +54,8 @@ class EHRTokenizer():
 
         return BatchEncoding(data, tensor_type='pt' if padding else None)
 
-    def encode(self, concepts: list):
+    def encode(self, concepts: list)->list:
+        """Encode concepts to vocabulary ids"""
         if self.cutoffs:
             concepts = self.limit_concepts_length(concepts) # Truncate concepts to max_concept_length
         if self.new_vocab:
@@ -65,7 +68,7 @@ class EHRTokenizer():
             encoded_sequence = [self.vocabulary.get(concept, self.find_closest_ancestor(concept)) for concept in concepts]
         return encoded_sequence
     
-    def find_closest_ancestor(self, concept):
+    def find_closest_ancestor(self, concept)->int:
         """Find closest ancestor of concept in vocabulary"""
         while concept not in self.vocabulary and len(concept)>0:
             concept = concept[:-1]
@@ -73,7 +76,8 @@ class EHRTokenizer():
     # TODO: thinks what happens to short tokens that don't occur, should we instead look at closest node in the tree including siblings?
 
     @staticmethod
-    def truncate(patient: dict, max_len: int):
+    def truncate(patient: dict, max_len: int)->dict:
+        """Truncate patient to max_len"""
         # Find length of background sentence (+2 to include CLS token and SEP token)
         background_length = len([x for x in patient.get('concept', []) if x.startswith('BG_')]) + 2
         truncation_length = max_len - background_length
@@ -89,9 +93,10 @@ class EHRTokenizer():
             patient["segment"] = Handler.normalize_segments(patient["segment"])
         return patient
 
-    def pad(self, features: dict,  max_len: int):
+    def pad(self, features: dict,  max_len: int)->dict:
+        """Pad sequences to max_len"""
         padded_data = {key: [] for key in features}
-        for patient in self._patient_iterator(features):
+        for patient in iter_patients(features):
             difference = max_len - len(patient['concept'])
 
             for key, values in patient.items():
@@ -100,7 +105,8 @@ class EHRTokenizer():
 
         return padded_data
 
-    def insert_special_tokens(self, patient: dict):
+    def insert_special_tokens(self, patient: dict)->dict:
+        """Insert SEP and CLS tokens into patient"""
         if self.config.sep_tokens:
             if 'segment' not in patient:
                 raise Exception('Cannot insert [SEP] tokens without segment information')
@@ -112,7 +118,8 @@ class EHRTokenizer():
         return patient
 
     @staticmethod
-    def insert_sep_tokens(patient: dict):
+    def insert_sep_tokens(patient: dict)->dict:
+        """Insert SEP tokens into patient"""
         padded_segment = patient['segment'] + [None]                # Add None to last entry to avoid index out of range
 
         for key, values in patient.items():
@@ -129,24 +136,20 @@ class EHRTokenizer():
         return patient
 
     @staticmethod
-    def insert_cls_token(patient: dict):
+    def insert_cls_token(patient: dict)->dict:
+        """Insert CLS token into patient"""
         for key, values in patient.items():
             token = '[CLS]' if key == 'concept' else values[0]          # Determine token value (CLS for concepts, 0 for rest)
             patient[key] = [token] + values
         return patient
 
-    def limit_concepts_length(self, concepts: list):
+    def limit_concepts_length(self, concepts: list)->list:
+        """Truncate concepts to max_concept_length"""
         return [concept[:self.cutoffs.get(concept[0], None)] for concept in concepts]
 
-    @staticmethod
-    def _patient_iterator(features: dict):
-        for i in range(len(features['concept'])):
-            yield {key: values[i] for key, values in features.items()}
-
-    def save_vocab(self, dest: str):
+    def save_vocab(self, dest: str)->None:
         torch.save(self.vocabulary, dest)
 
-    def freeze_vocabulary(self):
+    def freeze_vocabulary(self)->None:
         self.new_vocab = False
-        # self.save_vocab('vocabulary.pt')
 

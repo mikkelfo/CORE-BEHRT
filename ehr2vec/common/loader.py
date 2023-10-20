@@ -204,8 +204,9 @@ class DatasetPreparer:
         datasets['val'].check_lengths()
         self.saver.save_train_val_pids(datasets['train'].pids, datasets['val'].pids)
         datasets = self.utils.process_datasets(datasets, self.saver.save_sequence_lengths)
-        self.utils.check_max_segment(datasets['train'], model_cfg.type_vocab_size)
-        self.utils.check_max_segment(datasets['val'], model_cfg.type_vocab_size)
+      
+        self.utils.check_and_adjust_max_segment(datasets['train'], model_cfg)
+        self.utils.check_and_adjust_max_segment(datasets['val'], model_cfg)
         
         if model_cfg.get('behrt_embeddings', False):
             logger.info("Adapting features for BEHRT embeddings")
@@ -261,7 +262,6 @@ class DatasetPreparer:
             data.censor_outcomes = [None]*len(outcomes)
         return data
         
-
 
 class DataModifier():
     @staticmethod
@@ -565,12 +565,14 @@ class Utilities():
         return outcomes
     
     @staticmethod
-    def check_max_segment(data: Data, model_type_vocab_size: int)->None:
-        """Check max segment. If it's larger than the model type vocab size, raise an error."""
+    def check_and_adjust_max_segment(data: Data, model_cfg)->None:
+        """Check max segment. If it's larger or equal to the model type vocab size, change accordingly."""
         max_segment = max([max(seg) for seg in data.features['segment']])
-        if max_segment>=model_type_vocab_size:
-            raise ValueError(f"Max segment {max_segment} is larger or equal to type_vocab_size {model_type_vocab_size}\
-                             Please adjust type_vocab_size in the config.")
+        type_vocab_size = model_cfg.type_vocab_size
+        if max_segment>=type_vocab_size:
+            logger.warning(f"You've set type_vocab_size too low. Max segment {max_segment} >= type_vocab_size {type_vocab_size}\
+                             We'll change it to {max_segment+1}.")
+            model_cfg.type_vocab_size = max_segment+1
     @staticmethod
     def get_token_to_index_map(vocabulary:dict)->Tuple[dict]:
         """

@@ -17,5 +17,5 @@ hydra:
 ignore_special_tokens: true
 
 paths:
-  encoded_suffix: pretrain
+  encoded_prefix: pretrain
 

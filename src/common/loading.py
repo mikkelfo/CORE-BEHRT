@@ -20,13 +20,18 @@ def checkpoint(cfg):
     return cfg, checkpoint
 
 
-def train_val(cfg, suffix: str):
+def train_val(cfg, suffix: str, prefix: str = ""):
     for set in ["train", "val"]:
-        yield load(cfg.paths.data_dir, f"{set}_{suffix}.pt")
+        yield load(
+            cfg.paths.data_dir,
+            f"{prefix}{'_' if prefix is not None else ''}{set}_{suffix}.pt",
+        )
 
 
 def encoded(cfg):
-    train_encoded, val_encoded = train_val(cfg, cfg.paths.encoded_suffix)
+    train_encoded, val_encoded = train_val(
+        cfg, suffix=cfg.paths.encoded_suffix, prefix=cfg.paths.get("encoded_prefix", "")
+    )
     return train_encoded, val_encoded
 
 

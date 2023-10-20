@@ -6,7 +6,7 @@ from typing import Dict, List, Tuple, Union
 import numpy as np
 import pandas as pd
 import torch
-from common.utils import Data
+from common.utils import Data, iter_patients
 from data.dataset import (BinaryOutcomeDataset, HierarchicalMLMDataset,
                           MLMDataset)
 from data_fixes.adapt import BehrtAdapter
@@ -159,7 +159,7 @@ class DatasetPreparer:
         if self.cfg.model.get('behrt_embeddings', False):
             logger.info('Adapting features for behrt embeddings')
             data.features = BehrtAdapter().adapt_features(data.features)
-        self.saver.save_features_and_pids(data)
+        self.saver.save_data(data)
   
         return data
     
@@ -215,43 +215,12 @@ class DatasetPreparer:
         
         return datasets['train'].features, datasets['val'].features, datasets['train'].vocabulary
     
-    # ! Potentially map gender onto one index?
-    def _prepare_onehot_features(self)->Tuple[np.ndarray]:
+    def prepare_onehot_features(self)->Tuple[np.ndarray, np.ndarray, Dict]:
         """Use ft features and map them onto one hot vectors with binary outcomes"""
-        raise DeprecationWarning # ! Not used anymore, needs adjustment to only load val data, then split in the script
-        train_data = self.loader.load_finetune_data(mode='train')
-        val_data = self.loader.load_finetune_data(mode='val')
-        token2index, new_vocab = self.utils.get_token_to_index_map(train_data.vocabulary)
-        X_train, y_train = self._encode_to_onehot(train_data, token2index)
-        X_val, y_val = self._encode_to_onehot(val_data, token2index)
-        return X_train, y_train, X_val, y_val, new_vocab
-
-    def _encode_to_onehot(self, data:Data, token2index: dict)->Tuple[np.ndarray]:
-        """Encode features to one hot and age at the time of last event"""
-        AGE_INDEX = 0
-         # Initialize arrays
-        num_samples = len(data)
-        num_features = len(token2index) + 1 # +1 for age
-        X = np.zeros((num_samples, num_features), dtype=np.int16)
-        y = np.zeros(num_samples, dtype=np.int16)
-        # Create an array of keys for faster lookup
-        keys_array = np.array(list(token2index.keys())) 
-        
-        # Vectorized function to map tokens to indices
-        token2index_map = np.vectorize(token2index.get)
-
-        for i, (concepts, outcome) in enumerate(zip(data.features['concept'], data.outcomes)):
-            y[i] = int(not pd.isna(outcome))
-            age = data.features['age'][i][-1]    
-            X[i, AGE_INDEX] = age
-            # Filter and encode unique concepts
-            concepts = np.array(concepts)
-            unique_concepts = np.unique(concepts)
-            valid_concepts_mask = np.isin(unique_concepts, keys_array) # Only keep concepts that are in the token2index map
-            filtered_concepts = unique_concepts[valid_concepts_mask]
-            concept_indices = token2index_map(filtered_concepts) + 1
-            X[i, concept_indices] = 1
-        return X, y
+        data = self.loader.load_finetune_data(mode='val')
+        token2index, new_vocab = self.utils.get_token_to_index_map(data.vocabulary)
+        X, y = OneHotEncoder.encode(data, token2index)
+        return X, y, new_vocab
 
     def _retrieve_and_assign_outcomes(self, data: Data, outcomes: Dict, censor_outcomes: Dict)->Data:
         """Retrieve outcomes and assign them to the data instance"""
@@ -262,6 +231,44 @@ class DatasetPreparer:
             data.censor_outcomes = [None]*len(outcomes)
         return data
         
+
+class OneHotEncoder():
+    @staticmethod
+    def encode(data:Data, token2index: dict)->Tuple[np.ndarray, np.ndarray]:
+        # ! Potentially map gender onto one index?
+        """Encode features to one hot and age at the time of last event"""
+        AGE_INDEX = 0
+         # Initialize arrays
+        num_samples = len(data)
+        num_features = len(token2index) + 1 # +1 for age
+
+        X, y = OneHotEncoder.initialize_Xy(num_samples, num_features)
+        keys_array = np.array(list(token2index.keys())) # Create an array of keys for faster lookup
+        token2index_map = np.vectorize(token2index.get) # Vectorized function to map tokens to indices
+
+        for sample, (concepts, outcome) in enumerate(zip(data.features['concept'], data.outcomes)):
+            y[sample] = OneHotEncoder.encode_outcome(outcome)
+            X[sample, AGE_INDEX] = data.features['age'][sample][-1]   
+            OneHotEncoder.encode_concepts(concepts, token2index_map, keys_array, X, sample)
+        return X, y
+    @staticmethod
+    def encode_outcome(outcome: str)->int:
+        return int(not pd.isna(outcome))
+    @staticmethod
+    def encode_concepts(concepts: List[int], token2index_map: np.vectorize, 
+                        keys_array: np.ndarray, X:np.ndarray, sample: int)->None:
+        concepts = np.array(concepts)
+        unique_concepts = np.unique(concepts)
+        valid_concepts_mask = np.isin(unique_concepts, keys_array) # Only keep concepts that are in the token2index map
+        filtered_concepts = unique_concepts[valid_concepts_mask]
+        concept_indices = token2index_map(filtered_concepts) + 1
+        X[sample, concept_indices] = 1
+    @staticmethod
+    def initialize_Xy(num_samples: int, num_features: int)->Tuple[np.ndarray, np.ndarray]:
+        X = np.zeros((num_samples, num_features), dtype=np.int16)
+        y = np.zeros(num_samples, dtype=np.int16)
+        return X, y
+
 
 class DataModifier():
     @staticmethod
@@ -314,7 +321,7 @@ class CodeTypeFilter():
         keep_codes = self._get_keep_codes()
         keep_tokens = set([token for code, token in data.vocabulary.items() if self.utils.code_starts_with(code, keep_codes)])
         logger.info(f"Keep only codes starting with: {keep_codes}")
-        for patient_index, patient in enumerate(self.utils.iter_patients(data.features)):
+        for patient_index, patient in enumerate(iter_patients(data.features)):
             self._filter_patient(data, patient, keep_tokens, patient_index)
         return data
 
@@ -484,6 +491,15 @@ class Loader():
         logger.warning("missing state dict keys: %s", missing_keys)
         return model
     
+    def load_finetune_data(self, path: str=None, mode: str='val')->Data:
+        """Load features for finetuning"""
+        path = self.path_cfg.finetune_features_path if path is None else path
+        features = torch.load(join(path, f'features.pt'))
+        outcomes = torch.load(join(path, f'outcomes.pt'))
+        pids = torch.load(join(path, f'pids.pt'))
+        vocabulary = torch.load(join(path, 'vocabulary.pt'))
+        return Data(features, pids, outcomes, vocabulary=vocabulary, mode=mode)
+
 
 class Saver():
     """Save features, pids, vocabulary and sequence lengths to a folder"""
@@ -519,9 +535,13 @@ class Saver():
             self.run_folder if folder is None else folder, 'patient_nums.csv'), 
                             index_label='Patient Group')
     
-    def save_features_and_pids(self, data: Data)->None:
+    def save_data(self, data: Data)->None:
+        """Save data (features, pids and outcomes (if present) to run_folder)"""
         torch.save(data.features, join(self.run_folder, 'features.pt'))
         torch.save(data.pids, join(self.run_folder, 'pids.pt'))
+        torch.save(data.vocabulary, join(self.run_folder, 'vocabulary.pt'))
+        if data.outcomes is not None:
+            torch.save(data.outcomes, join(self.run_folder, 'outcomes.pt'))
 
     def save_vocab(self, vocabulary, name: str=VOCABULARY_FILE):
         torch.save(vocabulary, join(self.run_folder, name))
@@ -538,10 +558,6 @@ class Utilities():
             datasets[split] = func(data, **mode_args)
         self.log_patient_nums(func.__name__, datasets)
         return datasets
-    @staticmethod
-    def iter_patients(features: dict) -> dict:
-        for i in range(len(features["concept"])):
-            yield {key: values[i] for key, values in features.items()}
     @staticmethod
     def log_patient_nums(operation:str, datasets: Dict)->None:
         logger.info(f"After applying {operation}:")
@@ -658,13 +674,13 @@ def create_binary_outcome_datasets(all_outcomes, cfg):
                                     )
     
     return train_dataset, val_dataset, outcomes
+
 def retrieve_outcomes(self, all_outcomes: Dict, all_censor_outcomes: Dict, cfg)->Union[List, List]:
     """From the configuration, load the outcomes and censor outcomes."""
     pids = all_outcomes[PID_KEY]
     outcomes = all_outcomes.get(cfg.outcome.type, [None]*len(all_outcomes[PID_KEY]))
     censor_outcomes = all_censor_outcomes.get(cfg.outcome.get('censor_type', None), [None]*len(outcomes))
     return outcomes, censor_outcomes, pids
-
 
 def select_positives(outcomes, censor_outcomes, pids):
     """Select only positive outcomes."""

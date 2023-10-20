@@ -9,6 +9,7 @@ model:
 trainer_args:
   sampler: true
   pos_weight: null
+  val_split: 0.2
 
 metrics:
   roc_auc_score:

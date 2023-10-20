@@ -7,10 +7,11 @@ from common.config import get_function, instantiate, load_config
 from common.loader import DatasetPreparer
 from common.setup import azure_onehot_setup, get_args, setup_logger
 from evaluation.utils import evaluate_predictions, get_pos_weight
+from sklearn.model_selection import train_test_split
 
 args = get_args('evaluate_one_hot.yaml')
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
-
+DEFAULT_VAL_SPLIT = 0.2
 def main_finetune():
     cfg = load_config(config_path)
     features_path = cfg.paths.finetune_features_path
@@ -26,7 +27,11 @@ def main_finetune():
     logger = setup_logger(run_folder)
     cfg.save_to_yaml(join(run_folder, 'evaluate_one_hot.yaml'))
 
-    X_train, y_train, X_val, y_val, new_vocab = DatasetPreparer(cfg).prepare_onehot_features()
+    X, y, new_vocab = DatasetPreparer(cfg).prepare_onehot_features()
+    X_train, X_val, y_train, y_val = train_test_split(
+        X, y, test_size=cfg.trainer_args.get('val_split',DEFAULT_VAL_SPLIT), 
+        random_state=cfg.trainer_args.get('seed', 42))
+    
     
     logger.info('Instantiating Model')
     sample_weight = get_pos_weight(cfg, y_train) if cfg.trainer_args.get('sample_weight', False) else None

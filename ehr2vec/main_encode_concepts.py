@@ -6,7 +6,7 @@ import pandas as pd
 from os.path import join
 
 import torch
-from common.azure import setup_azure
+from common.azure import setup_azure, save_to_blobstore
 from common.config import load_config
 from common.loader import Loader
 from common.setup import get_args, prepare_encodings_directory
@@ -17,7 +17,10 @@ from evaluation.encodings import Forwarder
 from evaluation.utils import validate_outcomes
 from model.model import BertEHREncoder
 
-args = get_args("encode_concepts.yaml")
+BLOBSTORE = 'PHAIR'
+CONFIG_PATH = 'encode_concepts.yaml'
+
+args = get_args(CONFIG_PATH)
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
 
 def main(config_path):
@@ -50,14 +53,8 @@ def main(config_path):
     forwarder.encode_concepts(cfg)
     
     if cfg.env=='azure':
-        try:
-            logger.info('Saving to blob storage')
-            from azure_run import file_dataset_save
-            file_dataset_save(local_path=join('outputs', cfg.paths.run_name), datastore_name = "workspaceblobstore",
-                        remote_path = join("PHAIR", concepts_path, cfg.paths.run_name))
-            logger.info("Saved outcomes to blob")
-        except:
-            logger.warning('Could not save outcomes to blob')
+        save_to_blobstore(cfg.paths.run_name,
+                          join(BLOBSTORE, concepts_path, cfg.paths.run_name))
         mount_context.stop()
     logger.info('Done')
 

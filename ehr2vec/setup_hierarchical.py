@@ -3,12 +3,15 @@ import os
 from os.path import join
 
 import torch
-from common.azure import setup_azure
+from common.azure import setup_azure, save_to_blobstore
 from common.config import load_config
 from common.setup import prepare_directory_hierarchical, get_args
 from tree.tree import TreeBuilder, get_counts
 
-args = get_args("h_setup.yaml")
+BLOBSTORE = 'PHAIR'
+CONFIG_NAME = 'h_setup.yaml'
+
+args = get_args(CONFIG_NAME)
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
 
 def setup_hierarchical(config_path=config_path):
@@ -38,9 +41,7 @@ def setup_hierarchical(config_path=config_path):
     logger.info('Construct and Save tree matrix')
     torch.save(tree.get_tree_matrix(), join(hierarchical_path, 'tree_matrix.pt'))
     if cfg.env == 'azure':
-        from azure_run import file_dataset_save
-        file_dataset_save(local_path=join('outputs', 'data'), datastore_name = "workspaceblobstore",
-                    remote_path = join("PHAIR", cfg.paths.features))
+        save_to_blobstore(local_path='data', remote_path=join(BLOBSTORE, cfg.paths.features))
         mount_context.stop()
 
 if __name__ == '__main__':

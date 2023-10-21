@@ -4,6 +4,7 @@ from typing import Iterator, List, Tuple
 
 import pandas as pd
 import torch
+from common.azure import save_to_blobstore
 from common.config import instantiate, load_config
 from common.loader import DatasetPreparer, Loader
 from common.setup import (add_pretrain_info_to_cfg, adjust_paths_for_finetune,
@@ -19,6 +20,7 @@ from trainer.trainer import EHRTrainer
 
 CONFIG_NAME = 'finetune.yaml'
 N_SPLITS = 2  # You can change this to desired value
+BLOBSTORE='PHAIR'
 
 args = get_args(CONFIG_NAME)
 config_path = join(dirname(abspath(__file__)), args.config_path)
@@ -135,13 +137,7 @@ if __name__ == '__main__':
     compute_validation_scores_mean_std(finetune_folder)
     
     if cfg.env=='azure':
-        logger.info("Saving results to blob")
-        try:
-            from azure_run import file_dataset_save
-            file_dataset_save(local_path=join('outputs', cfg.paths.run_name), datastore_name = "workspaceblobstore",
-                        remote_path = join("PHAIR", model_path, cfg.paths.run_name))
-            logger.info("Saved to Azure Blob Storage")
-        except Exception as e:
-            logger.warning(f'Could not save to Azure Blob Storage. Error {e}')
+        save_to_blobstore(local_path=cfg.paths.run_name, 
+                          remote_path=join(BLOBSTORE, model_path, cfg.paths.run_name))
         mount_context.stop()
     logger.info('Done')

@@ -3,7 +3,7 @@ import os
 from os.path import join
 
 import torch
-from common.azure import setup_azure
+from common.azure import setup_azure, save_to_blobstore
 from common.config import instantiate, load_config
 from common.loader import DatasetPreparer
 from common.setup import get_args, setup_run_folder, copy_data_config
@@ -14,6 +14,7 @@ from trainer.trainer import EHRTrainer
 from transformers import BertConfig
 
 CONFIG_NAME = 'h_pretrain.yaml'
+BLOBSTORE = 'PHAIR'
 
 args = get_args(CONFIG_NAME)
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
@@ -74,14 +75,8 @@ def main_train(config_path):
     logger.info("Start training")
     trainer.train()
     if cfg.env == 'azure':
-        try:
-            from azure_run import file_dataset_save
-            output_path = 'outputs' if not os.path.exists(join('outputs', 'retry_001')) else join('outputs', 'retry_001')
-            file_dataset_save(local_path=join(output_path, cfg.paths.run_name), datastore_name = "workspaceblobstore",
-                        remote_path = join("PHAIR", 'models', cfg.paths.type, cfg.paths.run_name))
-            logger.info("Saved model to blob")
-        except:
-            logger.warning('Could not save model to blob')
+        save_to_blobstore(cfg.paths.run_name,
+                          join(BLOBSTORE, 'models', cfg.paths.type, cfg.paths.run_name))
         mount_context.stop()
     logger.info("Done")
 

@@ -11,7 +11,7 @@ import os
 from os.path import join
 
 import torch
-from common.azure import setup_azure
+from common.azure import setup_azure, save_to_blobstore
 from common.config import load_config
 from common.logger import TqdmToLogger
 from common.setup import get_args, prepare_directory
@@ -24,7 +24,10 @@ from data_fixes.exclude import Excluder
 from data_fixes.handle import Handler
 from tqdm import tqdm
 
-args = get_args('data_pretrain.yaml', 'data_pretrain')
+CONFIG_NAME = 'data_pretrain.yaml'
+BLOBSTORE = 'PHAIR'
+
+args = get_args(CONFIG_NAME, 'data_pretrain')
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
 
 
@@ -79,13 +82,7 @@ def main_data(config_path):
     
     
     if cfg.env=='azure':
-        try:
-            from azure_run import file_dataset_save
-            file_dataset_save(local_path=join('outputs', 'data'), datastore_name = "workspaceblobstore",
-                        remote_path = join("PHAIR", "features", cfg.run_name))
-            logger.info("Saved features to blob")
-        except:
-            logger.warning('Could not save features to blob')
+        save_to_blobstore(local_path='data', remote_path=join(BLOBSTORE, 'features', cfg.run_name))
         mount_context.stop()
     logger.info('Finished')
 

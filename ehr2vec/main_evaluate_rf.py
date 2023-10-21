@@ -5,7 +5,7 @@ from shutil import copyfile
 
 import numpy as np
 import pandas as pd
-from common.azure import setup_azure
+from common.azure import setup_azure, save_to_blobstore
 from common.config import Config, get_function, load_config
 from common.io import PatientHDF5Reader
 from common.logger import TqdmToLogger
@@ -17,7 +17,10 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import StratifiedKFold, train_test_split
 from tqdm import tqdm
 
-args = get_args("evaluate_rf.yaml")
+BLOBSTORE = 'PHAIR'
+CONFIG_NAME = 'evaluate_rf.yaml'
+
+args = get_args(CONFIG_NAME)
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
 
 
@@ -60,9 +63,9 @@ def main(config_path):
     Results_df.to_csv(join(cfg.output_dir, f'results.csv'), index_label='task')
 
     if cfg.env=='azure':
-        from azure_run import file_dataset_save
-        file_dataset_save(local_path=split(cfg.output_dir)[0], datastore_name = "workspaceblobstore",
-                    remote_path = join("PHAIR", cfg.model_dir, 'results', 'RF'))
+        logger.info(f"Saving from {split(cfg.output_dir)[0]} to blob")
+        save_to_blobstore(local_path=split(cfg.output_dir)[0],
+                          remote_path=join(BLOBSTORE, cfg.model_dir, 'results', 'RF'))
         mount_context.stop()
 
 def process_fold(fold, X, y, task, metrics, best_params, logger):

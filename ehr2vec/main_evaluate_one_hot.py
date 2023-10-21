@@ -3,15 +3,21 @@ from os.path import join
 
 import pandas as pd
 import torch
+from common.azure import save_to_blobstore
 from common.config import get_function, instantiate, load_config
 from common.loader import DatasetPreparer
 from common.setup import azure_onehot_setup, get_args, setup_logger
 from evaluation.utils import evaluate_predictions, get_pos_weight
 from sklearn.model_selection import train_test_split
 
-args = get_args('evaluate_one_hot.yaml')
-config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
+CONFIG_NAME = 'evaluate_one_hot.yaml'
 DEFAULT_VAL_SPLIT = 0.2
+BLOBSTORE = 'PHAIR'
+
+args = get_args(CONFIG_NAME)
+config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
+
+
 def main_finetune():
     cfg = load_config(config_path)
     features_path = cfg.paths.finetune_features_path
@@ -55,13 +61,8 @@ def main_finetune():
     except:
         pass
     if cfg.env=='azure':
-        try:
-            from azure_run import file_dataset_save
-            file_dataset_save(local_path=join('outputs', cfg.paths.run_name), datastore_name = "workspaceblobstore",
-                        remote_path = join("PHAIR", features_path, cfg.paths.run_name))
-            logger.info("Saved outcomes to blob")
-        except:
-            logger.warning('Could not save outcomes to blob')
+        save_to_blobstore(cfg.paths.run_name,
+                          join(BLOBSTORE, features_path, cfg.paths.run_name))
         mount_context.stop()
     logger.info('Done')
 

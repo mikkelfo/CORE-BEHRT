@@ -4,7 +4,7 @@ from collections import defaultdict
 from os.path import join
 
 import torch
-from common.azure import setup_azure
+from common.azure import setup_azure, save_to_blobstore
 from common.config import load_config
 from common.logger import TqdmToLogger
 from common.setup import prepare_directory_outcomes, get_args
@@ -13,7 +13,10 @@ from data.concept_loader import ConceptLoaderLarge
 from downstream_tasks.outcomes import OutcomeMaker
 from tqdm import tqdm
 
-args = get_args('outcomes_test.yaml')
+BLOBSTORE = 'PHAIR'
+CONFIG_NAME = 'outcomes_test.yaml'
+
+args = get_args(CONFIG_NAME)
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
 
             
@@ -49,13 +52,8 @@ def main_data(config_path):
     logger.info('Finish outcomes creation')
 
     if cfg.env=='azure':
-        try:
-            from azure_run import file_dataset_save
-            file_dataset_save(local_path=join('outputs', 'outcomes'), datastore_name = "workspaceblobstore",
-                        remote_path = join("PHAIR", "outcomes", cfg.run_name))
-            logger.info("Saved outcomes to blob")
-        except:
-            logger.warning('Could not save outcomes to blob')
+        save_to_blobstore(local_path='outcomes', 
+                          remote_path=join(BLOBSTORE, 'outcomes', cfg.run_name))
         mount_context.stop()
     logger.info('Done') 
 

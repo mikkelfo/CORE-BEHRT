@@ -2,6 +2,7 @@ import os
 from os.path import join
 
 import torch
+from common.azure import save_to_blobstore
 from common.config import instantiate, load_config
 from common.loader import DatasetPreparer, Loader
 from common.setup import (add_pretrain_info_to_cfg, adjust_paths_for_finetune,
@@ -13,6 +14,7 @@ from torch.optim import AdamW
 from trainer.trainer import EHRTrainer
 
 CONFIG_NAME = 'finetune.yaml'
+BLOBSTORE='PHAIR'
 
 args = get_args(CONFIG_NAME)
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
@@ -80,14 +82,8 @@ def main_finetune():
     )
     trainer.train()
     if cfg.env=='azure':
-        try:
-            from azure_run import file_dataset_save
-            output_path = 'outputs' if not os.path.exists(join('outputs', 'retry_001')) else join('outputs', 'retry_001')
-            file_dataset_save(local_path=join(output_path, cfg.paths.run_name), datastore_name = "workspaceblobstore",
-                        remote_path = join("PHAIR", model_path, cfg.paths.run_name))
-            logger.info("Saved to Azure Blob Storage")
-        except:
-            logger.warning('Could not save to Azure Blob Storage')
+        save_to_blobstore(cfg.paths.run_name,
+                          join(BLOBSTORE, model_path, cfg.paths.run_name))
         mount_context.stop()
     logger.info('Done')
 

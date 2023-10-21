@@ -3,7 +3,7 @@ import shutil
 from os.path import join
 
 import torch
-from common.azure import setup_azure
+from common.azure import setup_azure, save_to_blobstore
 from common.config import load_config
 from common.loader import create_binary_outcome_datasets, Loader
 from common.logger import close_handlers
@@ -14,6 +14,12 @@ from evaluation.encodings import Forwarder
 from evaluation.utils import validate_outcomes
 from model.model import BertEHREncoder
 
+BLOBSTORE = 'PHAIR'
+CONFIG_PATH = 'encode_censored.yaml'
+
+args = get_args(CONFIG_PATH, "encode_censored")
+config_path = args.config_path
+config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
 
 def _get_output_path_name(dataset, cfg):
     num_patients = str(int((len(dataset))/1000))+'k'
@@ -28,10 +34,6 @@ def _get_output_path_name(dataset, cfg):
             return f"{cfg.outcome.type}_Patients_{num_patients}_Uncensored"
         else:
             return f"Patients_{num_patients}_Uncensored"
-
-args = get_args("encode_censored.yaml", "encode_censored")
-config_path = args.config_path
-config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
 
 def main_encode():
     os.makedirs(join('outputs','tmp'), exist_ok=True)
@@ -95,14 +97,7 @@ def main_encode():
         forwarder.forward_patients()
 
         if cfg.env=='azure':
-            try:
-                logger.info('Saving to blob storage')
-                from azure_run import file_dataset_save
-                file_dataset_save(local_path='outputs', datastore_name = "workspaceblobstore",
-                            remote_path = join("PHAIR", censored_patients_path))
-                logger.info("Saved outcomes to blob")
-            except:
-                logger.warning('Could not save outcomes to blob')
+            save_to_blobstore('', join(BLOBSTORE, censored_patients_path))
     if cfg.env=='azure':
         mount_context.stop()
     logger.info('Done')

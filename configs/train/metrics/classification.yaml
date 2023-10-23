@@ -1,3 +1,6 @@
 accuracy:
-  _target_: src.evaluation.metrics.binary_hit
-  _partial_: true
+  accuracy:
+precision:
+  precision:
+recall:
+  recall:

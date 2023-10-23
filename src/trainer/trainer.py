@@ -3,10 +3,11 @@ import json
 import uuid
 import torch
 from tqdm import tqdm
+from functools import partial
 from omegaconf import OmegaConf
-from hydra.utils import instantiate
 from torch.utils.data import Dataset, DataLoader
 from src.dataloader.collate_fn import dynamic_padding
+from src.evaluation.metrics import Metrics
 
 
 class EHRTrainer:
@@ -34,10 +35,15 @@ class EHRTrainer:
         self.val_dataset = val_dataset
         self.optimizer = optimizer
         self.scheduler = scheduler
-        if metrics:
-            self.metrics = {k: instantiate(v) for k, v in metrics.items()}
-        else:
-            self.metrics = {}
+
+        metric_class = Metrics(threshold=0.5)
+
+        self.metrics = {
+            name: partial(getattr(metric_class, func), **kwargs if kwargs else {})
+            for name, func_kwargs in metrics.items()
+            for func, kwargs in func_kwargs.items()
+        }
+
         self.sampler = sampler
         self.cfg = cfg
 

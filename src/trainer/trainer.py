@@ -111,7 +111,7 @@ class EHRTrainer:
                 train_loss=epoch_loss,
                 val_loss=val_loss,
                 metrics=metrics,
-                final_step_loss=epoch_loss[-1],
+                final_step_loss=epoch_loss[-1] if epoch_loss else None,
             )
 
             # Print epoch info

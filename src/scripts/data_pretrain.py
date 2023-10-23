@@ -18,11 +18,11 @@ def main_data(cfg):
     pretrain_splits = Splitter(
         cfg,
         split_name="pretrain_splits.pt",
-    )(features, mode=cfg.split.mode)
+    )(features, mode=cfg.split.mode, ratios={"pretrain_train": 0.8, "pretrain_val": 0.2})
 
     # Tokenize
     tokenizer = EHRTokenizer(cfg.tokenizer)
-    _ = tokenizer(pretrain_splits["train"])  # Re-do for ease of use
+    _ = tokenizer(pretrain_splits["pretrain_train"])  # Re-do for ease of use
     tokenizer.freeze_vocabulary(
         vocab_name=os.path.join(cfg.paths.data_dir, cfg.paths.vocabulary)
     )

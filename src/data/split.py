@@ -116,7 +116,7 @@ class Splitter:
     def mimic_split(self):
         pids = setup.get_pids_with_exclusion(self.config)
 
-        mimic_split = {key: [] for key in ["train", "eval", "test"]}
+        mimic_split = {key: [] for key in ["train", "val", "test"]}
         for split_name in mimic_split:
             split_ids = pd.read_csv(f"data/mimic3/{split_name}-id.txt", header=None)[
                 0

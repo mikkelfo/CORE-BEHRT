@@ -16,7 +16,7 @@ hydra:
     dir: .
 
 paths:
-  encoded_suffix: pretrain
+  encoded_prefix: pretrain
 
 split:
   mode: random

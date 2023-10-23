@@ -18,7 +18,11 @@ def main_data(cfg):
     pretrain_splits = Splitter(
         cfg,
         split_name="pretrain_splits.pt",
-    )(features, mode=cfg.split.mode, ratios={"pretrain_train": 0.8, "pretrain_val": 0.2})
+    )(
+        features,
+        mode=cfg.split.mode,
+        ratios={"pretrain_train": 0.8, "pretrain_val": 0.2},
+    )
 
     # Tokenize
     tokenizer = EHRTokenizer(cfg.tokenizer)

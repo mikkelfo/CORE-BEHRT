@@ -20,7 +20,7 @@ def checkpoint(cfg):
     return cfg, checkpoint
 
 
-def train_val(cfg, suffix: str, prefix = None):
+def train_val(cfg, suffix: str, prefix=None):
     prefix = f"{prefix}_" if prefix is not None else ""
     for set in ["train", "val"]:
         yield load(

@@ -19,7 +19,7 @@ def wrapper(f):
         if kwargs.get("round", self.round):
             result = torch.round(result, decimals=kwargs.get("round", self.round))
 
-        if torch.isnan(result): # NaNs are produced by division by zero
+        if torch.isnan(result):  # NaNs are produced by division by zero
             result = torch.tensor(0)
 
         return result.item()

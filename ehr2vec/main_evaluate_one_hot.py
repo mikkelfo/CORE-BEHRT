@@ -6,7 +6,7 @@ import torch
 from common.azure import save_to_blobstore
 from common.config import get_function, instantiate, load_config
 from common.loader import DatasetPreparer
-from common.setup import azure_onehot_setup, get_args, setup_logger
+from common.setup import AzurePathContext, get_args, setup_logger
 from evaluation.utils import evaluate_predictions, get_pos_weight
 from sklearn.model_selection import train_test_split
 
@@ -18,11 +18,12 @@ args = get_args(CONFIG_NAME)
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
 
 
-def main_finetune():
+def main():
     cfg = load_config(config_path)
     features_path = cfg.paths.finetune_features_path
     cfg.paths.output_path = features_path
-    cfg, _, mount_context = azure_onehot_setup(cfg)
+    
+    cfg, _, mount_context = AzurePathContext(cfg).azure_onehot_setup()
 
     model = instantiate(cfg.model)
     model_name = model.__class__.__name__
@@ -68,4 +69,4 @@ def main_finetune():
 
 
 if __name__ == '__main__':
-    main_finetune()
+    main()

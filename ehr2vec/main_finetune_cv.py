@@ -7,9 +7,8 @@ import torch
 from common.azure import save_to_blobstore
 from common.config import instantiate, load_config
 from common.loader import DatasetPreparer, Loader
-from common.setup import (add_pretrain_info_to_cfg, adjust_paths_for_finetune,
-                          azure_finetune_setup, copy_data_config, get_args,
-                          setup_run_folder)
+from common.setup import (AzurePathContext, adjust_paths_for_finetune,
+                          copy_data_config, get_args, setup_run_folder)
 from common.utils import Data
 from data.dataset import BinaryOutcomeDataset
 from evaluation.utils import get_pos_weight, get_sampler
@@ -98,9 +97,9 @@ def initialize_configuration():
     cfg = load_config(config_path)
     model_path = cfg.paths.model_path
     cfg = adjust_paths_for_finetune(cfg)
-    
-    cfg, run, mount_context = azure_finetune_setup(cfg)
-    cfg = add_pretrain_info_to_cfg(cfg, mount_context)
+    azure_context = AzurePathContext(cfg)
+    cfg, run, mount_context = azure_context.azure_finetune_setup(cfg)
+    cfg = azure_context.add_pretrain_info_to_cfg(cfg, mount_context)
     return cfg, run, mount_context, model_path
 
 

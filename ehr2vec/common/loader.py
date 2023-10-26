@@ -7,6 +7,8 @@ from typing import Dict, List, Tuple, Union
 import numpy as np
 import pandas as pd
 import torch
+from common.config import Config
+from common.saver import Saver
 from common.utils import Data, iter_patients
 from data.dataset import (BinaryOutcomeDataset, HierarchicalMLMDataset,
                           MLMDataset)
@@ -57,7 +59,7 @@ class DatasetPreparer:
 
     def prepare_hmlm_dataset(self):
         train_features, val_features, vocabulary = self._prepare_mlm_features()
-        tree, tree_matrix, h_vocabulary = self._load_tree()
+        tree, tree_matrix, h_vocabulary = self.loader.load_tree()
         
         self.saver.save_vocab(h_vocabulary, HIERARCHICAL_VOCABULARY_FILE)
         train_dataset = HierarchicalMLMDataset(train_features, vocabulary, 
@@ -347,7 +349,7 @@ class PatientFilter():
         self.utils = Utilities()
 
     def exclude_pretrain_patients(self, data: Data)->Data:
-        pretrain_pids = set(torch.load(join(self.cfg.paths.model_path, f'pids_{data.mode}.pt')))
+        pretrain_pids = set(torch.load(join(self.cfg.paths.pretrain_model_path, f'pids_{data.mode}.pt')))
         kept_indices = [i for i, pid in enumerate(data.pids) if pid not in pretrain_pids]
         return self.select_entries(data, kept_indices)
 
@@ -477,13 +479,33 @@ class Loader():
         h_vocabulary = torch.load(join(hierarchical_path, VOCABULARY_FILE))
         return tree, tree_matrix, h_vocabulary 
     
-    def load_model(self, model_class, add_config:dict={}, checkpoint: dict=None):
+    def load_finetune_data(self, path: str=None, mode: str='val')->Data:
+        """Load features for finetuning"""
+        path = self.path_cfg.finetune_features_path if path is None else path
+        features = torch.load(join(path, f'features.pt'))
+        outcomes = torch.load(join(path, f'outcomes.pt'))
+        pids = torch.load(join(path, f'pids.pt'))
+        vocabulary = torch.load(join(path, 'vocabulary.pt'))
+        return Data(features, pids, outcomes, vocabulary=vocabulary, mode=mode)
+
+class ModelLoader():
+    def __init__(self, cfg: Config, model_path: str=None):
+        """Load model from config and checkpoint."""
+        self.cfg = cfg
+        if model_path is not None:
+            self.model_path = model_path
+        elif self.cfg.paths.get('model_path', None) is not None:
+            self.model_path = self.cfg.paths.model_path
+        else:
+            self.model_path = None
+    
+    def load_model(self, model_class, add_config:dict={}, checkpoint: dict=None, kwargs={}):
         """Load model from config and checkpoint. model_class is the class of the model to be loaded."""
-        checkpoint = self.load_checkpoint() if checkpoint is None else checkpoint
+        checkpoint = self.load_checkpoint(self.model_path) if checkpoint is None else checkpoint
         # Load the config from file
-        config = BertConfig.from_pretrained(self.path_cfg.model_path) 
+        config = BertConfig.from_pretrained(self.model_path) 
         config.update(add_config)
-        model = model_class(config)
+        model = model_class(config, **kwargs)
         
         return self.load_state_dict_into_model(model, checkpoint)
     
@@ -499,74 +521,20 @@ class Loader():
 
     def load_checkpoint(self)->dict:
         """Load checkpoint, if checkpoint epoch provided. Else load last checkpoint."""
-        checkpoints_path = join(self.path_cfg.model_path, CHECKPOINT_FOLDER)
+        checkpoints_path = join(self.model_path, CHECKPOINT_FOLDER)
         checkpoint_epoch = self.get_checkpoint_epoch()
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         return torch.load(join(checkpoints_path,f'checkpoint_epoch{checkpoint_epoch}_end.pt'), map_location=device)
     
     def get_checkpoint_epoch(self)->int:
         """Get checkpoint epoch from config or return the last checkpoint_epoch for this model."""
-        checkpoint_epoch = self.path_cfg.get('checkpoint_epoch', None)
+        checkpoint_epoch = self.cfg.paths.get('checkpoint_epoch', None)
         if checkpoint_epoch is None:
             logger.info("No checkpoint provided. Loading last checkpoint.")
-            checkpoint_epoch = Utilities.get_last_checkpoint_epoch(join(self.path_cfg.model_path, CHECKPOINT_FOLDER))
+            checkpoint_epoch = Utilities.get_last_checkpoint_epoch(join(
+                self.model_path, CHECKPOINT_FOLDER))
         return checkpoint_epoch
-    
-    def load_finetune_data(self, path: str=None, mode: str='val')->Data:
-        """Load features for finetuning"""
-        path = self.path_cfg.finetune_features_path if path is None else path
-        features = torch.load(join(path, f'features.pt'))
-        outcomes = torch.load(join(path, f'outcomes.pt'))
-        pids = torch.load(join(path, f'pids.pt'))
-        vocabulary = torch.load(join(path, 'vocabulary.pt'))
-        return Data(features, pids, outcomes, vocabulary=vocabulary, mode=mode)
 
-
-class Saver():
-    """Save features, pids, vocabulary and sequence lengths to a folder"""
-    def __init__(self, run_folder) -> None:
-        self.run_folder = run_folder
-        os.makedirs(self.run_folder, exist_ok=True)
-    
-    def save_sequence_lengths(self, data: Data)->Data:
-        if not data.outcomes:
-            sequence_lens = torch.tensor([len(concepts) for concepts in data.features['concept']])
-            torch.save(sequence_lens, join(self.run_folder, f'sequences_lengths_{data.mode}.pt'))
-            return data
-        else:
-            pos_indices = set([i for i, outcome in enumerate(data.outcomes) if not pd.isna(outcome)])
-            sequence_lens_neg = torch.tensor([len(concepts) for i, concepts in enumerate(data.features['concept']) if i in pos_indices])
-            sequence_lens_pos = torch.tensor([len(concepts) for i, concepts in enumerate(data.features['concept']) if i not in pos_indices])
-            torch.save(sequence_lens_neg, join(self.run_folder, f'sequences_lengths_{data.mode}_neg.pt'))
-            torch.save(sequence_lens_pos, join(self.run_folder, f'sequences_lengths_{data.mode}_pos.pt'))
-            return data
-    
-    def save_train_val_pids(self, train_pids: list, val_pids: list)->None:
-        torch.save(train_pids, join(self.run_folder, 'pids_train.pt'))
-        torch.save(val_pids, join(self.run_folder, 'pids_val.pt'))
-
-    def save_patient_nums(self, train_data: Data=None, val_data: Data=None, folder:str=None)->None:
-        """Save patient numbers for train val including the number of positive patients to a csv file"""
-        train_df = pd.DataFrame({'train': [len(train_data), len([t for t in train_data.outcomes if not pd.isna(t)])]}, 
-                                index=['total', 'positive'])
-        val_df = pd.DataFrame({'val': [len(val_data), len([t for t in val_data.outcomes if not pd.isna(t)])]},
-                              index=['total', 'positive'])
-        patient_nums = pd.concat([train_df, val_df], axis=1)
-        patient_nums.to_csv(join(
-            self.run_folder if folder is None else folder, 'patient_nums.csv'), 
-                            index_label='Patient Group')
-    
-    def save_data(self, data: Data)->None:
-        """Save data (features, pids and outcomes (if present) to run_folder)"""
-        torch.save(data.features, join(self.run_folder, 'features.pt'))
-        torch.save(data.pids, join(self.run_folder, 'pids.pt'))
-        torch.save(data.vocabulary, join(self.run_folder, 'vocabulary.pt'))
-        if data.outcomes is not None:
-            torch.save(data.outcomes, join(self.run_folder, 'outcomes.pt'))
-
-    def save_vocab(self, vocabulary, name: str=VOCABULARY_FILE):
-        torch.save(vocabulary, join(self.run_folder, name))
-        
 
 class Utilities():
     def process_datasets(self, datasets: Dict, func: callable, args_for_func: Dict=None)->Dict:
@@ -711,7 +679,7 @@ def create_binary_outcome_datasets(all_outcomes, cfg):
     
     return train_dataset, val_dataset, outcomes
 
-def retrieve_outcomes(self, all_outcomes: Dict, all_censor_outcomes: Dict, cfg)->Union[List, List]:
+def retrieve_outcomes(all_outcomes: Dict, all_censor_outcomes: Dict, cfg)->Union[List, List]:
     """From the configuration, load the outcomes and censor outcomes."""
     pids = all_outcomes[PID_KEY]
     outcomes = all_outcomes.get(cfg.outcome.type, [None]*len(all_outcomes[PID_KEY]))

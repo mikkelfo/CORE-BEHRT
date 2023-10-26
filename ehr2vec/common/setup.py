@@ -8,6 +8,7 @@ from typing import Tuple
 
 from common.azure import setup_azure
 from common.config import Config, load_config
+from common.loader import ModelLoader, Utilities
 
 OUTPUTS_DIR = "outputs"
 CHECKPOINTS_DIR = "checkpoints"
@@ -18,18 +19,18 @@ def get_args(default_config_name, default_run_name=None):
     parser.add_argument('--run_name', type=str, default=default_run_name if default_run_name else default_config_name.split('.')[0])
     return parser.parse_args()
 
+def setup_logger(dir: str, log_file: str = 'info.log'):
+    """Sets up the logger."""
+    logging.basicConfig(filename=join(dir, log_file), level=logging.INFO, 
+                        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    return logging.getLogger(__name__)
+
 def create_directory_and_copy_config(config_path: str, output_dir: str, new_config_name: str)->logging.Logger:
     """Creates output directory and copies config file"""
     os.makedirs(output_dir, exist_ok=True)
     destination = join(output_dir, new_config_name)
     copyfile(config_path, destination)
     return setup_logger(output_dir)
-
-def setup_logger(dir: str, log_file: str = 'info.log'):
-    """Sets up the logger."""
-    logging.basicConfig(filename=join(dir, log_file), level=logging.INFO, 
-                        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    return logging.getLogger(__name__)
 
 def prepare_directory(config_path: str, cfg: Config):
     """Creates output directory and copies config file"""
@@ -69,49 +70,23 @@ def setup_run_folder(cfg:Config, run_folder: str=None)->Tuple[logging.Logger, st
     logger.info(f'Run folder: {run_folder}')
     return logger, run_folder
 
-def azure_finetune_setup(cfg: Config):
-    """Azure setup for finetuning. Prepend mount folder."""
-    if cfg.env=='azure':
-        run, mount_context = setup_azure(cfg.paths.run_name)
-        cfg.paths.model_path = join(mount_context.mount_point, cfg.paths.model_path)
-        cfg.paths.outcome = join(mount_context.mount_point, cfg.paths.outcome)
-        if cfg.paths.get('censor', None) is not None:
-            cfg.paths.censor = join(mount_context.mount_point, cfg.paths.censor)
-        cfg.paths.output_path = OUTPUTS_DIR
-        return cfg, run, mount_context
-    return cfg, None, None
-
-def azure_onehot_setup(cfg: Config):
-    """Azure setup for onehot encoding. Prepend mount folder."""
-    if cfg.env=='azure':
-        run, mount_context = setup_azure(cfg.paths.run_name)
-        cfg.paths.finetune_features_path = join(mount_context.mount_point, cfg.paths.finetune_features_path)
-        cfg.paths.output_path = OUTPUTS_DIR
-        return cfg, run, mount_context
-    return cfg, None, None
-
 def adjust_paths_for_finetune(cfg: Config)->Config:
-    cfg.paths.output_path = cfg.paths.model_path
+    """
+    Adjusts the following paths in the configuration for the finetune environment:
+    - output_path: set to pretrain_model_path
+    - run_name: constructed according to setting
+    """
+    cfg.paths.output_path = cfg.paths.pretrain_model_path
     cfg.paths.run_name = construct_finetune_model_dir_name(cfg)
     return cfg
 
-def add_pretrain_info_to_cfg(cfg:Config, mount_context=None)->Config:
-    """Add information about pretraining to the config."""
-    pretrain_cfg = load_config(join(cfg.paths.model_path, 'pretrain_config.yaml'))
-    pretrain_data_path = remove_mount_folder(pretrain_cfg.paths.data_path)
-    cfg.paths.data_path = pretrain_data_path 
-    if cfg.env=='azure':
-        if mount_context is None:
-            raise ValueError('mount_context must be provided when env is azure')
-        cfg.paths.data_path = join(mount_context.mount_point, cfg.paths.data_path)
-    cfg.data.remove_background = pretrain_cfg.data.remove_background
-    cfg.paths.tokenized_dir = pretrain_cfg.paths.tokenized_dir
-    return cfg
-
-def remove_mount_folder(path_str: str) -> str:
-    """Remove mount folder from path."""
-    path_parts = split_path(path_str)
-    return os.path.join(*[part for part in path_parts if not part.startswith('tmp')])
+def construct_finetune_model_dir_name(cfg: Config)->str:
+    """Constructs the name of the finetune model directory. Based on the outcome type, the censor type, and the number of hours pre- or post- outcome."""
+    days = True if abs(cfg.outcome.n_hours)>48 else False
+    window = int(abs(cfg.outcome.n_hours/24)) if days else abs(cfg.outcome.n_hours)
+    days_hours = 'days' if days else 'hours'
+    pre_post = 'pre' if cfg.outcome.n_hours<0 else 'post'
+    return f"finetune_{cfg.outcome.type}_censored_{window}_{days_hours}_{pre_post}_{cfg.outcome.censor_type}_{cfg.paths.run_name}"
 
 def split_path(path_str: str) -> list:
     """Split path into its components."""
@@ -125,18 +100,100 @@ def split_path(path_str: str) -> list:
             break
     return directories[::-1]  # Reverse the list to get original order
 
-def construct_finetune_model_dir_name(cfg: Config)->str:
-    """Constructs the name of the finetune model directory. Based on the outcome type, the censor type, and the number of hours pre- or post- outcome."""
-    days = True if abs(cfg.outcome.n_hours)>48 else False
-    window = int(abs(cfg.outcome.n_hours/24)) if days else abs(cfg.outcome.n_hours)
-    days_hours = 'days' if days else 'hours'
-    pre_post = 'pre' if cfg.outcome.n_hours<0 else 'post'
-    return f"finetune_{cfg.outcome.type}_censored_{window}_{days_hours}_{pre_post}_{cfg.outcome.censor_type}_{cfg.paths.run_name}"
-
 def copy_data_config(cfg: Config, run_folder: str)->None:
-    """Copy data_config.yaml to run folder"""
+    """
+    Copy data_config.yaml to run folder.
+    By default copy from tokenized folder, if not available, copy from data folder.
+    """
     tokenized_dir_name = cfg.paths.get('tokenized_dir', 'tokenized')
     try:
         copyfile(join(cfg.paths.data_path, tokenized_dir_name, 'data_config.yaml'), join(run_folder, 'data_config.yaml'))
     except:
         copyfile(join(cfg.paths.data_path, 'data_config.yaml'), join(run_folder, 'data_config.yaml'))
+
+def load_model_cfg_from_checkpoint(cfg: Config, config_name: str)->None:
+    """If training from checkpoint, we need to get the old config"""
+    model_path = cfg.paths.get('model_path', None)
+    if model_path is not None: # if we are training from checkpoint, we need to load the old config
+        old_cfg = load_config(join(cfg.paths.model_path, config_name))
+        cfg.model = old_cfg.model
+
+def load_checkpoint_and_epoch(cfg: Config)->Tuple:
+    model_path = cfg.paths.get('model_path', None)
+    checkpoint = ModelLoader(cfg).load_checkpoint() if model_path is not None else None
+    epoch = Utilities.get_last_checkpoint_epoch(join(model_path, CHECKPOINTS_DIR)) if model_path is not None else None
+    return checkpoint, epoch
+
+
+class AzurePathContext:
+    def __init__(self, cfg: Config):
+        self.cfg = cfg
+        self.azure_env = cfg.env=='azure'
+        self.run, self.mount_context = self.setup_run_and_mount_context()
+        if self.azure_env:
+            self.mount_point = self.mount_context.mount_point
+    
+    def setup_run_and_mount_context(self)->Tuple:
+        run, mount_context = None, None
+        if self.azure_env:
+            run, mount_context = setup_azure(self.cfg.paths.run_name)
+        return run, mount_context
+
+    def adjust_paths_for_azure_pretrain(self)->Tuple:
+        """
+        Adjusts the following paths in the configuration for the Azure environment:
+        - data_path
+        - model_path
+        - output_path
+        """
+        if self.azure_env:
+            self.cfg.paths.data_path = self.prepend_mount_point(self.cfg.paths.data_path)
+            if self.cfg.paths.get('model_path', None) is not None:
+                self.cfg.paths.model_path = self.prepend_mount_point(self.cfg.paths.model_path)
+            if not self.cfg.paths.output_path.startswith('outputs'):
+                self.cfg.paths.output_path = join('outputs', self.cfg.paths.output_path)
+        return self.cfg, self.run, self.mount_context
+    
+    def azure_onehot_setup(self)->Tuple:
+        """Azure setup for onehot encoding. Prepend mount folder."""
+        if self.azure_env:
+            self.cfg.paths.finetune_features_path = self.prepend_mount_point(self.cfg.paths.finetune_features_path)
+            self.cfg.paths.output_path = OUTPUTS_DIR
+            
+        return self.cfg, self.run, self.mount_context
+    
+    def azure_finetune_setup(self)->Tuple:
+        """Azure setup for finetuning. Prepend mount folder."""
+        if self.azure_env:
+            self.cfg.paths.pretrain_model_path = self.prepend_mount_point(self.cfg.paths.pretrain_model_path)
+            self.cfg.paths.outcome = self.prepend_mount_point(self.cfg.paths.outcome)
+            if self.cfg.paths.get('censor', None) is not None:
+                self.cfg.paths.censor = self.prepend_mount_point(self.cfg.paths.censor)
+            self.cfg.paths.output_path = OUTPUTS_DIR
+        return self.cfg, self.run, self.mount_context
+    
+    def add_pretrain_info_to_cfg(self)->Config:
+        """Add information about pretraining to the config. Used in finetuning.
+        We need first to get the pretrain information, before we can prepend the mount folder to the data path."""
+        pretrain_cfg = load_config(join(self.cfg.paths.pretrain_model_path, 'pretrain_config.yaml'))
+        pretrain_data_path = self.remove_mount_folder(pretrain_cfg.paths.data_path)
+        
+        self.cfg.data.remove_background = pretrain_cfg.data.remove_background
+        self.cfg.paths.tokenized_dir = pretrain_cfg.paths.tokenized_dir
+
+        self.cfg.paths.data_path = pretrain_data_path 
+        if self.azure_env: # if we are in azure, we need to prepend the mount folder
+            self.cfg.paths.data_path = self.prepend_mount_point(self.cfg.paths.data_path)
+        return self.cfg
+    
+    def prepend_mount_point(self, path: str)->str:
+        """Prepend mount point to path."""
+        if self.azure_env:
+            path = join(self.mount_point, path)
+        return path
+
+    @staticmethod
+    def remove_mount_folder(path_str: str) -> str:
+        """Remove mount folder from path."""
+        path_parts = split_path(path_str)
+        return os.path.join(*[part for part in path_parts if not part.startswith('tmp')])

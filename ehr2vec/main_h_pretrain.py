@@ -3,15 +3,16 @@ import os
 from os.path import join
 
 import torch
-from common.azure import setup_azure, save_to_blobstore
-from common.config import instantiate, load_config
+from common.azure import save_to_blobstore
+from common.config import load_config
+from common.initialize import Initializer
 from common.loader import DatasetPreparer
-from common.setup import get_args, setup_run_folder, copy_data_config
+from common.setup import (AzurePathContext, copy_data_config, get_args,
+                          load_checkpoint_and_epoch,
+                          load_model_cfg_from_checkpoint,
+                          setup_run_folder)
 from model.config import adjust_cfg_for_behrt
-from model.model import HierarchicalBertForPretraining
-from torch.optim import AdamW
 from trainer.trainer import EHRTrainer
-from transformers import BertConfig
 
 CONFIG_NAME = 'h_pretrain.yaml'
 BLOBSTORE = 'PHAIR'
@@ -22,42 +23,27 @@ config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.conf
 
 def main_train(config_path):
     cfg = load_config(config_path)
-    run = None
-    if cfg.env=='azure':
-        run, mount_context = setup_azure(cfg.paths.run_name)
-        cfg.paths.data_path = join(mount_context.mount_point, cfg.paths.data_path)
+
+    cfg, run, mount_context = AzurePathContext(cfg).adjust_paths_for_azure_pretrain()
     
     logger, run_folder = setup_run_folder(cfg)
     copy_data_config(cfg, run_folder)
     
-    logger.info(f"Loading data from {cfg.paths.data_path}")
+    load_model_cfg_from_checkpoint(cfg, 'pretrain_config.yaml') # if we are training from checkpoint, we need to load the old config
     train_dataset, val_dataset = DatasetPreparer(cfg).prepare_hmlm_dataset()
 
     torch.save(train_dataset.target_mapping, join(cfg.paths.output_path, cfg.paths.run_name, 'target_mapping.pt'))
     logger.info("Setup model")
     if cfg.model.get('behrt_embeddings', False):
-        cfg = adjust_cfg_for_behrt(cfg)
-    bertconfig = BertConfig(leaf_size=len(train_dataset.leaf_counts), 
-                            vocab_size=len(train_dataset.vocabulary),
-                            levels=train_dataset.levels,
-                            **cfg.model)
-    model = HierarchicalBertForPretraining(
-        bertconfig, tree_matrix=train_dataset.tree_matrix)
+        if cfg.paths.get('model_path', None) is None: # only if we are not training from checkpoint
+            cfg = adjust_cfg_for_behrt(cfg)
+    checkpoint, epoch = load_checkpoint_and_epoch(cfg)
 
-    try:
-        logger.warning('Compilation currently leads to torchdynamo error during training. Skip it')
-        #model = torch.compile(model)
-        #logger.info('Model compiled')
-    except:
-        logger.info('Model not compiled')
-        
-    logger.info("Setup optimizer")
-    optimizer = AdamW(
-        model.parameters(),
-        **cfg.optimizer
-    )
-    if cfg.scheduler:
-        scheduler = instantiate(cfg.scheduler, **{'optimizer': optimizer})
+    initializer = Initializer(cfg, checkpoint=checkpoint)
+    model = initializer.initialize_hierachical_pretrain_model(train_dataset)
+    logger.info("Setup optimizer and scheduler")
+    optimizer = initializer.initialize_optimizer(model)
+    scheduler = initializer.initialize_scheduler(optimizer)
         
     logger.info("Setup trainer")
     trainer = EHRTrainer( 
@@ -70,7 +56,8 @@ def main_train(config_path):
         metrics=cfg.metrics,
         cfg=cfg,
         logger=logger,
-        run=run
+        run=run,
+        last_epoch=epoch
     )
     logger.info("Start training")
     trainer.train()
@@ -79,6 +66,7 @@ def main_train(config_path):
                           join(BLOBSTORE, 'models', cfg.paths.type, cfg.paths.run_name))
         mount_context.stop()
     logger.info("Done")
+
 
 if __name__ == '__main__':
     main_train(config_path)

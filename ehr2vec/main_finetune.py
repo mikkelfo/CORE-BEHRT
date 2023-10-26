@@ -3,18 +3,18 @@ from os.path import join
 
 import torch
 from common.azure import save_to_blobstore
-from common.config import instantiate, load_config
-from common.loader import DatasetPreparer, Loader
-from common.setup import (add_pretrain_info_to_cfg, adjust_paths_for_finetune,
-                          azure_finetune_setup, get_args, setup_run_folder, copy_data_config)
+from common.config import load_config
+from common.initialize import Initializer
+from common.loader import DatasetPreparer, ModelLoader, Utilities
+from common.setup import (AzurePathContext, adjust_paths_for_finetune,
+                          copy_data_config, get_args, setup_run_folder,
+                          load_model_cfg_from_checkpoint)
 from data.dataset import BinaryOutcomeDataset
-from evaluation.utils import get_pos_weight, get_sampler
-from model.model import BertForFineTuning
-from torch.optim import AdamW
 from trainer.trainer import EHRTrainer
 
 CONFIG_NAME = 'finetune.yaml'
 BLOBSTORE='PHAIR'
+CHECKPOINTS_DIR = 'checkpoints'
 
 args = get_args(CONFIG_NAME)
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
@@ -22,14 +22,16 @@ config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.conf
 
 def main_finetune():
     cfg = load_config(config_path)
-    model_path = cfg.paths.model_path
-    cfg = adjust_paths_for_finetune(cfg)
-    cfg, run, mount_context = azure_finetune_setup(cfg)
-    cfg = add_pretrain_info_to_cfg(cfg, mount_context)
+    pretrain_model_path = cfg.paths.pretrain_model_path # ! do not change this, it is used for saving the model to blobstore
+    
+    cfg = adjust_paths_for_finetune(cfg) 
+    azure_context = AzurePathContext(cfg)
+    cfg, run, mount_context = azure_context.azure_finetune_setup()
+    cfg = azure_context.add_pretrain_info_to_cfg()
+    
     logger, run_folder = setup_run_folder(cfg)
 
     copy_data_config(cfg, run_folder)
-
     cfg.save_to_yaml(join(run_folder, 'finetune_config.yaml'))
     dataset_preparer = DatasetPreparer(cfg)
     data = dataset_preparer.prepare_finetune_features()
@@ -42,29 +44,23 @@ def main_finetune():
     train_dataset = BinaryOutcomeDataset(train_data.features, train_data.outcomes)
     val_dataset = BinaryOutcomeDataset(val_data.features, val_data.outcomes)
 
-    logger.info('Initializing model')
-    model = Loader(cfg).load_model(BertForFineTuning,  
-                       {'pos_weight':get_pos_weight(cfg, train_dataset.outcomes),
-                        'embedding':'original_behrt' if cfg.model.get('behrt_embeddings', False) else None,
-                        'pool_type': cfg.model.get('pool_type', 'mean')})
+    model_path = cfg.paths.get('model_path', None)
+    checkpoint_model_path = model_path if model_path is not None else cfg.paths.pretrain_model_path    
+    checkpoint = ModelLoader(cfg, checkpoint_model_path).load_checkpoint()
+    if model_path:
+        load_model_cfg_from_checkpoint(cfg, 'finetune_config.yaml') # if we are training from checkpoint, we need to load the old config
+    initializer = Initializer(cfg, checkpoint=checkpoint, model_path=checkpoint_model_path)
+    model = initializer.initialize_finetune_model(train_dataset)
+    
+    if model_path is None: # if no model_path provided, optimizer and scheduler are initialized from scratch
+        initializer.checkpoint = None 
+        epoch = 0
+    else:
+        epoch = Utilities.get_last_checkpoint_epoch(join(model_path, CHECKPOINTS_DIR)) 
 
-    try:
-        logger.warning('Compilation currently leads to torchdynamo error during training. Skip it')
-        #model = torch.compile(model)
-        #logger.info('Model compiled')
-    except:
-        logger.info('Model not compiled')    
-    optimizer = AdamW(
-        model.parameters(),
-        **cfg.optimizer
-    )
-
-    sampler = get_sampler(cfg, train_dataset, train_dataset.outcomes)
-    if sampler:
-        cfg.trainer_args.shuffle = False
-
-    if cfg.scheduler:
-        scheduler = instantiate(cfg.scheduler, **{'optimizer': optimizer})
+    optimizer = initializer.initialize_optimizer(model)
+    sampler, cfg = initializer.initialize_sampler(train_dataset)
+    scheduler = initializer.initialize_scheduler(optimizer)
 
     trainer = EHRTrainer( 
         model=model, 
@@ -78,12 +74,13 @@ def main_finetune():
         cfg=cfg,
         run=run,
         logger=logger,
-        accumulate_logits=True
+        accumulate_logits=True,
+        last_epoch=epoch
     )
     trainer.train()
     if cfg.env=='azure':
         save_to_blobstore(cfg.paths.run_name,
-                          join(BLOBSTORE, model_path, cfg.paths.run_name))
+                          join(BLOBSTORE, pretrain_model_path, cfg.paths.run_name))
         mount_context.stop()
     logger.info('Done')
 

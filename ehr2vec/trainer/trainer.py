@@ -79,8 +79,8 @@ class EHRTrainer():
 
     def _initialize_mixed_precision(self):
         if self.cfg.trainer_args.get('mixed_precision', False):
-            raise ValueError("Mixed precision produces unstable results (nan loss). Please use full precision.")
-            # self.scaler = GradScaler()
+            self.scaler = GradScaler()
+            #raise ValueError("Mixed precision produces unstable results (nan loss). Please use full precision.")
         else:
             self.scaler = None
 
@@ -124,26 +124,30 @@ class EHRTrainer():
         del epoch_loss
 
     def _clip_gradients(self):
+        # First, unscale the gradients
         if self.scaler is not None:
             self.scaler.unscale_(self.optimizer)
+        
+        # Then clip them if needed
         if self.cfg.trainer_args.get('gradient_clip', False):
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.cfg.trainer_args.gradient_clip.get('max_norm', 1.0))
 
     def _train_step(self, batch: dict):
         self.optimizer.zero_grad()
         if self.scaler is not None:
-            with autocast():
+            with autocast():                
                 self.batch_to_device(batch)
                 outputs = self.model(batch)
-                loss = outputs.loss
-                loss = self.scaler.scale(loss)
+                unscaled_loss = outputs.loss  # This is the original, unscaled loss value
+                scaled_loss = self.scaler.scale(unscaled_loss)  # Scale the loss for backward
+            scaled_loss.backward()
         else:
             self.batch_to_device(batch)
             outputs = self.model(batch)
-            loss = outputs.loss
+            unscaled_loss = outputs.loss
+            unscaled_loss.backward()
 
-        loss.backward()
-        return loss
+        return unscaled_loss
 
     def _update_and_log(self, step_loss, train_loop, epoch_loss):
         """Updates the model and logs the loss"""

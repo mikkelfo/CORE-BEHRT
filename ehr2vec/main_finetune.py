@@ -5,11 +5,12 @@ import torch
 from common.azure import save_to_blobstore
 from common.config import load_config
 from common.initialize import Initializer
-from common.loader import DatasetPreparer, ModelLoader, Utilities
-from common.setup import (AzurePathContext, adjust_paths_for_finetune,
-                          copy_data_config, get_args, setup_run_folder,
-                          load_model_cfg_from_checkpoint)
+from common.loader import ModelLoader, load_model_cfg_from_checkpoint
+from common.setup import (AzurePathContext, DirectoryPreparer,
+                          copy_data_config, get_args)
 from data.dataset import BinaryOutcomeDataset
+from data.prepare_data import DatasetPreparer
+from data.utils import Utilities
 from trainer.trainer import EHRTrainer
 
 CONFIG_NAME = 'finetune.yaml'
@@ -24,12 +25,12 @@ def main_finetune():
     cfg = load_config(config_path)
     pretrain_model_path = cfg.paths.pretrain_model_path # ! do not change this, it is used for saving the model to blobstore
     
-    cfg = adjust_paths_for_finetune(cfg) 
+    cfg = DirectoryPreparer.adjust_paths_for_finetune(cfg) 
     azure_context = AzurePathContext(cfg)
     cfg, run, mount_context = azure_context.azure_finetune_setup()
     cfg = azure_context.add_pretrain_info_to_cfg()
     
-    logger, run_folder = setup_run_folder(cfg)
+    logger, run_folder = DirectoryPreparer.setup_run_folder(cfg)
 
     copy_data_config(cfg, run_folder)
     cfg.save_to_yaml(join(run_folder, 'finetune_config.yaml'))

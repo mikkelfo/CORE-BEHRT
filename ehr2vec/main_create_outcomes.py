@@ -3,16 +3,16 @@ import os
 from os.path import join
 
 import torch
-from common.azure import setup_azure
+from common.azure import save_to_blobstore, setup_azure
 from common.config import load_config
-from common.setup import prepare_directory_outcomes, get_args
+from common.setup import DirectoryPreparer, get_args
 from common.utils import check_patient_counts
 from data.concept_loader import ConceptLoader
 from downstream_tasks.outcomes import OutcomeMaker
 
 args = get_args('outcomes_test.yaml')
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
-
+BLOBSTORE = 'PHAIR'
             
 def process_data(loader, cfg, features_cfg, logger):
     concepts, patients_info = loader()
@@ -32,7 +32,7 @@ def main_data(config_path):
         cfg.features_dir = join(mount_dir, cfg.features_dir)
         outcome_dir = 'output/outcomes'
     features_cfg = load_config(join(cfg.features_dir, 'data_config.yaml'))
-    logger = prepare_directory_outcomes(config_path, outcome_dir, cfg.outcomes_name)
+    logger = DirectoryPreparer(config_path).prepare_directory_outcomes(outcome_dir, cfg.outcomes_name)
     logger.info('Mount Dataset')
     logger.info('Starting outcomes creation')
     outcomes = process_data(ConceptLoader(**cfg.loader), cfg, features_cfg, logger)
@@ -42,6 +42,8 @@ def main_data(config_path):
     logger.info('Finish outcomes creation')
 
     if cfg.env=='azure':
+        save_to_blobstore(local_path=cfg.paths.output_path, 
+                          remote_path=join(BLOBSTORE, 'outcomes', cfg.run_name))
         mount_context.stop()
 
 if __name__ == '__main__':

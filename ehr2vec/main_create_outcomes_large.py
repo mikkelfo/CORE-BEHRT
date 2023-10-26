@@ -4,10 +4,10 @@ from collections import defaultdict
 from os.path import join
 
 import torch
-from common.azure import setup_azure, save_to_blobstore
+from common.azure import save_to_blobstore
 from common.config import load_config
 from common.logger import TqdmToLogger
-from common.setup import prepare_directory_outcomes, get_args
+from common.setup import AzurePathContext, DirectoryPreparer, get_args
 from common.utils import check_patient_counts
 from data.concept_loader import ConceptLoaderLarge
 from downstream_tasks.outcomes import OutcomeMaker
@@ -34,14 +34,9 @@ def main_data(config_path):
     cfg = load_config(config_path)
     outcome_dir = join(cfg.features_dir, 'outcomes', cfg.outcomes_name)
     
-    if cfg.env=='azure':
-        _, mount_context = setup_azure(cfg.run_name)
-        mount_dir = mount_context.mount_point
-        cfg.loader.data_dir = join(mount_dir, cfg.loader.data_dir) # specify paths here
-        cfg.features_dir = join(mount_dir, cfg.features_dir)
-        outcome_dir = 'outputs/outcomes'
-    
-    logger = prepare_directory_outcomes(config_path, outcome_dir, cfg.outcomes_name)
+    cfg, _, mount_context = AzurePathContext(cfg).azure_outcomes_setup()
+
+    logger = DirectoryPreparer(config_path).prepare_directory_outcomes(outcome_dir, cfg.outcomes_name)
     logger.info('Mount Dataset')
     logger.info('Starting outcomes creation')
     features_cfg = load_config(join(cfg.features_dir, 'data_config.yaml'))
@@ -52,7 +47,7 @@ def main_data(config_path):
     logger.info('Finish outcomes creation')
 
     if cfg.env=='azure':
-        save_to_blobstore(local_path='outcomes', 
+        save_to_blobstore(local_path=cfg.paths.output_path, 
                           remote_path=join(BLOBSTORE, 'outcomes', cfg.run_name))
         mount_context.stop()
     logger.info('Done') 

@@ -1,15 +1,22 @@
+"""
+!Currently, this script is not used in the paper. It is a first attempt to evaluate the RF model.
+
+"""
+
 import os
 import shutil
 from os.path import join
 
 import torch
-from common.azure import setup_azure, save_to_blobstore
+from common.azure import save_to_blobstore
 from common.config import load_config
-from common.loader import create_binary_outcome_datasets, Loader
-from common.logger import close_handlers
-from common.setup import prepare_encodings_directory, setup_logger, get_args
-from common.utils import ConcatIterableDataset
 from common.io import PatientHDF5Writer
+from common.loader import ModelLoader
+from common.logger import close_handlers
+from common.setup import (AzurePathContext, DirectoryPreparer, get_args,
+                          setup_logger)
+from common.utils import ConcatIterableDataset
+from data.prepare_data import create_binary_outcome_datasets
 from evaluation.encodings import Forwarder
 from evaluation.utils import validate_outcomes
 from model.model import BertEHREncoder
@@ -48,12 +55,8 @@ def main_encode():
     logger.info(f"Access outcomes from {cfg.paths.outcomes_path}")
     
     cfg.output_dir = censored_patients_path
-    if cfg.env=='azure':
-        run, mount_context = setup_azure(cfg.paths.run_name)
-        cfg.paths.data_path = join(mount_context.mount_point, cfg.paths.data_path)
-        cfg.paths.model_path = join(mount_context.mount_point, cfg.paths.model_path)
-        cfg.paths.outcomes_path = join(mount_context.mount_point, cfg.paths.outcomes_path)
-        cfg.output_dir = 'outputs'
+    cfg, run, mount_context = AzurePathContext(cfg).azure_encode_setup()    
+
     
     output_dir = cfg.output_dir # we will modify cfg. output_dir
     all_outcomes = torch.load(cfg.paths.outcomes_path)
@@ -75,7 +78,7 @@ def main_encode():
         
         if i==0:
             close_handlers()
-            logger = prepare_encodings_directory(config_path, cfg)
+            logger = DirectoryPreparer(config_path).prepare_encodings_directory(cfg)
             shutil.copy(join('outputs','tmp', 'info.log'), join(cfg.output_dir, 'info.log'))
             logger.info('Deleting tmp directory')
             shutil.rmtree(join('outputs', 'tmp'))
@@ -84,7 +87,7 @@ def main_encode():
             
         logger.info(f"Store in directory with name: {_get_output_path_name(dataset, cfg)}")
         logger.info('Initializing model')
-        model = Loader(cfg).load_model(BertEHREncoder)
+        model = ModelLoader(cfg).load_model(BertEHREncoder)
 
         forwarder = Forwarder( 
             model=model, 
@@ -97,7 +100,7 @@ def main_encode():
         forwarder.forward_patients()
 
         if cfg.env=='azure':
-            save_to_blobstore('', join(BLOBSTORE, censored_patients_path))
+            save_to_blobstore(cfg.paths.output_path, join(BLOBSTORE, censored_patients_path))
     if cfg.env=='azure':
         mount_context.stop()
     logger.info('Done')

@@ -1,15 +1,16 @@
 """
 This script is used to embed concepts into a vector space.
+!Currently, this script is not used in the paper. It is a first attempt to evaluate the RF model.
 """
 import os
 import pandas as pd
 from os.path import join
 
 import torch
-from common.azure import setup_azure, save_to_blobstore
+from common.azure import save_to_blobstore
 from common.config import load_config
-from common.loader import Loader
-from common.setup import get_args, prepare_encodings_directory
+from common.loader import ModelLoader
+from common.setup import get_args, DirectoryPreparer, AzurePathContext
 from common.utils import ConcatIterableDataset
 from common.io import ConceptHDF5Writer
 from data.dataset import BaseEHRDataset
@@ -31,15 +32,11 @@ def main(config_path):
     model_path = cfg.paths.model_path
     concepts_path = join(model_path, 'encodings', 'concepts')
     cfg.output_dir = join(concepts_path, cfg.paths.run_name)
-    if cfg.env=='azure':
-        run, mount_context = setup_azure(cfg.paths.run_name)
-        cfg.paths.data_path = join(mount_context.mount_point, cfg.paths.data_path)
-        cfg.paths.model_path = join(mount_context.mount_point, cfg.paths.model_path)
-        cfg.paths.outcomes_path = join(mount_context.mount_point, cfg.paths.outcomes_path)
-        cfg.output_dir = join('outputs', cfg.paths.run_name)
-    logger = prepare_encodings_directory(config_path, cfg)
+    cfg, run, mount_context = AzurePathContext(cfg).azure_encode_setup()
+    
+    logger = DirectoryPreparer(config_path).prepare_encodings_directory(cfg)
     logger.info('Initializing model')
-    model = Loader(cfg).load_model(BertEHREncoder)
+    model = ModelLoader(cfg).load_model(BertEHREncoder)
     logger.info(f"Access data from {cfg.paths.data_path}")
     logger.info(f"Access outcomes from {cfg.paths.outcomes_path}")
     dataset = get_dataset(cfg)

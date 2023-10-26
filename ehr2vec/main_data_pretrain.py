@@ -3,9 +3,9 @@ import os
 from os.path import join
 
 import torch
-from common.azure import setup_azure
+from common.azure import save_to_blobstore
 from common.config import load_config
-from common.setup import get_args, prepare_directory
+from common.setup import AzurePathContext, DirectoryPreparer, get_args
 from common.utils import (check_directory_for_features, check_existing_splits,
                           check_patient_counts)
 from data.concept_loader import ConceptLoader
@@ -14,6 +14,8 @@ from data.split import Splitter
 from data.tokenizer import EHRTokenizer
 from data_fixes.exclude import Excluder
 from data_fixes.handle import Handler
+
+BLOBSTORE = 'PHAIR'
 
 args = get_args('data_pretrain.yaml', 'data_pretrain')
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
@@ -30,12 +32,9 @@ def main_data(config_path):
         Saves
     """
     cfg = load_config(config_path)
-    if cfg.env=='azure':
-        _, mount_context = setup_azure(cfg.run_name)
-        mount_dir = mount_context.mount_point
-        cfg.loader.data_dir = join(mount_dir, cfg.loader.data_dir) # specify paths here
+    cfg, _, mount_context = AzurePathContext(cfg).azure_data_pretrain_setup()
 
-    logger = prepare_directory(config_path, cfg)  
+    logger = DirectoryPreparer(config_path).prepare_directory(cfg)  
     logger.info('Mount Dataset')
     logger.info('Starting data processing')
     if not check_directory_for_features(cfg.loader.data_dir):
@@ -81,6 +80,8 @@ def main_data(config_path):
     logger.info('Finished data processing')
 
     if cfg.env=='azure':
+        save_to_blobstore(local_path=cfg.paths.output_path, 
+                          remote_path=join(BLOBSTORE, 'features', cfg.run_name))
         mount_context.stop()
 
 def process_data(loader, handler, excluder, cfg, logger):

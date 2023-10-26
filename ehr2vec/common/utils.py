@@ -41,6 +41,18 @@ def check_directory_for_features(dir_):
     else:
         return False
     
+    
+def split_path(path_str: str) -> list:
+    """Split path into its components."""
+    directories = []
+    while path_str:
+        path_str, directory = os.path.split(path_str)
+        # If we've reached the root directory
+        if directory:
+            directories.append(directory)
+        elif path_str:
+            break
+    return directories[::-1]  # Reverse the list to get original order
 @dataclass
 class Data:
     features: dict = field(default_factory=dict)
@@ -77,8 +89,6 @@ class Data:
                         censor_outcomes=[self.censor_outcomes[i] for i in indices] if self.censor_outcomes is not None else None,
                         vocabulary=self.vocabulary,
                         mode=mode)
-
-
 
     def _get_train_val_splits(self, split: float)->Tuple[list, list]:
         """Randomly split a list of items into two lists of lengths determined by split"""

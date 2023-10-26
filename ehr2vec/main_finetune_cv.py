@@ -6,11 +6,12 @@ import pandas as pd
 import torch
 from common.azure import save_to_blobstore
 from common.config import instantiate, load_config
-from common.loader import DatasetPreparer, Loader
-from common.setup import (AzurePathContext, adjust_paths_for_finetune,
-                          copy_data_config, get_args, setup_run_folder)
+from common.loader import ModelLoader
+from common.setup import (AzurePathContext, DirectoryPreparer,
+                          copy_data_config, get_args)
 from common.utils import Data
 from data.dataset import BinaryOutcomeDataset
+from data.prepare_data import DatasetPreparer
 from evaluation.utils import get_pos_weight, get_sampler
 from model.model import BertForFineTuning
 from sklearn.model_selection import KFold
@@ -47,7 +48,7 @@ def finetune_fold(data:Data, train_indices:List[int], val_indices:List[int], fol
     val_dataset = BinaryOutcomeDataset(val_data.features, val_data.outcomes)
 
     logger.info('Initializing model')
-    model = Loader(cfg).load_model(BertForFineTuning, 
+    model = ModelLoader(cfg, pretrain_model_path).load_model(BertForFineTuning, 
                        {'pos_weight':get_pos_weight(cfg, train_dataset.outcomes),
                         'embedding':'original_behrt' if cfg.model.get('behrt_embeddings', False) else None,
                         'pool_type': cfg.model.get('pool_type', 'mean')})
@@ -95,13 +96,11 @@ def get_n_splits(data: Data, n_splits: int)->Iterator[Tuple[Data,Data]]:
 def initialize_configuration():
     """Load and adjust the configuration."""
     cfg = load_config(config_path)
-    model_path = cfg.paths.model_path
-    cfg = adjust_paths_for_finetune(cfg)
     azure_context = AzurePathContext(cfg)
-    cfg, run, mount_context = azure_context.azure_finetune_setup(cfg)
-    cfg = azure_context.add_pretrain_info_to_cfg(cfg, mount_context)
-    return cfg, run, mount_context, model_path
-
+    cfg = DirectoryPreparer.adjust_paths_for_finetune(cfg)
+    cfg, run, mount_context = azure_context.azure_finetune_setup()
+    cfg = azure_context.add_pretrain_info_to_cfg()
+    return cfg, run, mount_context
 
 def compute_validation_scores_mean_std(finetune_folder: str)->None:
     """Compute mean and std of validation scores."""
@@ -119,8 +118,9 @@ def compute_validation_scores_mean_std(finetune_folder: str)->None:
 
 if __name__ == '__main__':
 
-    cfg, run, mount_context, model_path = initialize_configuration()
-    logger, finetune_folder = setup_run_folder(cfg)
+    cfg, run, mount_context = initialize_configuration()
+    pretrain_model_path = cfg.paths.pretrain_model_path
+    logger, finetune_folder = DirectoryPreparer.setup_run_folder(cfg)
     cfg.save_to_yaml(join(finetune_folder, 'finetune_config.yaml'))
     copy_data_config(cfg, finetune_folder)
 
@@ -136,7 +136,7 @@ if __name__ == '__main__':
     compute_validation_scores_mean_std(finetune_folder)
     
     if cfg.env=='azure':
-        save_to_blobstore(local_path=cfg.paths.run_name, 
-                          remote_path=join(BLOBSTORE, model_path, cfg.paths.run_name))
+        save_to_blobstore(local_path=cfg.paths.output_path, 
+                          remote_path=join(BLOBSTORE, pretrain_model_path, cfg.paths.run_name))
         mount_context.stop()
     logger.info('Done')

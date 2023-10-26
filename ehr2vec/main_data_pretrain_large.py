@@ -11,10 +11,10 @@ import os
 from os.path import join
 
 import torch
-from common.azure import setup_azure, save_to_blobstore
+from common.azure import save_to_blobstore
 from common.config import load_config
 from common.logger import TqdmToLogger
-from common.setup import get_args, prepare_directory
+from common.setup import AzurePathContext, DirectoryPreparer, get_args
 from common.utils import check_directory_for_features, check_existing_splits
 from data.batch import Batches, BatchTokenize
 from data.concept_loader import ConceptLoaderLarge
@@ -43,14 +43,10 @@ def main_data(config_path):
         Saves
     """
     cfg = load_config(config_path)
-    if cfg.env=='azure':
-        _, mount_context = setup_azure(cfg.run_name)
-        mount_dir = mount_context.mount_point
-        cfg.loader.data_dir = join(mount_dir, cfg.loader.data_dir) # specify paths here
+    cfg, _, mount_context = AzurePathContext(cfg).azure_data_pretrain_setup()
 
-    logger = prepare_directory(config_path, cfg)  
+    logger = DirectoryPreparer(config_path).prepare_directory(cfg)  
     logger.info('Mount Dataset')
-    
     
     logger.info('Initialize Processors')
     logger.info('Starting feature creation and processing')
@@ -82,7 +78,8 @@ def main_data(config_path):
     
     
     if cfg.env=='azure':
-        save_to_blobstore(local_path='data', remote_path=join(BLOBSTORE, 'features', cfg.run_name))
+        save_to_blobstore(local_path=cfg.paths.output_path, 
+                          remote_path=join(BLOBSTORE, 'features', cfg.run_name))
         mount_context.stop()
     logger.info('Finished')
 

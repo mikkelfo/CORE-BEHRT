@@ -1,3 +1,7 @@
+
+""" 
+!Currently, this script is not used in the paper. It is a first attempt to evaluate the RF model.
+"""
 import os
 from collections import defaultdict
 from os.path import join, split

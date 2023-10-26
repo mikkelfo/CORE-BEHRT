@@ -5,7 +5,7 @@ from os.path import join
 import torch
 from common.azure import setup_azure, save_to_blobstore
 from common.config import load_config
-from common.setup import prepare_directory_hierarchical, get_args
+from common.setup import DirectoryPreparer, get_args, AzurePathContext
 from tree.tree import TreeBuilder, get_counts
 
 BLOBSTORE = 'PHAIR'
@@ -18,12 +18,9 @@ def setup_hierarchical(config_path=config_path):
     cfg = load_config(config_path)
     data_dir = cfg.paths.features
     hierarchical_name = cfg.paths.get('hierarchical_name', 'hierarchical')
-    if cfg.env=='azure':
-        _, mount_context = setup_azure(cfg.run_name)
-        mount_dir = mount_context.mount_point
-        cfg.paths.features = join(mount_dir, cfg.paths.features)
-        data_dir = "outputs/data"
-    logger = prepare_directory_hierarchical(config_path, data_dir, hierarchical_name)  
+
+    cfg, _, mount_context = AzurePathContext(cfg).azure_hierarchical_setup()
+    logger = DirectoryPreparer(config_path).prepare_directory_hierarchical(data_dir, hierarchical_name)  
     
     logger.info('Get Counts')
     counts = get_counts(cfg, logger=logger)
@@ -41,7 +38,7 @@ def setup_hierarchical(config_path=config_path):
     logger.info('Construct and Save tree matrix')
     torch.save(tree.get_tree_matrix(), join(hierarchical_path, 'tree_matrix.pt'))
     if cfg.env == 'azure':
-        save_to_blobstore(local_path='data', remote_path=join(BLOBSTORE, cfg.paths.features))
+        save_to_blobstore(local_path=cfg.paths.output_path, remote_path=join(BLOBSTORE, cfg.paths.features))
         mount_context.stop()
 
 if __name__ == '__main__':

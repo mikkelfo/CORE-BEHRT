@@ -4,12 +4,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 from embeddings.time2vec import Time2Vec
-
+from transformers import BertConfig
 
 class BaseEmbeddings(nn.Module):
     """Base Embeddings class with shared methods"""
 
-    def __init__(self, config):
+    def __init__(self, config: BertConfig):
         super().__init__()
         self.config = config
         self.LayerNorm = nn.LayerNorm(config.hidden_size, 
@@ -46,12 +46,12 @@ class EhrEmbeddings(BaseEmbeddings):
             hidden_dropout_prob: float              - dropout probability
             linear: bool                            - whether to linearly scale embeddings (a: concept, b: age, c: abspos, d: segment)
     """
-    def __init__(self, config):
+    def __init__(self, config: BertConfig):
         super().__init__(config)
         self.initialize_embeddings(config)
         self.initialize_linear_params(config)
 
-    def initialize_embeddings(self, config)->None:
+    def initialize_embeddings(self, config: BertConfig)->None:
         self.concept_embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
         self.age_embeddings = Time2Vec(1, config.hidden_size)
         self.abspos_embeddings = Time2Vec(1, config.hidden_size)
@@ -92,14 +92,18 @@ class BehrtEmbeddings(BaseEmbeddings):
     """
     Construct the embeddings from word, segment, age and position
     """
-    def __init__(self, config):
+    def __init__(self, config: BertConfig):
         super().__init__(config)
         self.initialize_embeddings(config)
         self.initialize_linear_params(config)
 
-    def initialize_embeddings(self, config)->None:
+    def initialize_embeddings(self, config: BertConfig)->None:
         self.word_embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
-        self.segment_embeddings = nn.Embedding(config.max_segment_embeddings, config.hidden_size)
+        # !tempory solution for compatibility with old models
+        cfg = config.to_dict()
+        max_segment = cfg.get('max_segment_embeddings', None)
+        self.segment_embeddings = nn.Embedding(max_segment if max_segment is not None else cfg.get('type_vocab_size', None) , 
+                                               config.hidden_size)
         self.age_embeddings = nn.Embedding(config.age_vocab_size, config.hidden_size)
         self.posi_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size). \
             from_pretrained(embeddings=self._init_posi_embedding(config.max_position_embeddings, config.hidden_size))

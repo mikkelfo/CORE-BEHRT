@@ -3,7 +3,7 @@ import os
 from os.path import join
 
 import torch
-from common.azure import setup_azure, save_to_blobstore
+from common.azure import save_to_blobstore
 from common.config import load_config
 from common.setup import DirectoryPreparer, get_args, AzurePathContext
 from tree.tree import TreeBuilder, get_counts

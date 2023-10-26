@@ -134,14 +134,14 @@ class AzurePathContext:
             self.cfg.paths.data_path = self._prepend_mount_point(self.cfg.paths.data_path)
             if self.cfg.paths.get('model_path', None) is not None:
                 self.cfg.paths.model_path = self._prepend_mount_point(self.cfg.paths.model_path)
-            self.handle_outputs_path()
+            self._handle_outputs_path()
         return self.cfg, self.run, self.mount_context
     
     def azure_onehot_setup(self)->Tuple:
         """Azure setup for onehot encoding. Prepend mount folder."""
         if self.azure_env:
             self.cfg.paths.finetune_features_path = self._prepend_mount_point(self.cfg.paths.finetune_features_path)
-            self.handle_outputs_path()
+            self.cfg.paths.output_path = OUTPUTS_DIR
             
         return self.cfg, self.run, self.mount_context
 
@@ -152,7 +152,7 @@ class AzurePathContext:
             self.cfg.paths.outcome = self._prepend_mount_point(self.cfg.paths.outcome)
             if self.cfg.paths.get('censor', None) is not None:
                 self.cfg.paths.censor = self._prepend_mount_point(self.cfg.paths.censor)
-            self._handle_outputs_path()
+            self.cfg.paths.output_path = OUTPUTS_DIR
         return self.cfg, self.run, self.mount_context
     
     def azure_data_pretrain_setup(self)->Tuple:

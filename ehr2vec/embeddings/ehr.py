@@ -99,7 +99,7 @@ class BehrtEmbeddings(BaseEmbeddings):
 
     def initialize_embeddings(self, config)->None:
         self.word_embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
-        self.segment_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size)
+        self.segment_embeddings = nn.Embedding(config.max_segment_embeddings, config.hidden_size)
         self.age_embeddings = nn.Embedding(config.age_vocab_size, config.hidden_size)
         self.posi_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size). \
             from_pretrained(embeddings=self._init_posi_embedding(config.max_position_embeddings, config.hidden_size))

@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 from os.path import join
 from typing import Dict, List, Tuple, Union
 
@@ -29,6 +30,7 @@ BG_GENDER_KEYS = {
 }
 MIN_POSITIVES = {'train': 10, 'val': 5}
 SPECIAL_CODES = ['[', 'BG_', 'BG']
+CHECKPOINT_FOLDER = 'checkpoints'
 # TODO: Add option to load test set only!
 class DatasetPreparer:
     def __init__(self, cfg):
@@ -475,14 +477,18 @@ class Loader():
         h_vocabulary = torch.load(join(hierarchical_path, VOCABULARY_FILE))
         return tree, tree_matrix, h_vocabulary 
     
-    def load_model(self, model_class, add_config={}):
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        checkpoint_path = join(self.path_cfg.model_path, 'checkpoints' ,f'checkpoint_epoch{self.path_cfg.checkpoint_epoch}_end.pt')
+    def load_model(self, model_class, add_config:dict={}, checkpoint: dict=None):
+        """Load model from config and checkpoint. model_class is the class of the model to be loaded."""
+        checkpoint = self.load_checkpoint() if checkpoint is None else checkpoint
         # Load the config from file
         config = BertConfig.from_pretrained(self.path_cfg.model_path) 
         config.update(add_config)
         model = model_class(config)
-        load_result = model.load_state_dict(torch.load(checkpoint_path, map_location=device)['model_state_dict'], strict=False)
+        
+        return self.load_state_dict_into_model(model, checkpoint)
+    
+    def load_state_dict_into_model(self, model: torch.nn.Module, checkpoint: dict)->torch.nn.Module:
+        load_result = model.load_state_dict(checkpoint['model_state_dict'], strict=False)
         missing_keys = load_result.missing_keys
 
         if len([k for k in missing_keys if k.startswith('embeddings')])>0:
@@ -490,6 +496,21 @@ class Loader():
             raise ValueError(f"Embeddings not loaded. Ensure that model.behrt_embeddings is compatible with pretrained model embeddings {pretrained_model_embeddings}.")
         logger.warning("missing state dict keys: %s", missing_keys)
         return model
+
+    def load_checkpoint(self)->dict:
+        """Load checkpoint, if checkpoint epoch provided. Else load last checkpoint."""
+        checkpoints_path = join(self.path_cfg.model_path, CHECKPOINT_FOLDER)
+        checkpoint_epoch = self.get_checkpoint_epoch()
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        return torch.load(join(checkpoints_path,f'checkpoint_epoch{checkpoint_epoch}_end.pt'), map_location=device)
+    
+    def get_checkpoint_epoch(self)->int:
+        """Get checkpoint epoch from config or return the last checkpoint_epoch for this model."""
+        checkpoint_epoch = self.path_cfg.get('checkpoint_epoch', None)
+        if checkpoint_epoch is None:
+            logger.info("No checkpoint provided. Loading last checkpoint.")
+            checkpoint_epoch = Utilities.get_last_checkpoint_epoch(join(self.path_cfg.model_path, CHECKPOINT_FOLDER))
+        return checkpoint_epoch
     
     def load_finetune_data(self, path: str=None, mode: str='val')->Data:
         """Load features for finetuning"""
@@ -638,7 +659,22 @@ class Utilities():
             if num_positive_patiens < MIN_POSITIVES[mode]:
                 raise ValueError(f"Number of positive patients is less than {MIN_POSITIVES[mode]}: {num_positive_patiens}")
             logger.info(f"Positive {mode} patients: {num_positive_patiens}")
-
+    @staticmethod
+    def get_last_checkpoint_epoch(checkpoint_folder: str)->int:
+        """Returns the epoch of the last checkpoint."""
+        # Regular expression to match the pattern retry_XXX
+        pattern = re.compile(r"checkpoint_epoch(\d+)_end\.pt$")
+        max_epoch = None
+        for filename in os.listdir(checkpoint_folder):
+            match = pattern.match(filename)
+            if match:
+                epoch = int(match.group(1))
+                if max_epoch is None or epoch > max_epoch:
+                    max_epoch = epoch
+        # Return the folder with the maximum retry number
+        if max_epoch is None:
+            raise ValueError("No checkpoint found in folder {}".format(checkpoint_folder))
+        return max_epoch
 
 
 def create_binary_outcome_datasets(all_outcomes, cfg):

@@ -22,15 +22,16 @@ class EHRTrainer():
         scheduler: torch.optim.lr_scheduler.StepLR = None,
         metrics: dict = {},
         args: dict = {},
-        sampler = None,
+        sampler: callable = None,
         cfg = None,
         logger = None,
         run = None,
-        accumulate_logits = False,
-        run_folder = None,
+        accumulate_logits: bool = False,
+        run_folder: str = None,
+        last_epoch: int = None,
     ):
         
-        self._initialize_basic_attributes(model, train_dataset, test_dataset, val_dataset, optimizer, scheduler, metrics, sampler, cfg, run, accumulate_logits, run_folder)
+        self._initialize_basic_attributes(model, train_dataset, test_dataset, val_dataset, optimizer, scheduler, metrics, sampler, cfg, run, accumulate_logits, last_epoch)
         self._set_default_args(args)
         self.logger = logger
         self.run_folder = run_folder or os.path.join(self.cfg.paths.output_path, self.cfg.paths.run_name)
@@ -42,7 +43,7 @@ class EHRTrainer():
         self._initialize_mixed_precision()
         self._initialize_early_stopping()
         
-    def _initialize_basic_attributes(self, model, train_dataset, test_dataset, val_dataset, optimizer, scheduler, metrics, sampler, cfg, run, accumulate_logits, run_folder):
+    def _initialize_basic_attributes(self, model, train_dataset, test_dataset, val_dataset, optimizer, scheduler, metrics, sampler, cfg, run, accumulate_logits, last_epoch):
         self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
         self.model = model.to(self.device)
         self.train_dataset = train_dataset
@@ -55,6 +56,7 @@ class EHRTrainer():
         self.cfg = cfg
         self.run = run
         self.accumulate_logits = accumulate_logits
+        self.continue_epoch = last_epoch + 1 if last_epoch is not None else 0
 
     def _log_basic_info(self):
         self.log(f"Run on {self.device}")
@@ -98,7 +100,7 @@ class EHRTrainer():
         dataloader = self.setup_training()
         self.log(f'Test validation before starting training')
         self.validate(epoch=0)
-        for epoch in range(self.args['epochs']):
+        for epoch in range(self.continue_epoch, self.args['epochs']):
             self._train_epoch(epoch, dataloader)
             if self.stop_training:
                 break
@@ -112,10 +114,8 @@ class EHRTrainer():
             step_loss += self._train_step(batch).item()
             if (i+1) % self.accumulation_steps == 0:
                 self._clip_gradients()
-                self._update_and_log(i, step_loss, train_loop, epoch_loss)
+                self._update_and_log(step_loss, train_loop, epoch_loss)
                 step_loss = 0
-            if ((i+1) / self.accumulation_steps) % self.args['save_every_k_steps'] == 0:
-                self._save_checkpoint(id=f'epoch{epoch}_step{(i+1) // self.accumulation_steps}', train_loss=step_loss / self.accumulation_steps)
             if i%100==0:
                 self.run_log_gpu()
         self.validate_and_log(epoch, epoch_loss, train_loop)
@@ -145,7 +145,7 @@ class EHRTrainer():
         loss.backward()
         return loss
 
-    def _update_and_log(self, i, step_loss, train_loop, epoch_loss):
+    def _update_and_log(self, step_loss, train_loop, epoch_loss):
         """Updates the model and logs the loss"""
         if self.scaler is not None:
             self.scaler.step(self.optimizer)
@@ -159,7 +159,6 @@ class EHRTrainer():
         epoch_loss.append(step_loss / self.accumulation_steps)
 
         if self.args['info']:
-            #self.log(f'Train loss {(i+1) // self.accumulation_steps}: {step_loss / self.accumulation_steps}')
             for param_group in self.optimizer.param_groups:
                 current_lr = param_group['lr']
                 self.run_log('Learning Rate', current_lr)
@@ -180,7 +179,7 @@ class EHRTrainer():
         )
         should_save = should_save and (not self.early_stopping)
         if should_save:
-            self._save_checkpoint(id=f'epoch{epoch}_end', train_loss=epoch_loss, val_loss=val_loss, metrics=metrics, final_step_loss=epoch_loss[-1])
+            self._save_checkpoint(epoch, train_loss=epoch_loss, val_loss=val_loss, metrics=metrics, final_step_loss=epoch_loss[-1])
 
     def _self_log_results(self, epoch: int, val_loss: float, metrics: dict, epoch_loss: float, len_train_loop: int)->None:
         for k, v in metrics.items():
@@ -197,7 +196,7 @@ class EHRTrainer():
         if val_loss < self.best_val_loss:
             self.best_val_loss = val_loss
             self.early_stopping_counter = 0
-            self._save_checkpoint(id=f'epoch{epoch}_end', train_loss=epoch_loss, val_loss=val_loss, metrics=metrics, final_step_loss=epoch_loss[-1])
+            self._save_checkpoint(epoch, train_loss=epoch_loss, val_loss=val_loss, metrics=metrics, final_step_loss=epoch_loss[-1])
             return False
         else:
             self.early_stopping_counter += 1
@@ -311,13 +310,15 @@ class EHRTrainer():
             yaml.dump(self.cfg.to_dict(), file)
         self.log(f'Saved config to {self.run_folder}')  
 
-    def _save_checkpoint(self, id, **kwargs)->None:
+    def _save_checkpoint(self, epoch:int, **kwargs)->None:
         """Saves a checkpoint. Model with optimizer and scheduler if available."""
         # Model/training specific
+        id=f'epoch{epoch}_end'
         os.makedirs(os.path.join(self.run_folder, 'checkpoints'), exist_ok=True)
         checkpoint_name = os.path.join(self.run_folder, 'checkpoints', f'checkpoint_{id}.pt')
 
         torch.save({
+            'epoch': epoch,
             'model_state_dict': self.model.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
             'scheduler_state_dict': self.scheduler.state_dict() if self.scheduler is not None else None,

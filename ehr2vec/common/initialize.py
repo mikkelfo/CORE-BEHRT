@@ -1,6 +1,7 @@
 import logging
 from typing import Optional, Tuple
 
+import torch
 from common.config import Config, instantiate
 from common.loader import ModelLoader
 from evaluation.utils import get_pos_weight, get_sampler
@@ -20,12 +21,15 @@ class Initializer:
         self.checkpoint = checkpoint
         if checkpoint:
             self.loader = ModelLoader(cfg, model_path)
+        self.device = torch.device('cuda') if torch.cuda.is_available() else 'cpu'
 
     def initialize_pretrain_model(self, train_dataset):
         """Initialize model from checkpoint or from scratch."""
         if self.checkpoint:
             logger.info('Loading model from checkpoint')
-            return self.loader.load_model(BertEHRModel, checkpoint=self.checkpoint)
+            model = self.loader.load_model(BertEHRModel, checkpoint=self.checkpoint)
+            model.to(self.device)
+            return model
         else:
             logger.info('Initializing new model')
             vocab_size = len(train_dataset.vocabulary)
@@ -75,6 +79,7 @@ class Initializer:
         if self.checkpoint:
             logger.info('Loading AdamW optimizer from checkpoint')
             optimizer = AdamW(model.parameters(),)
+            self.optimizer_state_dic_to_device(self.checkpoint['optimizer_state_dict'])
             optimizer.load_state_dict(self.checkpoint['optimizer_state_dict'])
             return optimizer
         else:
@@ -104,3 +109,9 @@ class Initializer:
         if sampler:
             self.cfg.trainer_args.shuffle = False
         return sampler, self.cfg
+
+    def optimizer_state_dic_to_device(self, optimizer_state_dic):
+        for state in optimizer_state_dic['state'].values():
+            for k, v in state.items():
+                if isinstance(v, torch.Tensor):
+                    state[k] = v.to(self.device)

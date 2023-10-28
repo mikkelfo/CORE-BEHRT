@@ -4,6 +4,7 @@ from typing import Optional, Tuple
 import torch
 from common.config import Config, instantiate
 from common.loader import ModelLoader
+from common.utils import hook_fn
 from evaluation.utils import get_pos_weight, get_sampler
 from model.model import (BertEHRModel, BertForFineTuning,
                          HierarchicalBertForPretraining)
@@ -29,16 +30,15 @@ class Initializer:
             logger.info('Loading model from checkpoint')
             model = self.loader.load_model(BertEHRModel, checkpoint=self.checkpoint)
             model.to(self.device)
-            return model
         else:
             logger.info('Initializing new model')
             vocab_size = len(train_dataset.vocabulary)
-            return BertEHRModel(
-                    BertConfig(
-                        **self.cfg.model,
-                        vocab_size=vocab_size,
-                    )
-                )
+            model = BertEHRModel(BertConfig( **self.cfg.model, vocab_size=vocab_size,))
+        # ! Uncomment if instabilities occur.
+        #for layer in model.modules():
+         #   layer.register_forward_hook(hook_fn)
+        return model
+        
     
     def initialize_finetune_model(self, train_dataset):
         if self.checkpoint:

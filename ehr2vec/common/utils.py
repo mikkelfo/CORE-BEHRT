@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from os.path import join
 from typing import Dict, List, Optional, Tuple
 
+import torch
 from torch.utils.data import IterableDataset
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
@@ -53,6 +54,17 @@ def split_path(path_str: str) -> list:
         elif path_str:
             break
     return directories[::-1]  # Reverse the list to get original order
+
+def hook_fn(module, input, output):
+    if isinstance(output, torch.Tensor):
+        tensors = [output]
+    else:
+        # Assuming output is tuple, list or named tuple
+        tensors = [tensor for tensor in output if isinstance(tensor, torch.Tensor)]
+
+    for tensor in tensors:
+        if torch.isnan(tensor).any().item():
+            raise ValueError(f"NaNs in output of {module}")
 @dataclass
 class Data:
     features: dict = field(default_factory=dict)

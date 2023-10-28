@@ -136,7 +136,7 @@ if __name__ == '__main__':
     compute_validation_scores_mean_std(finetune_folder)
     
     if cfg.env=='azure':
-        save_to_blobstore(local_path=cfg.paths.output_path, 
+        save_to_blobstore(local_path=cfg.paths.run_name, 
                           remote_path=join(BLOBSTORE, pretrain_model_path, cfg.paths.run_name))
         mount_context.stop()
     logger.info('Done')

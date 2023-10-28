@@ -54,7 +54,9 @@ def save_to_blobstore(local_path: str, remote_path: str):
         from azure_run import file_dataset_save
         retry_folder = get_max_retry_folder(os.listdir('outputs'))
         output_path = 'outputs' if retry_folder is None else join('outputs', retry_folder)
-        file_dataset_save(local_path=join(output_path, local_path), datastore_name = "workspaceblobstore",
+        src_dir = join(output_path, local_path)
+        logger.info(f"Try copying {src_dir} to {remote_path}")
+        file_dataset_save(local_path=src_dir, datastore_name = "workspaceblobstore",
                     remote_path = remote_path)
         logger.info('Saved model to blob')
     except:

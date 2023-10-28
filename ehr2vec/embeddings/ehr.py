@@ -6,6 +6,11 @@ import torch.nn as nn
 from embeddings.time2vec import Time2Vec
 from transformers import BertConfig
 
+TIME2VEC_AGE_MULTIPLIER = 1e-2
+TIME2VEC_ABSPOS_MULTIPLIER = 1e-4
+TIME2VEC_MIN_CLIP = -10
+TIME2VEC_MAX_CLIP = 10
+
 class BaseEmbeddings(nn.Module):
     """Base Embeddings class with shared methods"""
 
@@ -53,8 +58,10 @@ class EhrEmbeddings(BaseEmbeddings):
 
     def initialize_embeddings(self, config: BertConfig)->None:
         self.concept_embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
-        self.age_embeddings = Time2Vec(1, config.hidden_size)
-        self.abspos_embeddings = Time2Vec(1, config.hidden_size)
+        self.age_embeddings = Time2Vec(1, config.hidden_size, init_scale=TIME2VEC_AGE_MULTIPLIER,
+                                       clip_min=TIME2VEC_MIN_CLIP, clip_max=TIME2VEC_MAX_CLIP)
+        self.abspos_embeddings = Time2Vec(1, config.hidden_size, init_scale=TIME2VEC_ABSPOS_MULTIPLIER,
+                                          clip_min=TIME2VEC_MIN_CLIP, clip_max=TIME2VEC_MAX_CLIP)
         self.segment_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size)
         
     def forward(

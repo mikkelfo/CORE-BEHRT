@@ -79,8 +79,9 @@ def main_finetune():
     )
     trainer.train()
     if cfg.env=='azure':
+        save_path = pretrain_model_path if cfg.paths.get("save_folder_path", None) is None else cfg.paths.save_folder_path
         save_to_blobstore(cfg.paths.run_name,
-                          join(BLOBSTORE, pretrain_model_path, cfg.paths.run_name))
+                          join(BLOBSTORE, save_path, cfg.paths.run_name))
         mount_context.stop()
     logger.info('Done')
 

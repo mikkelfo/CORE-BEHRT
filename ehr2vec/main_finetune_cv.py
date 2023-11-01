@@ -4,11 +4,10 @@ from typing import Iterator, List, Tuple
 
 import pandas as pd
 import torch
-from common.azure import save_to_blobstore
+from common.azure import AzurePathContext, save_to_blobstore
 from common.config import instantiate, load_config
 from common.loader import ModelLoader
-from common.setup import (AzurePathContext, DirectoryPreparer,
-                          copy_data_config, get_args)
+from common.setup import DirectoryPreparer, copy_data_config, get_args
 from common.utils import Data
 from data.dataset import BinaryOutcomeDataset
 from data.prepare_data import DatasetPreparer

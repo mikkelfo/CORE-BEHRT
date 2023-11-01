@@ -2,12 +2,11 @@ import os
 from os.path import join
 
 import torch
-from common.azure import save_to_blobstore
+from common.azure import AzurePathContext, save_to_blobstore
 from common.config import load_config
 from common.initialize import Initializer
 from common.loader import ModelLoader, load_model_cfg_from_checkpoint
-from common.setup import (AzurePathContext, DirectoryPreparer,
-                          copy_data_config, get_args)
+from common.setup import DirectoryPreparer, copy_data_config, get_args
 from data.dataset import BinaryOutcomeDataset
 from data.prepare_data import DatasetPreparer
 from data.utils import Utilities

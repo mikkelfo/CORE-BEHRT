@@ -3,8 +3,7 @@ from os.path import join
 from typing import Tuple
 
 import torch
-from common.config import Config
-from common.setup import load_config
+from common.config import Config, load_config
 from common.utils import Data
 from data.utils import Utilities
 from transformers import BertConfig

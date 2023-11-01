@@ -3,13 +3,12 @@ import os
 from os.path import join
 
 import torch
-from common.azure import save_to_blobstore
+from common.azure import AzurePathContext, save_to_blobstore
 from common.config import load_config
 from common.initialize import Initializer
 from common.loader import (load_checkpoint_and_epoch,
                            load_model_cfg_from_checkpoint)
-from common.setup import (AzurePathContext, DirectoryPreparer,
-                          copy_data_config, get_args)
+from common.setup import DirectoryPreparer, copy_data_config, get_args
 from data.prepare_data import DatasetPreparer
 from model.config import adjust_cfg_for_behrt
 from trainer.trainer import EHRTrainer

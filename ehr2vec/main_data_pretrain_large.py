@@ -11,10 +11,10 @@ import os
 from os.path import join
 
 import torch
-from common.azure import save_to_blobstore
+from common.azure import AzurePathContext, save_to_blobstore
 from common.config import load_config
 from common.logger import TqdmToLogger
-from common.setup import AzurePathContext, DirectoryPreparer, get_args
+from common.setup import DirectoryPreparer, get_args
 from common.utils import check_directory_for_features, check_existing_splits
 from data.batch import Batches, BatchTokenize
 from data.concept_loader import ConceptLoaderLarge

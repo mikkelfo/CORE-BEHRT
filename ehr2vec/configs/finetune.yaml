@@ -1,7 +1,8 @@
 env: local
 paths:
-  model_path: "outputs/pretraining/behrt_test"
-  checkpoint_epoch: 2
+  pretrain_model_path: "outputs/pretraining/behrt_test"
+  #model_path: "outputs/pretraining/behrt_test/finetune_TEST_OUTCOME_censored_4_days_pre_TEST_OUTCOME_test"
+  checkpoint_epoch: 1
   outcome: "../outputs/data_icd10/outcomes/TEST_CENSOR/TEST_CENSOR.pt"
   #output_path: "outputs/finetuning"
   run_name: "test"
@@ -11,7 +12,7 @@ paths:
 
 model:
   pool_type: "mean"
-  behrt_embeddings: true
+  behrt_embeddings: false
 
 data:
   num_patients: 30 #300
@@ -33,12 +34,12 @@ outcome:
 
 trainer_args:
   sampler: true
-  sample_weight: .1 # adjust the sampling weight of the positive class (1 is balanced)
+  sample_weight: 1 # adjust the sampling weight of the positive class (1 is balanced)
   pos_weight: null # weight for positive class in the loss
   batch_size: 8
   val_batch_size: 32
   effective_batch_size: 16
-  epochs: 4
+  epochs: 1
   info: true
   gradient_clip: 
     clip_value: 1.0
@@ -52,9 +53,9 @@ optimizer:
   eps: 1e-6
 
 scheduler:
-  _target_: transformers.get_constant_schedule_with_warmup
+  _target_: transformers.get_linear_schedule_with_warmup
   num_warmup_steps: 10
-  #num_training_steps: 100
+  num_training_steps: 100
 
 metrics:
   accuracy:

@@ -4,7 +4,7 @@ from typing import Dict, List, Tuple, Union
 
 import numpy as np
 import pandas as pd
-from common.config import Config
+from common.config import Config, instantiate
 from common.loader import FeaturesLoader
 from common.saver import Saver
 from common.utils import Data
@@ -13,7 +13,6 @@ from data.dataset import (BinaryOutcomeDataset, HierarchicalMLMDataset,
 from data.filter import CodeTypeFilter, PatientFilter
 from data.utils import Utilities
 from data_fixes.adapt import BehrtAdapter
-from data_fixes.censor import Censorer
 from data_fixes.handle import Handler
 from data_fixes.truncate import Truncator
 
@@ -27,7 +26,6 @@ HIERARCHICAL_VOCABULARY_FILE = 'h_vocabulary.pt'
 class DatasetPreparer:
     def __init__(self, cfg: Config):
         self.cfg = cfg
-       
         self.utils = Utilities()
         self.loader = FeaturesLoader(cfg)
         
@@ -36,7 +34,7 @@ class DatasetPreparer:
         
         self.patient_filter = PatientFilter(cfg)
         self.code_type_filter = CodeTypeFilter(cfg)
-        self.data_modifier = DataModifier()
+        self.data_modifier = DataModifier(cfg)
 
     def prepare_mlm_dataset(self):
         """Load data, truncate, adapt features, create dataset"""
@@ -263,6 +261,8 @@ class OneHotEncoder():
         return X, y
     
 class DataModifier():
+    def __init__(self, cfg) -> None:
+        self.cfg = cfg
     @staticmethod
     def truncate(data: Data, truncation_len: int)->Data:
         truncator = Truncator(max_len=truncation_len, 
@@ -282,10 +282,11 @@ class DataModifier():
                 new_tokens_lists.append(new_tokens)
             data.features[k] = new_tokens_lists 
         return data
-    @staticmethod
-    def censor_data(data: Data, n_hours: float)->Data:
+    def censor_data(self, data: Data, n_hours: float)->Data:
         """Censors data n_hours after censor_outcome."""
-        censorer = Censorer(n_hours, vocabulary=data.vocabulary)
+        censorer_cfg = self.cfg.data.get('censorer', {'_target_': 'data_fixes.censor.Censorer'})
+        censorer = instantiate(censorer_cfg, vocabulary= data.vocabulary, n_hours=n_hours)
+        logger.info(f"Censoring data {n_hours} hours after outcome with {censorer.__class__.__name__}")
         data.features = censorer(data.features, data.censor_outcomes, exclude=False)
         return data
     @staticmethod

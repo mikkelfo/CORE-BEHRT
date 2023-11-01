@@ -1,5 +1,7 @@
+import random
 from typing import List, Union
 
+import numpy as np
 import pandas as pd
 from common.utils import iter_patients
 from data_fixes.exclude import Excluder
@@ -77,4 +79,17 @@ class Censorer:
     def _identify_if_tokenized(self, concepts:list)->bool:
         """Identify if the features are tokenized."""
         return concepts and isinstance(concepts[0], int)
+
+
+class EQ_Censorer(Censorer):
+        
+    def __call__(self, features: dict, censor_outcomes: list, exclude: bool = True) -> dict:
+        censor_outcomes = self.get_censor_outcomes_for_negatives(censor_outcomes)
+        return super().__call__(features, censor_outcomes, exclude)
+
+    @staticmethod
+    def get_censor_outcomes_for_negatives(censor_outcomes: list) -> list:
+        """Use distribution of censor times to generate censor times for negative patients."""
+        positive_censor_outcomes = [t for t in censor_outcomes if ~np.isnan(t)]
+        return [t if ~np.isnan(t) else random.choice(positive_censor_outcomes) for t in censor_outcomes]
 

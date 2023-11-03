@@ -2,14 +2,16 @@ env: local
 paths:
   # data_path: 'pretrain_datasets/diagnosis_medication/070623/outputs/data' # inside mounted datastore
   data_path: "..\\outputs\\data_icd10"
-  output_path: 'outputs/pretraining'
+  output_path: outputs/pretraining
   type: med_diag
   run_name: behrt_test
   tokenized_dir: tokenized
   
 data:
   dataset:
-    masked_ratio: 0.15
+    select_ratio: 1.
+    masking_ratio: 0.8
+    replace_ratio: 0.2
     ignore_special_tokens: true
   truncation_len: 20
   num_train_patients: 100
@@ -18,9 +20,9 @@ data:
   min_len: 2
 
 trainer_args:
-  batch_size: 8
-  effective_batch_size: 16
-  epochs: 10
+  batch_size: 32
+  effective_batch_size: 64
+  epochs: 5
   info: true
   sampler: null
   gradient_clip: 
@@ -38,7 +40,7 @@ model:
   num_attention_heads: 3
   intermediate_size: 64
   type_vocab_size: 40
-  behrt_embeddings: true
+  behrt_embeddings: false
 
 optimizer:
   lr: 5e-4
@@ -46,8 +48,8 @@ optimizer:
 
 scheduler:
   _target_: transformers.get_linear_schedule_with_warmup
-  num_warmup_steps: 10
-  num_training_steps: 100
+  num_warmup_steps: 100
+  num_training_steps: 10000
 
 
 metrics:

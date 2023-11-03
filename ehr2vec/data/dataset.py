@@ -2,8 +2,8 @@ import logging
 
 import pandas as pd
 import torch
+from data.mask import ConceptMasker
 from torch.utils.data import Dataset
-from typing import Iterator, Tuple
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
 
@@ -28,74 +28,23 @@ class MLMDataset(BaseEHRDataset):
         self,
         features: dict,
         vocabulary: dict,
-        masked_ratio:float=0.3,
+        select_ratio:float,
+        masking_ratio:float=0.8,
+        replace_ratio:float=0.1,
         ignore_special_tokens:bool=True,
     ):
         super().__init__(features)
         self.vocabulary = vocabulary
-        self.masked_ratio = masked_ratio
-        if ignore_special_tokens:
-            self.n_special_tokens = len(
-                [token for token in vocabulary if token.startswith("[")]
-            )
-        else:
-            self.n_special_tokens = 0
+        self.masker = ConceptMasker(self.vocabulary, select_ratio, masking_ratio, replace_ratio, ignore_special_tokens)
 
     def __getitem__(self, index: int)->dict:
         patient = super().__getitem__(index)
-
-        masked_concepts, target = self._mask(patient)
+        masked_concepts, target = self.masker.mask_patient_concepts(patient)
         patient["concept"] = masked_concepts
         patient["target"] = target
 
         return patient
 
-    def _mask(self, patient: dict)->Tuple[torch.Tensor, torch.Tensor]:
-        concepts = patient["concept"]
-
-        N = len(concepts)
-
-        # Initialize
-        masked_concepts = torch.clone(concepts)
-        target = torch.ones(N, dtype=torch.long) * -100
-
-        # Apply special token mask and create MLM mask
-        eligible_mask = masked_concepts >= self.n_special_tokens
-        eligible_concepts = masked_concepts[eligible_mask]  # Ignore special tokens
-        rng = torch.rand(len(eligible_concepts))  # Random number for each token
-        masked = rng < self.masked_ratio  # Mask tokens with probability masked_ratio
-
-        # Get masked MLM concepts
-        selected_concepts = eligible_concepts[masked]  # Select set % of the tokens
-        adj_rng = rng[masked].div(self.masked_ratio)  # Fix ratio to 0-100 interval
-
-        # Operation masks (80% mask, 10% replace with random word, 10% keep token)
-        rng_mask = adj_rng < 0.8
-        rng_replace = (0.8 <= adj_rng) & (adj_rng < 0.9)
-        # rng_keep = adj_rng >= 0.9 # Redundant
-
-        # Apply operations (Mask, replace, keep)
-        selected_concepts = torch.where(
-            rng_mask, self.vocabulary["[MASK]"], selected_concepts
-        )  # Replace with [MASK]
-        selected_concepts = torch.where(
-            rng_replace,
-            torch.randint(
-                self.n_special_tokens, len(self.vocabulary), (len(selected_concepts),)
-            ),
-            selected_concepts,
-        )  # Replace with random word
-        # selected_concepts = torch.where(rng_keep, selected_concepts, selected_concepts)       # Redundant
-
-        # Update outputs (nonzero for double masking)
-        target[eligible_mask.nonzero()[:, 0][masked]] = eligible_concepts[
-            masked
-        ]  # Set "true" token
-        masked_concepts[
-            eligible_mask.nonzero()[:, 0][masked]
-        ] = selected_concepts  # Sets new concepts
-
-        return masked_concepts, target
     
 class HierarchicalMLMDataset(MLMDataset):
     def __init__(
@@ -105,10 +54,12 @@ class HierarchicalMLMDataset(MLMDataset):
         h_vocabulary: dict,
         tree=None,
         tree_matrix=None,
-        masked_ratio=0.3,
+        select_ratio=0.15,
+        masking_ratio=0.8,
+        replace_ratio=0.1,
         ignore_special_tokens=True,
     ):
-        super().__init__(features, vocabulary, masked_ratio, ignore_special_tokens)
+        super().__init__(features, vocabulary, select_ratio, masking_ratio, replace_ratio, ignore_special_tokens)
 
         self.h_vocabulary = h_vocabulary
         self.tree_matrix = tree_matrix

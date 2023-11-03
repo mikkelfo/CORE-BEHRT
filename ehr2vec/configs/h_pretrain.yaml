@@ -7,10 +7,13 @@ paths:
   type: med_diag
   run_name: test
   tokenized_dir: tokenized
+  model_path: outputs/h_pretraining/test
   
 data:
   dataset:
-    masked_ratio: 0.15
+    select_ratio: 1.
+    masking_ratio: 0.8
+    replace_ratio: 0.2
     ignore_special_tokens: true
   truncation_len: 20
   num_train_patients: 100
@@ -22,7 +25,7 @@ data:
 trainer_args:
   batch_size: 64
   effective_batch_size: 128
-  epochs: 3
+  epochs: 5
   info: true
   sampler: null
   gradient_clip: 

@@ -1,7 +1,6 @@
 import random
 from typing import List, Union
 
-import numpy as np
 import pandas as pd
 from common.utils import iter_patients
 from data_fixes.exclude import Excluder
@@ -90,6 +89,6 @@ class EQ_Censorer(Censorer):
     @staticmethod
     def get_censor_outcomes_for_negatives(censor_outcomes: list) -> list:
         """Use distribution of censor times to generate censor times for negative patients."""
-        positive_censor_outcomes = [t for t in censor_outcomes if ~np.isnan(t)]
-        return [t if ~np.isnan(t) else random.choice(positive_censor_outcomes) for t in censor_outcomes]
+        positive_censor_outcomes = [t for t in censor_outcomes if ~pd.isna(t)]
+        return [t if ~pd.isna(t) else random.choice(positive_censor_outcomes) for t in censor_outcomes]
 

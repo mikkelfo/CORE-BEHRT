@@ -25,9 +25,11 @@ class ConceptMasker:
         self.select_ratio = select_ratio # Select ratio of tokens to consider in the loss
         self.masking_ratio = masking_ratio
         self.replace_ratio = replace_ratio
-        logger.info(f"Select ratio: {self.select_ratio}, masking ratio: {self.masking_ratio}, replace ratio: {self.replace_ratio}")
+        
         assert self.select_ratio <= 1.0, "Select ratio should not exceed 1.0"
-        assert self.masking_ratio + self.replace_ratio <= 1.0, "Masking and replace ratio should not exceed 1.0"
+        assert self.masking_ratio + self.replace_ratio <= 1.0, "Masking ratio + replace ratio should not exceed 1.0"
+        logger.info(f"Select ratio: {self.select_ratio}, masking ratio: {self.masking_ratio}, replace ratio: {self.replace_ratio},\
+                    unchanged ratio: {1.0 - self.masking_ratio - self.replace_ratio}")
 
     def mask_patient_concepts(self, patient: dict)->Tuple[torch.Tensor, torch.Tensor]:
         masked_concepts, target = self._initialize_masked_concepts_and_target(patient)
@@ -40,20 +42,18 @@ class ConceptMasker:
         adj_rng = rng[masked].div(self.select_ratio)  # Fix ratio to 0-1 interval
 
         # Operation masks (self.masking_ratio: mask, self.replace_ratio: replace with random word,  keep rest)
-        print(adj_rng)
         rng_mask = adj_rng < self.masking_ratio
-        if self.replace_ratio > 0.0:
-            rng_replace = (self.masking_ratio <= adj_rng) & (adj_rng < self.masking_ratio + self.replace_ratio)
-
-        # Apply operations (Mask, replace, keep)
         selected_concepts = torch.where(rng_mask, self.vocabulary["[MASK]"], selected_concepts)  # Replace with [MASK]
-        selected_concepts = torch.where(rng_replace,
+
+        if self.replace_ratio > 0.0:
+            # Replace with random word
+            rng_replace = (self.masking_ratio <= adj_rng) & (adj_rng < self.masking_ratio + self.replace_ratio)
+            selected_concepts = torch.where(rng_replace,
             torch.randint(
                 self.n_special_tokens, len(self.vocabulary), (len(selected_concepts),)
             ),
             selected_concepts,
-        )  # Replace with random word
-        # selected_concepts = torch.where(rng_keep, selected_concepts, selected_concepts)       # Redundant
+        )  
 
         # Update outputs (nonzero for double masking)
         selected_indices = eligible_mask.nonzero()[:, 0][masked]

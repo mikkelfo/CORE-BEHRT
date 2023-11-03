@@ -10,8 +10,8 @@ paths:
 data:
   dataset:
     select_ratio: 1.
-    masking_ratio: 0.8
-    replace_ratio: 0.2
+    masking_ratio: .8
+    replace_ratio: .1
     ignore_special_tokens: true
   truncation_len: 20
   num_train_patients: 100

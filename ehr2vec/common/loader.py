@@ -130,10 +130,12 @@ class ModelLoader():
 
     def load_checkpoint(self)->dict:
         """Load checkpoint, if checkpoint epoch provided. Else load last checkpoint."""
-        checkpoints_path = join(self.model_path, CHECKPOINT_FOLDER)
+        checkpoints_dir = join(self.model_path, CHECKPOINT_FOLDER)
         checkpoint_epoch = self.get_checkpoint_epoch()
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        return torch.load(join(checkpoints_path,f'checkpoint_epoch{checkpoint_epoch}_end.pt'), map_location=device)
+        checkpoint_path = join(checkpoints_dir,f'checkpoint_epoch{checkpoint_epoch}_end.pt')
+        logger.info("Loading checkpoint from %s", checkpoint_path)
+        return torch.load(checkpoint_path, map_location=device)
     
     def get_checkpoint_epoch(self)->int:
         """Get checkpoint epoch from config or return the last checkpoint_epoch for this model."""

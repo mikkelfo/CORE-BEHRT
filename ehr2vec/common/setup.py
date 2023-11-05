@@ -48,7 +48,7 @@ class DirectoryPreparer:
 
     def prepare_directory(self, cfg: Config):
         """Creates output directory and copies config file"""
-        logger = self.create_directory_and_copy_config(self.config_path, cfg.output_dir, 'data_config.yaml')
+        logger = self.create_directory_and_copy_config(cfg.output_dir, 'data_config.yaml')
         os.makedirs(join(cfg.output_dir, 'features'), exist_ok=True)
         os.makedirs(join(cfg.output_dir, cfg.tokenized_dir_name), exist_ok=True)
         copyfile(self.config_path, join(cfg.output_dir, cfg.tokenized_dir_name, 'data_config.yaml'))
@@ -103,6 +103,13 @@ class DirectoryPreparer:
         window = int(abs(cfg.outcome.n_hours/24)) if days else abs(cfg.outcome.n_hours)
         days_hours = 'days' if days else 'hours'
         pre_post = 'pre' if cfg.outcome.n_hours<0 else 'post'
-        return f"finetune_{cfg.outcome.type}_censored_{window}_{days_hours}_{pre_post}_{cfg.outcome.censor_type}_{cfg.paths.run_name}"
+        if isinstance(cfg.outcome.censor_type, str):
+            censor_event = cfg.outcome.censor_type
+        elif isinstance(cfg.outcome.censor_type, dict):
+            censor_event = [f"{k}{v}" for k, v in cfg.outcome.censor_type.items() if v is not None]
+            censor_event = '_'.join(censor_event)
+        else:
+            raise ValueError(f"Unknown censor type {cfg.outcome.censor_type}")
+        return f"finetune_{cfg.outcome.type}_censored_{window}_{days_hours}_{pre_post}_{censor_event}_{cfg.paths.run_name}"
 
 

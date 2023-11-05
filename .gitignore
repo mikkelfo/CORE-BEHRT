@@ -5,3 +5,5 @@ output
 runs
 outputs
 ehr2vec.egg-info
+/results/*.png
+/results/*.svg

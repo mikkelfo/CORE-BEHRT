@@ -110,6 +110,7 @@ class AzurePathContext:
         """Azure setup for finetuning. Prepend mount folder."""
         if self.azure_env:
             self.cfg.paths.pretrain_model_path = self._prepend_mount_point(self.cfg.paths.pretrain_model_path)
+            self.cfg.paths.model_path = self._prepend_mount_point(self.cfg.paths.model_path)
             self.cfg.paths.outcome = self._prepend_mount_point(self.cfg.paths.outcome)
             if self.cfg.paths.get('censor', None) is not None:
                 self.cfg.paths.censor = self._prepend_mount_point(self.cfg.paths.censor)

@@ -1,10 +1,15 @@
 import logging
+import os
+from os.path import join
 from typing import Optional, Tuple
 
 import torch
-from common.config import Config, instantiate
-from common.loader import ModelLoader
+from common.azure import AzurePathContext
+from common.config import Config, instantiate, load_config
+from common.loader import ModelLoader, load_model_cfg_from_checkpoint
+from common.setup import DirectoryPreparer
 from common.utils import hook_fn
+from data.utils import Utilities
 from evaluation.utils import get_pos_weight, get_sampler
 from model.model import (BertEHRModel, BertForFineTuning,
                          HierarchicalBertForPretraining)
@@ -13,7 +18,7 @@ from torch.utils.data import Sampler
 from transformers import BertConfig
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
-
+CHECKPOINTS_DIR = "checkpoints"
 
 class Initializer:
     """Initialize model, optimizer and scheduler."""
@@ -115,3 +120,65 @@ class Initializer:
             for k, v in state.items():
                 if isinstance(v, torch.Tensor):
                     state[k] = v.to(self.device)
+    @staticmethod
+    def initialize_configuration_finetune(config_path:str)->Tuple[Config, str, str, str]:
+        """Load and adjust the configuration."""
+        cfg = load_config(config_path)
+        pretrain_model_path = cfg.paths.get('pretrain_model_path', None)
+        cfg = DirectoryPreparer.adjust_paths_for_finetune(cfg)
+        azure_context = AzurePathContext(cfg)
+        cfg, run, mount_context = azure_context.azure_finetune_setup()
+        cfg = azure_context.add_pretrain_info_to_cfg()
+        return cfg, run, mount_context, pretrain_model_path
+    
+
+class ModelManager:
+    def __init__(self, cfg, fold:int=None):
+        self.cfg = cfg
+        self.fold = fold
+        self.model_path = cfg.paths.get('model_path', None)
+        self.pretrain_model_path = cfg.paths.get('pretrain_model_path', None)
+        self.check_arguments()
+        if self.fold is not None:
+            if self.model_path is not None:
+                self.model_path = join(self.model_path, f'fold_{fold}')
+                if not os.path.exists(self.model_path):
+                    logger.warning(f'Could not find model path {self.model_path}. Start from scratch')
+                    self.model_path = None
+        self.checkpoint_model_path = self.model_path if self.model_path is not None else self.pretrain_model_path
+        self.initializer = None
+
+    def check_arguments(self):
+        if isinstance(self.pretrain_model_path, type(None)) and isinstance(self.model_path, type(None)):
+            raise ValueError('Either pretrain_model_path or model_path must be provided.')
+    
+    def load_checkpoint(self):
+        return ModelLoader(self.cfg, self.checkpoint_model_path).load_checkpoint()
+    
+    def load_model_config(self):
+        if self.model_path:
+            load_model_cfg_from_checkpoint(self.cfg, 'finetune_config.yaml')
+    
+    def initialize_finetune_model(self,  checkpoint, train_dataset):
+        logger.info('Initializing model')
+        self.initializer = Initializer(self.cfg, checkpoint=checkpoint, model_path=self.checkpoint_model_path)
+        model = self.initializer.initialize_finetune_model(train_dataset) 
+        return model
+
+    def initialize_training_components(self, model, train_dataset):
+        """Initialize training components. If no model_path provided, optimizer and scheduler are initialized from scratch."""
+        if self.model_path is None:
+            logger.info('Initializing optimizer and scheduler from scratch')
+            self.initializer.checkpoint = None
+        optimizer = self.initializer.initialize_optimizer(model)
+        sampler, cfg = self.initializer.initialize_sampler(train_dataset)
+        scheduler = self.initializer.initialize_scheduler(optimizer)
+        return optimizer, sampler, scheduler, cfg
+    
+    def get_epoch(self):
+        if self.model_path is None:
+            return 0
+        else:
+            return Utilities.get_last_checkpoint_epoch(join(self.model_path, CHECKPOINTS_DIR))
+    
+    

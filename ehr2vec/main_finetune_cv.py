@@ -4,17 +4,13 @@ from typing import Iterator, List, Tuple
 
 import pandas as pd
 import torch
-from common.azure import AzurePathContext, save_to_blobstore
-from common.config import instantiate, load_config
-from common.loader import ModelLoader
+from common.azure import save_to_blobstore
+from common.initialize import Initializer, ModelManager
 from common.setup import DirectoryPreparer, copy_data_config, get_args
 from common.utils import Data
 from data.dataset import BinaryOutcomeDataset
 from data.prepare_data import DatasetPreparer
-from evaluation.utils import get_pos_weight, get_sampler
-from model.model import BertForFineTuning
 from sklearn.model_selection import KFold
-from torch.optim import AdamW
 from trainer.trainer import EHRTrainer
 
 CONFIG_NAME = 'finetune.yaml'
@@ -25,7 +21,8 @@ args = get_args(CONFIG_NAME)
 config_path = join(dirname(abspath(__file__)), args.config_path)
 # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
-def finetune_fold(data:Data, train_indices:List[int], val_indices:List[int], fold:int)->None:
+
+def finetune_fold(cfg, data:Data, train_indices:List[int], val_indices:List[int], fold:int)->None:
     """Finetune model on one fold"""
     fold_folder = join(finetune_folder, f'fold_{fold}')
     os.makedirs(fold_folder, exist_ok=True)
@@ -45,28 +42,15 @@ def finetune_fold(data:Data, train_indices:List[int], val_indices:List[int], fol
     logger.info('Initializing datasets')
     train_dataset = BinaryOutcomeDataset(train_data.features, train_data.outcomes)
     val_dataset = BinaryOutcomeDataset(val_data.features, val_data.outcomes)
+    
+    modelmanager = ModelManager(cfg, fold)
+    checkpoint = modelmanager.load_checkpoint() 
+    modelmanager.load_model_config() # check whether cfg is changed after that.
+    model = modelmanager.initialize_finetune_model(checkpoint, train_dataset)
+    
+    optimizer, sampler, scheduler, cfg = modelmanager.initialize_training_components(model, train_dataset)
+    epoch = modelmanager.get_epoch()
 
-    logger.info('Initializing model')
-    model = ModelLoader(cfg, pretrain_model_path).load_model(BertForFineTuning, 
-                       {'pos_weight':get_pos_weight(cfg, train_dataset.outcomes),
-                        'embedding':'original_behrt' if cfg.model.get('behrt_embeddings', False) else None,
-                        'pool_type': cfg.model.get('pool_type', 'mean')})
-
-    try:
-        logger.warning('Compilation currently leads to torchdynamo error during training. Skip it')
-        #model = torch.compile(model)
-        #logger.info('Model compiled')
-    except:
-        logger.info('Model not compiled')    
-
-    optimizer = AdamW(model.parameters(), **cfg.optimizer)
-
-    sampler = get_sampler(cfg, train_dataset, train_dataset.outcomes)
-    if sampler:
-        cfg.trainer_args.shuffle = False
-
-    if cfg.scheduler:
-        scheduler = instantiate(cfg.scheduler, **{'optimizer': optimizer})
 
     trainer = EHRTrainer( 
         model=model, 
@@ -82,24 +66,16 @@ def finetune_fold(data:Data, train_indices:List[int], val_indices:List[int], fol
         logger=logger,
         accumulate_logits=True,
         run_folder=fold_folder,
+        last_epoch=epoch
     )
     trainer.train()
     
 def get_n_splits(data: Data, n_splits: int)->Iterator[Tuple[Data,Data]]:
     """Get indices for n_splits cross validation."""
-    kf = KFold(n_splits=n_splits)
+    kf = KFold(n_splits=n_splits) #! That should be shuffle=True
     indices = list(range(len(data.pids)))
     for train_indices, val_indices in kf.split(indices):
         yield train_indices, val_indices
-
-def initialize_configuration():
-    """Load and adjust the configuration."""
-    cfg = load_config(config_path)
-    azure_context = AzurePathContext(cfg)
-    cfg = DirectoryPreparer.adjust_paths_for_finetune(cfg)
-    cfg, run, mount_context = azure_context.azure_finetune_setup()
-    cfg = azure_context.add_pretrain_info_to_cfg()
-    return cfg, run, mount_context
 
 def compute_validation_scores_mean_std(finetune_folder: str)->None:
     """Compute mean and std of validation scores."""
@@ -114,23 +90,22 @@ def compute_validation_scores_mean_std(finetune_folder: str)->None:
     val_scores_mean_std = val_scores.groupby('metric')['value'].agg(['mean', 'std'])
     val_scores_mean_std.to_csv(join(finetune_folder, 'validation_scores_mean_std.csv'))
 
-
 if __name__ == '__main__':
 
-    cfg, run, mount_context = initialize_configuration()
-    pretrain_model_path = cfg.paths.pretrain_model_path
-    logger, finetune_folder = DirectoryPreparer.setup_run_folder(cfg)
-    cfg.save_to_yaml(join(finetune_folder, 'finetune_config.yaml'))
-    copy_data_config(cfg, finetune_folder)
+    cfg, run, mount_context, pretrain_model_path = Initializer.initialize_configuration_finetune(config_path)
 
-    logger.info("Prepare Features")
+    logger, finetune_folder = DirectoryPreparer.setup_run_folder(cfg)
+    
+    copy_data_config(cfg, finetune_folder)
+    cfg.save_to_yaml(join(finetune_folder, 'finetune_config.yaml'))
+    
     dataset_preparer = DatasetPreparer(cfg)
     data = dataset_preparer.prepare_finetune_features()
     
     for fold, (train_indices, val_indices) in enumerate(get_n_splits(data, N_SPLITS)):
         fold += 1
         logger.info(f"Training fold {fold}/{N_SPLITS}")
-        finetune_fold(data, train_indices, val_indices, fold)
+        finetune_fold(cfg, data, train_indices, val_indices, fold)
         
     compute_validation_scores_mean_std(finetune_folder)
     

@@ -2,32 +2,22 @@ import os
 from os.path import join
 
 import torch
-from common.azure import AzurePathContext, save_to_blobstore
-from common.config import load_config
-from common.initialize import Initializer
-from common.loader import ModelLoader, load_model_cfg_from_checkpoint
+from common.azure import save_to_blobstore
+from common.initialize import Initializer, ModelManager
 from common.setup import DirectoryPreparer, copy_data_config, get_args
 from data.dataset import BinaryOutcomeDataset
 from data.prepare_data import DatasetPreparer
-from data.utils import Utilities
 from trainer.trainer import EHRTrainer
 
 CONFIG_NAME = 'finetune.yaml'
 BLOBSTORE='PHAIR'
-CHECKPOINTS_DIR = 'checkpoints'
 
 args = get_args(CONFIG_NAME)
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)
 # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
 def main_finetune():
-    cfg = load_config(config_path)
-    pretrain_model_path = cfg.paths.pretrain_model_path # ! do not change this, it is used for saving the model to blobstore
-    
-    cfg = DirectoryPreparer.adjust_paths_for_finetune(cfg) 
-    azure_context = AzurePathContext(cfg)
-    cfg, run, mount_context = azure_context.azure_finetune_setup()
-    cfg = azure_context.add_pretrain_info_to_cfg()
+    cfg, run, mount_context, pretrain_model_path = Initializer.initialize_configuration_finetune(config_path)
     
     logger, run_folder = DirectoryPreparer.setup_run_folder(cfg)
 
@@ -44,23 +34,14 @@ def main_finetune():
     train_dataset = BinaryOutcomeDataset(train_data.features, train_data.outcomes)
     val_dataset = BinaryOutcomeDataset(val_data.features, val_data.outcomes)
 
-    model_path = cfg.paths.get('model_path', None)
-    checkpoint_model_path = model_path if model_path is not None else cfg.paths.pretrain_model_path    
-    checkpoint = ModelLoader(cfg, checkpoint_model_path).load_checkpoint()
-    if model_path:
-        load_model_cfg_from_checkpoint(cfg, 'finetune_config.yaml') # if we are training from checkpoint, we need to load the old config
-    initializer = Initializer(cfg, checkpoint=checkpoint, model_path=checkpoint_model_path)
-    model = initializer.initialize_finetune_model(train_dataset)
+    modelmanager = ModelManager(cfg)
+    checkpoint = modelmanager.load_checkpoint() 
+    modelmanager.load_model_config() # check whether cfg is changed after that.
+    model = modelmanager.initialize_finetune_model(checkpoint, train_dataset)
     
-    if model_path is None: # if no model_path provided, optimizer and scheduler are initialized from scratch
-        initializer.checkpoint = None 
-        epoch = 0
-    else:
-        epoch = Utilities.get_last_checkpoint_epoch(join(model_path, CHECKPOINTS_DIR)) 
+    optimizer, sampler, scheduler, cfg = modelmanager.initialize_training_components(model, train_dataset)
+    epoch = modelmanager.get_epoch()
 
-    optimizer = initializer.initialize_optimizer(model)
-    sampler, cfg = initializer.initialize_sampler(train_dataset)
-    scheduler = initializer.initialize_scheduler(optimizer)
 
     trainer = EHRTrainer( 
         model=model, 

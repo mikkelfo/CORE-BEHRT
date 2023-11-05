@@ -1,6 +1,6 @@
 import os
 from os.path import abspath, dirname, join
-from typing import Iterator, List, Tuple
+from typing import List
 
 import pandas as pd
 import torch
@@ -10,7 +10,7 @@ from common.setup import DirectoryPreparer, copy_data_config, get_args
 from common.utils import Data
 from data.dataset import BinaryOutcomeDataset
 from data.prepare_data import DatasetPreparer
-from sklearn.model_selection import KFold
+from data.split import get_n_splits_cv
 from trainer.trainer import EHRTrainer
 
 CONFIG_NAME = 'finetune.yaml'
@@ -70,12 +70,6 @@ def finetune_fold(cfg, data:Data, train_indices:List[int], val_indices:List[int]
     )
     trainer.train()
     
-def get_n_splits(data: Data, n_splits: int)->Iterator[Tuple[Data,Data]]:
-    """Get indices for n_splits cross validation."""
-    kf = KFold(n_splits=n_splits) #! That should be shuffle=True
-    indices = list(range(len(data.pids)))
-    for train_indices, val_indices in kf.split(indices):
-        yield train_indices, val_indices
 
 def compute_validation_scores_mean_std(finetune_folder: str)->None:
     """Compute mean and std of validation scores."""
@@ -102,7 +96,7 @@ if __name__ == '__main__':
     dataset_preparer = DatasetPreparer(cfg)
     data = dataset_preparer.prepare_finetune_features()
     
-    for fold, (train_indices, val_indices) in enumerate(get_n_splits(data, N_SPLITS)):
+    for fold, (train_indices, val_indices) in enumerate(get_n_splits_cv(data, N_SPLITS)):
         fold += 1
         logger.info(f"Training fold {fold}/{N_SPLITS}")
         finetune_fold(cfg, data, train_indices, val_indices, fold)

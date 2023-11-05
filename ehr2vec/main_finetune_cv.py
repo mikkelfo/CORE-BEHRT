@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from os.path import abspath, dirname, join
 from typing import List
 
@@ -82,7 +83,8 @@ def compute_validation_scores_mean_std(finetune_folder: str)->None:
         val_scores.append(fold_validation_scores)
     val_scores = pd.concat(val_scores)
     val_scores_mean_std = val_scores.groupby('metric')['value'].agg(['mean', 'std'])
-    val_scores_mean_std.to_csv(join(finetune_folder, 'validation_scores_mean_std.csv'))
+    date = datetime.now().strftime("%Y%m%d-%H%M")
+    val_scores_mean_std.to_csv(join(finetune_folder, f'validation_scores_mean_std_{date}.csv'))
 
 if __name__ == '__main__':
 

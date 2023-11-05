@@ -7,7 +7,8 @@ import pandas as pd
 import torch
 from common.azure import save_to_blobstore
 from common.initialize import Initializer, ModelManager
-from common.setup import DirectoryPreparer, copy_data_config, get_args
+from common.setup import (DirectoryPreparer, copy_data_config,
+                          copy_pretrain_config, get_args)
 from common.utils import Data
 from data.dataset import BinaryOutcomeDataset
 from data.prepare_data import DatasetPreparer
@@ -93,6 +94,7 @@ if __name__ == '__main__':
     logger, finetune_folder = DirectoryPreparer.setup_run_folder(cfg)
     
     copy_data_config(cfg, finetune_folder)
+    copy_pretrain_config(cfg, finetune_folder)
     cfg.save_to_yaml(join(finetune_folder, 'finetune_config.yaml'))
     
     dataset_preparer = DatasetPreparer(cfg)

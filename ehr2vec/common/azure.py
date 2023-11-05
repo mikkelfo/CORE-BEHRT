@@ -1,7 +1,7 @@
 import logging
 import os
 import re
-from os.path import join
+from os.path import join, split
 from typing import Tuple
 
 from common.config import Config, load_config
@@ -109,8 +109,11 @@ class AzurePathContext:
     def azure_finetune_setup(self)->Tuple:
         """Azure setup for finetuning. Prepend mount folder."""
         if self.azure_env:
-            self.cfg.paths.pretrain_model_path = self._prepend_mount_point(self.cfg.paths.pretrain_model_path)
-            self.cfg.paths.model_path = self._prepend_mount_point(self.cfg.paths.model_path)
+            if self.cfg.paths.get('pretrain_model_path', None) is not None:
+                self.cfg.paths.pretrain_model_path = self._prepend_mount_point(self.cfg.paths.pretrain_model_path)
+            if self.cfg.paths.get('model_path', None) is not None:
+                self.cfg.paths.model_path = self._prepend_mount_point(self.cfg.paths.model_path)
+
             self.cfg.paths.outcome = self._prepend_mount_point(self.cfg.paths.outcome)
             if self.cfg.paths.get('censor', None) is not None:
                 self.cfg.paths.censor = self._prepend_mount_point(self.cfg.paths.censor)
@@ -148,7 +151,26 @@ class AzurePathContext:
     def add_pretrain_info_to_cfg(self)->Config:
         """Add information about pretraining to the config. Used in finetuning.
         We need first to get the pretrain information, before we can prepend the mount folder to the data path."""
-        pretrain_cfg = load_config(join(self.cfg.paths.pretrain_model_path, 'pretrain_config.yaml'))
+        pretrain_model_path = self.cfg.paths.get('pretrain_model_path')
+        model_path = self.cfg.paths.get('model_path')
+        
+        if pretrain_model_path:
+            pretrain_cfg_path = pretrain_model_path
+        elif model_path:
+            fold_folder = join(model_path, 'fold_1')
+            pretrain_cfg_path = fold_folder if os.path.exists(fold_folder) else model_path
+        else:
+            raise ValueError("Either pretrain_model_path or model_path must be specified in the configuration.")
+        
+        try:
+            pretrain_cfg = load_config(join(pretrain_cfg_path, 'pretrain_config.yaml'))
+            logger.info(f"Loaded pretrain_config from {pretrain_cfg_path}")
+        except FileNotFoundError:
+            pretrain_cfg_path = split(pretrain_cfg_path)[0] # Use directory of model path (the model path will be constructed in the finetune script
+            pretrain_cfg = load_config(join(pretrain_cfg_path, 'config.yaml'))
+            logger.info(f"Loaded pretrain_config from {pretrain_cfg_path}")
+    
+ 
         pretrain_data_path = self._remove_mount_folder(pretrain_cfg.paths.data_path)
         
         self.cfg.data.remove_background = pretrain_cfg.data.remove_background

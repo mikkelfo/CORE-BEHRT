@@ -2,7 +2,7 @@ import argparse
 import logging
 import os
 import uuid
-from os.path import join
+from os.path import join, split
 from shutil import copyfile
 from typing import Tuple
 
@@ -33,6 +33,14 @@ def copy_data_config(cfg: Config, run_folder: str)->None:
     except:
         copyfile(join(cfg.paths.data_path, 'data_config.yaml'), join(run_folder, 'data_config.yaml'))
 
+def copy_pretrain_config(cfg: Config, run_folder: str)->None:
+    """
+    Copy pretrain_config.yaml to run folder.
+    """
+    try:
+        copyfile(join(cfg.paths.pretrain_model_path, 'pretrain_config.yaml'), join(run_folder, 'pretrain_config.yaml'))
+    except:
+        copyfile(join(cfg.paths.model_path, 'pretrain_config.yaml'), join(run_folder, 'pretrain_config.yaml'))
 
 class DirectoryPreparer:
     """Prepares directories for training and evaluation."""
@@ -92,7 +100,17 @@ class DirectoryPreparer:
         - output_path: set to pretrain_model_path
         - run_name: constructed according to setting
         """
-        cfg.paths.output_path = cfg.paths.pretrain_model_path
+        pretrain_model_path = cfg.paths.get('pretrain_model_path')
+        model_path = cfg.paths.get('model_path') 
+        if model_path is not None:
+            model_path = split(model_path)[0] # Use directory of model path (the model path will be constructed in the finetune script)
+        save_folder_path = cfg.paths.get('save_folder_path')
+        
+       # Determine the output path with a priority order
+        output_path = pretrain_model_path or model_path or save_folder_path
+        if output_path is None:
+            raise ValueError("Either pretrain_model_path, model_path, or save_folder_path must be provided.")
+        cfg.paths.output_path = output_path
         cfg.paths.run_name = DirectoryPreparer.construct_finetune_model_dir_name(cfg)
         return cfg
     

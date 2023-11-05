@@ -17,7 +17,7 @@ BG_GENDER_KEYS = {
 }
 MIN_POSITIVES = {'train': 10, 'val': 5}
 CHECKPOINT_FOLDER = 'checkpoints'
-ORIGIN_POINT = {'year': 2020, 'month': 1, 'day': 1, 'hour': 0, 'minute': 0, 'second': 0}
+ORIGIN_POINT = {'year': 2020, 'month': 1, 'day': 26, 'hour': 0, 'minute': 0, 'second': 0}
 
 class Utilities():
     def process_datasets(self, datasets: Dict, func: callable, args_for_func: Dict=None)->Dict:

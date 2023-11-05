@@ -72,6 +72,16 @@ class BertForFineTuning(BertEHRModel):
     def get_loss(self, hidden_states, labels, labels_mask=None):    
         return self.loss_fct(hidden_states.view(-1), labels.view(-1))
 
+class BertForRegression(BertEHRModel):
+    """Regression model for fine-tuning. Uses MSE loss"""
+    def __init__(self, config):
+        super().__init__(config)
+        self.loss_fct = nn.MSELoss()
+        self.cls = FineTuneHead(config)
+
+    def get_loss(self, hidden_states, labels, labels_mask=None):    
+        return self.loss_fct(hidden_states.view(-1), labels.view(-1))
+
 class HierarchicalBertForPretraining(BertEHRModel):
     def __init__(self, config, tree=None, tree_matrix=None):
         super().__init__(config)

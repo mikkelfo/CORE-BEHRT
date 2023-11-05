@@ -1,7 +1,8 @@
 import logging
 import os
 import re
-from typing import Dict, List, Tuple
+from datetime import datetime
+from typing import Dict, List, Tuple, Union
 
 import pandas as pd
 from common.config import Config
@@ -16,6 +17,7 @@ BG_GENDER_KEYS = {
 }
 MIN_POSITIVES = {'train': 10, 'val': 5}
 CHECKPOINT_FOLDER = 'checkpoints'
+ORIGIN_POINT = {'year': 2020, 'month': 1, 'day': 1, 'hour': 0, 'minute': 0, 'second': 0}
 
 class Utilities():
     def process_datasets(self, datasets: Dict, func: callable, args_for_func: Dict=None)->Dict:
@@ -34,10 +36,18 @@ class Utilities():
         for split, data in datasets.items():
             logger.info(f"{split}: {len(data.pids)} patients")
     @staticmethod
-    def select_and_order_outcomes_for_patients(all_outcomes: Dict, pids: List, outcome: str) -> List:
+    def select_and_order_outcomes_for_patients(all_outcomes: Dict, pids: List, outcome: Union[str, dict]) -> List:
         """Select outcomes for patients and order them based on the order of pids"""
         outcome_pids = all_outcomes[PID_KEY]
-        outcome_group = all_outcomes[outcome]
+        if isinstance(outcome, str):
+            outcome_group = all_outcomes[outcome]
+        elif isinstance(outcome, dict):
+            outcome_datetime = datetime(**outcome)
+            logger.warning(f"Using {ORIGIN_POINT} as origin point. Check whether it is the same as used for feature creation.")
+            outcome_abspos = Utilities.get_abspos_from_origin_point([outcome_datetime], ORIGIN_POINT)
+            outcome_group = outcome_abspos * len(outcome_pids)
+        else:
+            raise ValueError(f"Unknown outcome type {type(outcome)}")
         assert len(outcome_pids) == len(outcome_group), "Mismatch between PID_KEY length and outcome_group length"
 
         # Create a dictionary of positions for each PID for quick lookup
@@ -50,6 +60,23 @@ class Utilities():
         outcomes = [outcome_group[pid_to_index[pid]] if pid in outcome_pids else None for pid in pids]
         return outcomes
     
+    @staticmethod
+    def get_abspos_from_origin_point(timestamps: Union[pd.Series, List[datetime]], 
+                                     origin_point: Dict[str, int])->Union[pd.Series, List[float]]:
+        """Get the absolute position in hours from the origin point"""
+        origin_point = datetime(**origin_point)
+        abspos = Utilities.get_relative_timestamps_in_hours(timestamps, origin_point)
+        return abspos
+    
+    @staticmethod
+    def get_relative_timestamps_in_hours(timestamps:Union[pd.Series, List[datetime]], 
+                                         origin_point: datetime)->Union[pd.Series, List[float]]:
+        """Get the relative position in hours from the origin point"""
+        if isinstance(timestamps, pd.Series):
+            return (timestamps - origin_point).dt.total_seconds() / 60 / 60 
+        else:
+            return [(timestamp - origin_point).total_seconds() / 60 / 60 for timestamp in timestamps]
+
     @staticmethod
     def check_and_adjust_max_segment(data: Data, model_cfg: Config)->None:
         """Check max segment. If it's larger or equal to the model type vocab size, change accordingly."""
@@ -92,6 +119,9 @@ class Utilities():
     def get_background_indices(data: Data)->List[int]:
         """Get the length of the background sentence"""
         background_tokens = set([v for k, v in data.vocabulary.items() if k.startswith('BG_')])
+        if len(background_tokens)==0:
+            logger.warning("No background tokens found in vocabulary")
+            return []
         example_concepts = data.features['concept'][0] # Assume that all patients have the same background length
         background_indices = [i for i, concept in enumerate(example_concepts) if concept in background_tokens]
         if data.vocabulary['[SEP]'] in example_concepts:

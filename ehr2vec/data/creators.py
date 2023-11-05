@@ -1,6 +1,8 @@
-import pandas as pd
-from datetime import datetime
 import itertools
+
+import pandas as pd
+from data.utils import Utilities
+
 
 class BaseCreator():
     def __init__(self, config: dict):
@@ -29,10 +31,7 @@ class AbsposCreator(BaseCreator):
     
     feature = id = 'abspos'
     def create(self, concepts: pd.DataFrame, patients_info: pd.DataFrame)-> pd.DataFrame:
-        origin_point = datetime(**self.config.abspos)
-        # Calculate hours since origin point
-        abspos = (concepts['TIMESTAMP'] - origin_point).dt.total_seconds() / 60 / 60
-
+        abspos = Utilities.get_abspos_from_origin_point(concepts['TIMESTAMP'], self.config.abspos)
         concepts['ABSPOS'] = abspos
         return concepts
 
@@ -68,10 +67,10 @@ class BackgroundCreator(BaseCreator):
         if 'age' in self.config:
             background['AGE'] = -1
 
-        if 'abspos' in self.config:
-            origin_point = datetime(**self.config.abspos)
-            start = (patients_info['BIRTHDATE'] - origin_point).dt.total_seconds() / 60 / 60
-            background['ABSPOS'] = start.tolist() * len(self.config.background)
+        if 'origin_point' in self.config:
+            abspos = Utilities.get_abspos_from_origin_point([patients_info['BIRTHDATE']], self.config.abspos)
+            background['ABSPOS'] = abspos * len(self.config.background)
+            
 
         # Prepend background to concepts
         background = pd.DataFrame(background)

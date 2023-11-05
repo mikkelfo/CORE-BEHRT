@@ -273,11 +273,13 @@ class DataModifier():
     def remove_background(data: Data)->Data:
         """Remove background tokens from features and the first sep token following it"""
         background_indices = Utilities.get_background_indices(data)
+        if len(background_indices)==0:
+            return data
         first_index = min(background_indices)
         last_index = max(background_indices)
         for k, token_lists in data.features.items():
             new_tokens_lists = []
-            for idx, tokens in enumerate(token_lists):
+            for _, tokens in enumerate(token_lists):
                 new_tokens = [token for j, token in enumerate(tokens) if (j < first_index) or (j > last_index)]
                 new_tokens_lists.append(new_tokens)
             data.features[k] = new_tokens_lists 

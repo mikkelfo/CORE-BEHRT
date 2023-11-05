@@ -1,8 +1,9 @@
-import torch
 import os
+
 import numpy as np
 import pandas as pd
-from datetime import datetime
+import torch
+from data.utils import Utilities
 
 
 class OutcomeMaker:
@@ -22,8 +23,6 @@ class OutcomeMaker:
             patient_set = self.load_patient_set()
         outcome_df = pd.DataFrame({"PID": patient_set})
 
-        origin_point = datetime(**self.features_cfg.features.abspos)
-
         for outcome, attrs in self.outcomes.items():
             types = attrs["type"]
             matches = attrs["match"]
@@ -34,19 +33,15 @@ class OutcomeMaker:
                 timestamps = self.match_concepts(concepts_plus, types, matches, attrs)
 
             timestamps = timestamps.rename(outcome)
-            timestamps = self.get_relative_timestamps_in_hours(timestamps, origin_point)
+            timestamps = Utilities.get_abspos_from_origin_point(timestamps, self.features_cfg.features.abspos)
             outcome_df = outcome_df.merge(timestamps, on="PID", how="left")
         outcomes = outcome_df.to_dict("list")
-        # pids = outcomes.pop("PID")
 
         return outcomes
     
     @staticmethod
     def remove_missing_timestamps(concepts_plus: pd.DataFrame )->pd.DataFrame:
         return concepts_plus[concepts_plus.TIMESTAMP.notna()]
-
-    def get_relative_timestamps_in_hours(self, timestamps, origin_point):
-        return (timestamps - origin_point).dt.total_seconds() / 60 / 60
 
     def match_patient_info(self, outcome: pd.DataFrame, patients_info: dict, matches: list)->pd.Series:
         timestamps = outcome.PID.map(

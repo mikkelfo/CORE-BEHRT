@@ -1,7 +1,10 @@
-from data.creators import BaseCreator
 from datetime import datetime
+
 import pandas as pd
 import torch
+from data.creators import BaseCreator
+from data.utils import Utilities
+
 
 class FeatureMaker():
     def __init__(self, config):
@@ -56,7 +59,7 @@ class FeatureMaker():
         # Add outcomes if in config
         
         info_dict = patients_info.set_index('PID').to_dict('index')
-        origin_point = datetime(**self.config.abspos)
+        
         # Add outcomes
         if hasattr(self.config, 'outcomes'):
             outcomes = []
@@ -64,9 +67,10 @@ class FeatureMaker():
                 for outcome in self.config.outcomes:
                     patient_outcome = info_dict[pid][f'{outcome}']
                     if pd.isna(patient_outcome):
-                        outcomes.append(torch.inf)
+                        outcome_abspos = torch.inf
                     else:
-                        outcomes.append((patient_outcome - origin_point).total_seconds() / 60 / 60)
+                        outcome_abspos = Utilities.get_abspos_from_origin_point([patient_outcome], self.config.abspos)[0]
+                    outcomes.append(outcome_abspos)
 
             return self.features, outcomes
         else:

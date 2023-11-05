@@ -48,12 +48,14 @@ class Initializer:
     def initialize_finetune_model(self, train_dataset):
         if self.checkpoint:
             logger.info('Loading model from checkpoint')
-            return self.loader.load_model(
+            model = self.loader.load_model(
                 BertForFineTuning, 
                 checkpoint=self.checkpoint, 
                 add_config={'pos_weight':get_pos_weight(self.cfg, train_dataset.outcomes),
                             'embedding':'original_behrt' if self.cfg.model.get('behrt_embeddings', False) else None,
                             'pool_type': self.cfg.model.get('pool_type', 'mean')})
+            model.to(self.device) 
+            return model
         else:
             raise NotImplementedError('Fine-tuning from scratch is not supported.')
             logger.info('Initializing new model')

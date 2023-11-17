@@ -1,7 +1,7 @@
 import logging
 import os
 import re
-from os.path import join, split
+from os.path import join
 from typing import Tuple
 
 from common.config import Config, load_config
@@ -153,23 +153,21 @@ class AzurePathContext:
         We need first to get the pretrain information, before we can prepend the mount folder to the data path."""
         pretrain_model_path = self.cfg.paths.get('pretrain_model_path')
         model_path = self.cfg.paths.get('model_path')
+        pt_cfg_name = 'pretrain_config.yaml'
         
-        if pretrain_model_path:
-            pretrain_cfg_path = pretrain_model_path
-        elif model_path:
-            fold_folder = join(model_path, 'fold_1')
-            pretrain_cfg_path = fold_folder if os.path.exists(fold_folder) else model_path
-        else:
+        pretrain_cfg_path = pretrain_model_path if pretrain_model_path is not None else model_path
+        if pretrain_cfg_path is None:
             raise ValueError("Either pretrain_model_path or model_path must be specified in the configuration.")
         
-        try:
-            pretrain_cfg = load_config(join(pretrain_cfg_path, 'pretrain_config.yaml'))
-            logger.info(f"Loaded pretrain_config from {pretrain_cfg_path}")
-        except FileNotFoundError:
-            pretrain_cfg_path = split(pretrain_cfg_path)[0] # Use directory of model path (the model path will be constructed in the finetune script
-            pretrain_cfg = load_config(join(pretrain_cfg_path, 'config.yaml'))
-            logger.info(f"Loaded pretrain_config from {pretrain_cfg_path}")
-    
+        if os.path.exists(join(pretrain_cfg_path, pt_cfg_name)):
+            pretrain_cfg_path = join(pretrain_cfg_path, pt_cfg_name)
+        elif os.path.exists(join(pretrain_cfg_path, 'fold_1', pt_cfg_name)):
+            pretrain_cfg_path = join(pretrain_cfg_path, 'fold_1', pt_cfg_name)
+        else:
+            raise FileNotFoundError(f"Could not find pretrain config in {pretrain_cfg_path}")
+        
+        logger.info(f"Loading pretrain config from {pretrain_cfg_path}")
+        pretrain_cfg = load_config(pretrain_cfg_path)
  
         pretrain_data_path = self._remove_mount_folder(pretrain_cfg.paths.data_path)
         

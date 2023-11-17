@@ -57,7 +57,7 @@ class DatasetPreparer:
                                             h_vocabulary, tree, tree_matrix, 
                                             **self.cfg.data.dataset)
         return train_dataset, val_dataset
-
+    # ! TODO: add option to load pids, instead of loading all and excluding.
     def prepare_finetune_features(self)->Tuple[dict]:
         """
         Prepare the features for fine-tuning. 

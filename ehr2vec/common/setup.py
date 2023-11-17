@@ -8,6 +8,8 @@ from typing import Tuple
 
 from common.config import Config
 
+logger = logging.getLogger(__name__)  # Get the logger for this module
+
 CHECKPOINTS_DIR = "checkpoints"
 
 def get_args(default_config_name, default_run_name=None):
@@ -28,6 +30,7 @@ def copy_data_config(cfg: Config, run_folder: str)->None:
     By default copy from tokenized folder, if not available, copy from data folder.
     """
     tokenized_dir_name = cfg.paths.get('tokenized_dir', 'tokenized')
+    
     try:
         copyfile(join(cfg.paths.data_path, tokenized_dir_name, 'data_config.yaml'), join(run_folder, 'data_config.yaml'))
     except:
@@ -37,10 +40,25 @@ def copy_pretrain_config(cfg: Config, run_folder: str)->None:
     """
     Copy pretrain_config.yaml to run folder.
     """
+    pretrain_model_path = cfg.paths.get('pretrain_model_path')
+    model_path = cfg.paths.get('model_path')
+    pt_cfg_name = 'pretrain_config.yaml'
+    
+    pretrain_cfg_path = pretrain_model_path if pretrain_model_path is not None else model_path
+    if pretrain_cfg_path is None:
+        raise ValueError("Either pretrain_model_path or model_path must be specified in the configuration.")
+    
+    if os.path.exists(join(pretrain_cfg_path, pt_cfg_name)):
+        pretrain_cfg_path = join(pretrain_cfg_path, pt_cfg_name)
+    elif os.path.exists(join(pretrain_cfg_path, 'fold_1', pt_cfg_name)):
+        pretrain_cfg_path = join(pretrain_cfg_path, 'fold_1', pt_cfg_name)
+    else:
+        raise FileNotFoundError(f"Could not find pretrain config in {pretrain_cfg_path}")
     try:
-        copyfile(join(cfg.paths.pretrain_model_path, 'pretrain_config.yaml'), join(run_folder, 'pretrain_config.yaml'))
+        copyfile(pretrain_cfg_path, join(run_folder, pt_cfg_name))
     except:
-        copyfile(join(cfg.paths.model_path, 'pretrain_config.yaml'), join(run_folder, 'pretrain_config.yaml'))
+        logger.warning(f"Could not copy pretrain config from {pretrain_cfg_path} to {run_folder}")
+        
 
 class DirectoryPreparer:
     """Prepares directories for training and evaluation."""

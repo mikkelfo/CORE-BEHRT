@@ -26,10 +26,10 @@ class Batches:
         pids should contain all the pids in the dataset, including assigned pids.
         Assigned pids should be a dictionary with the key being the split name and the value being a list of pids"""
         flattened_pids = self.flatten(pids)
-        flattened_pids = [pid for pid in flattened_pids if pid not in exclude_pids]
-        assigned_pids_set = set(self.flatten(list(assigned_pids.values())))
-        self.flattened_pids = [pid for pid in flattened_pids if pid not in assigned_pids_set]
-        
+        # We exclude all the assigned pids from the flattened pids, and assign them to the splits later
+        assigned_pids_set = set(self.flatten([v for v in assigned_pids.values()]))
+        pids_to_exclude = set(exclude_pids).union(assigned_pids_set)
+        self.flattened_pids = [pid for pid in flattened_pids if pid not in pids_to_exclude]
         self.assigned_pids = assigned_pids
 
         self.cfg = cfg
@@ -66,7 +66,7 @@ class Batches:
         return folds
 
     def create_split(self, indices, mode):
-        """Create a Split object for the given indices and mode."""
+        """Create a Split object for the given indices and mode. And assigns pids."""
         pids = [self.flattened_pids[i] for i in indices]
         pids += self.assigned_pids.get(mode, [])
         return Split(pids=pids, mode=mode)

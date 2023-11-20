@@ -20,6 +20,7 @@ from data.tokenizer import EHRTokenizer
 from data_fixes.exclude import Excluder
 from data_fixes.handle import Handler
 from tqdm import tqdm
+from typing import Dict, List, Tuple, Union
 
 CONFIG_NAME = 'data_pretrain.yaml'
 BLOBSTORE = 'PHAIR'
@@ -57,7 +58,10 @@ def main_data(config_path):
         pids = torch.load(join(cfg.loader.data_dir, 'features', 'pids_features.pt'))
   
     check_and_clear_directory(cfg, logger, tokenized_dir_name=cfg.get('tokenized_dir_name','tokenized'))
-    batches = Batches(cfg, pids)
+    logger.info('Finished feature creation and processing')
+
+    assigned_pids, exclude_pids = get_assigned_pids_and_exclude_pids(cfg)
+    batches = Batches(cfg, pids, exclude_pids=exclude_pids, assigned_pids=assigned_pids)
     folds = batches.split_batches_cv()
     logger.info('Tokenizing')
     tokenized_dir = join(cfg.output_dir, cfg.get('tokenized_dir_name','tokenized'))
@@ -89,6 +93,27 @@ def check_and_clear_directory(cfg, logger, tokenized_dir_name='tokenized'):
                 os.remove(file_path)
             else:
                 shutil.rmtree(file_path)
+
+def load_and_flatten_pids(directories: Union[str, List[str]])->List[str]:
+    """Load PIDs from directories and flatten the list of lists."""
+    if isinstance(directories, str):
+        directories = [directories]
+
+    pids = [torch.load(dir_) for dir_ in directories]
+    return [pid for sublist in pids for pid in sublist]
+
+def get_assigned_pids_and_exclude_pids(cfg) -> Tuple[Dict, List]:
+    """Retrieve assigned PIDs and exclude PIDs based on the configuration."""
+    exclude_pids_path = cfg.get('exclude_pids', None)
+    exclude_pids = [] if exclude_pids_path is None else load_and_flatten_pids(exclude_pids_path)
+
+    assigned_pids_path = cfg.get('assigned_pids', None)
+    assigned_pids = {} if assigned_pids_path is None else cfg.assigned_pids
+
+    for split, path in assigned_pids.items():
+        assigned_pids[split] = load_and_flatten_pids(path)
+
+    return assigned_pids, exclude_pids
 
 
 

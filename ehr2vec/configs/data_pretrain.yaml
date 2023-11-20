@@ -33,11 +33,19 @@ excluder:
   min_len: 2
 
 split_ratios:
-  train: 0.72 # 80% of 90%
-  val: 0.18 # 20% of 90%
+  pretrain: 0.72 # 80% of 90%
+  finetune: 0.18 # 20% of 90%
   test: 0.1
 
 handler:
   concept_fill: "[UNK]"    
   num_fill: -100
   drop: true
+
+exclude_pids: outputs/pretraining/behrt_test/finetune_TEST_OUTCOME_censored_4_days_post_TEST_OUTCOME_test/val_pids.pt
+assigned_pids:
+  pretrain: 
+   - outputs/pretraining/behrt_test/finetune_TEST_OUTCOME_censored_4_days_post_TEST_OUTCOME_test/train_pids.pt
+   - outputs/pretraining/behrt_test/finetune_TEST_OUTCOME_censored_4_days_post_TEST_OUTCOME_test/val_pids.pt
+   
+

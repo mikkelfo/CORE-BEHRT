@@ -1,11 +1,7 @@
 """
-Input: Formatted Data
-- Load concepts
-- Handle wrong data
-- Exclude patients with <k concepts
-- Split data
-- Tokenize
-- truncate train and val
+Creates features for pt, ft crossvalidation.
+Adds patients used for model selection to pretrain set.
+Excludes special patients (COVID).
 """
 import os
 import shutil
@@ -59,22 +55,22 @@ def main_data(config_path):
         torch.save(pids, join(cfg.output_dir, 'features', 'pids_features.pt'))
     else:
         pids = torch.load(join(cfg.loader.data_dir, 'features', 'pids_features.pt'))
-    logger.info('Finished feature creation and processing')
-    logger.info('Splitting batches')
+  
+    check_and_clear_directory(cfg, logger, tokenized_dir_name=cfg.get('tokenized_dir_name','tokenized'))
     batches = Batches(cfg, pids)
-    logger.info("Check for existing splits")
-    batches_split = batches.split_batches()
-    tokenized_dir_name = cfg.get('tokenized_dir_name','tokenized')
-    check_and_clear_directory(cfg, logger, tokenized_dir_name=tokenized_dir_name)
+    folds = batches.split_batches_cv()
     logger.info('Tokenizing')
-    tokenizer = EHRTokenizer(config=cfg.tokenizer)
-    batch_tokenize = BatchTokenize(pids, tokenizer, cfg, tokenized_dir_name=tokenized_dir_name)
-    shutil.copy(config_path, join(cfg.output_dir,tokenized_dir_name,  'data_cfg.yaml'))
-    
-    batch_tokenize.tokenize(batches_split)
-    logger.info('Finished tokenizing')
-    
-    
+    tokenized_dir = join(cfg.output_dir, cfg.get('tokenized_dir_name','tokenized'))
+    for i, fold in enumerate(folds):
+        tokenizer = EHRTokenizer(config=cfg.tokenizer)
+        batch_tokenize = BatchTokenize(pids, tokenizer, cfg, tokenized_dir_name=cfg.get('tokenized_dir_name','tokenized'))
+        fold_dir = join(tokenized_dir, f"fold_{i}")
+        os.makedirs(fold_dir, exist_ok=True)
+        batch_tokenize.batch_tokenize(fold['pretrain'], save_dir=fold_dir)
+        batch_tokenize.tokenizer.freeze_vocabulary()
+        batch_tokenize.tokenizer.save_vocab(join(fold_dir, 'vocabulary.pt'))
+        batch_tokenize.batch_tokenize(fold['finetune_test'], save_dir=fold_dir)
+    shutil.copy(config_path, join(tokenized_dir, 'data_cfg.yaml'))
     if cfg.env=='azure':
         save_to_blobstore(local_path=cfg.run_name, 
                           remote_path=join(BLOBSTORE, 'features', cfg.run_name))
@@ -93,6 +89,7 @@ def check_and_clear_directory(cfg, logger, tokenized_dir_name='tokenized'):
                 os.remove(file_path)
             else:
                 shutil.rmtree(file_path)
+
 
 
 def create_and_save_features(conceptloader, handler, excluder, cfg, logger, )-> list:

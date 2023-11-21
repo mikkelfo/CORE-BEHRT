@@ -2,7 +2,7 @@ import logging
 import os
 import re
 from os.path import join
-from typing import Tuple
+from typing import Tuple, Dict, Union, List
 
 from common.config import Config, load_config
 from common.utils import split_path
@@ -13,7 +13,7 @@ OUTPUTS_DIR = "outputs"
 
 def get_workspace():
     from azureml.core import Workspace
-    """Initializes workspase and gets datastor and dump_path"""
+    """Initializes workspase and gets datastore and dump_path"""
     subscription_id = 'f8c5aac3-29fc-4387-858a-1f61722fb57a'
     resource_group = 'forskerpl-n0ybkr-rg'
     workspace_name = 'forskerpl-n0ybkr-mlw'
@@ -124,6 +124,10 @@ class AzurePathContext:
         """Azure setup for pretraining. Prepend mount folder."""
         if self.azure_env:
             self.cfg.loader.data_dir = self._prepend_mount_point(self.cfg.loader.data_dir)
+            if 'exclude_pids' in self.cfg and self.cfg['exclude_pids']:
+                self.cfg.exclude_pids = self.prepend_mount_point_to_paths(self.cfg['exclude_pids'])
+            if 'assigned_pids' in self.cfg and self.cfg['assigned_pids']:
+                self.cfg.assigned_pids = self.prepend_mount_point_to_assigned_pids(self.cfg['assigned_pids'])
             self._handle_outputs_path()
         return self.cfg, self.run, self.mount_context
 
@@ -198,4 +202,14 @@ class AzurePathContext:
         path_parts = split_path(path_str)
         return os.path.join(*[part for part in path_parts if not part.startswith('tmp')])
     
-
+    def prepend_mount_point_to_assigned_pids(self, assigned_pids: Dict[str, Union[str, List[str]]])->Dict[str, Union[str, List[str]]]:
+        """Prepend mount_path to paths in the configuration."""
+        for split, paths in assigned_pids.items():
+            assigned_pids[split] = self.prepend_mount_point_to_paths(paths)
+        return assigned_pids
+    
+    def prepend_mount_point_to_paths(self, paths: Union[str, List[str]])->Union[str, List[str]]:
+        """Prepends mount_path to each path in the provided list or single path."""
+        if isinstance(paths, list):
+            return [self._prepend_mount_point(path) for path in paths]
+        return self._prepend_mount_point(paths)

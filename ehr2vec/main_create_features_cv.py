@@ -98,9 +98,16 @@ def load_and_flatten_pids(directories: Union[str, List[str]])->List[str]:
     """Load PIDs from directories and flatten the list of lists."""
     if isinstance(directories, str):
         directories = [directories]
-
-    pids = [torch.load(dir_) for dir_ in directories]
-    return [pid for sublist in pids for pid in sublist]
+    # load also if stored in a flat txt file
+    pids = []
+    for dir_ in directories:
+        file_extension = os.path.splitext(dir_)[1]
+        if file_extension == '.pt':
+            pids.extend(torch.load(dir_))
+        elif file_extension == '.txt':
+            with open(dir_, 'r') as file:
+                pids.extend([line.strip() for line in file.readlines()])
+    return pids
 
 def get_assigned_pids_and_exclude_pids(cfg) -> Tuple[Dict, List]:
     """Retrieve assigned PIDs and exclude PIDs based on the configuration."""

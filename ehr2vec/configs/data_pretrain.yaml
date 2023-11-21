@@ -36,7 +36,7 @@ split_ratios:
   pretrain: 0.72 # 80% of 90%
   finetune: 0.18 # 20% of 90%
   test: 0.1
-
+n_splits: 2 # used when splitting in cv fashion
 handler:
   concept_fill: "[UNK]"    
   num_fill: -100

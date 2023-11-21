@@ -5,7 +5,7 @@ paths:
   output_path: outputs/pretraining
   type: med_diag
   run_name: behrt_test
-  tokenized_dir: tokenized
+  tokenized_dir: tokenized/fold_0
   
 data:
   dataset:
@@ -16,6 +16,7 @@ data:
   truncation_len: 20
   num_train_patients: 100
   num_val_patients: 20
+  val_ratio: 0.2
   remove_background: true
   min_len: 2
 

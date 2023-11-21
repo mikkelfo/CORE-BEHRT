@@ -1,7 +1,8 @@
 env: local
 output_dir: ../outputs/data_icd10
 tokenized_dir_name: "tokenized"
-run_name: "icd10_small"
+paths:
+  run_name: "icd10_small"
 loader:
   data_dir:  ../data/formatted/synthea500_icd10 #../outputs/data_icd10
   patients_info: patients_info.csv

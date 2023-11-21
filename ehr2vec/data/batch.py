@@ -26,14 +26,19 @@ class Batches:
         pids should contain all the pids in the dataset, including assigned pids.
         Assigned pids should be a dictionary with the key being the split name and the value being a list of pids"""
         flattened_pids = self.flatten(pids)
+        logger.info(f"Total number of pids: {len(flattened_pids)}")
         # We exclude all the assigned pids from the flattened pids, and assign them to the splits later
         assigned_pids_set = set(self.flatten([v for v in assigned_pids.values()]))
+        logger.info(f"Total Number of assigned pids: {len(assigned_pids_set)}")
+        logger.info(f"Total number of pids to exclude: {len(exclude_pids)}")
         pids_to_exclude = set(exclude_pids).union(assigned_pids_set)
         self.flattened_pids = [pid for pid in flattened_pids if pid not in pids_to_exclude]
         self.assigned_pids = assigned_pids
 
         self.cfg = cfg
-        self.split_ratios = cfg.split_ratios
+
+        self.split_ratios = cfg.get('split_ratios', None)
+        self.n_splits = cfg.get('n_splits', 2)
 
     def split_batches(self)-> Dict[str, Split]:
         """Splits the batches into pretrain, finetune and test sets"""
@@ -56,13 +61,15 @@ class Batches:
 
     def split_batches_cv(self)-> List[Dict[str, Split]]:
         """Splits the batches into pretrain and finetune_test (finetune and test can be split during cv.) sets for crossvalidation"""
-        kfold = KFold(n_splits=self.cfg.get('n_splits', 2), shuffle=True)
+        logger.info(f"Number of splits: {self.n_splits}")
+        kfold = KFold(n_splits=self.n_splits, shuffle=True)
+        
         folds = []
         for pretrain_indices, finetune_test_indices in kfold.split(self.flattened_pids):
             pretrain_split = self.create_split(pretrain_indices, 'pretrain')
             ft_test_split = self.create_split(finetune_test_indices, 'finetune_test')
-
             folds.append({'pretrain': pretrain_split, 'finetune_test': ft_test_split})          
+            logger.info(f"Pretrain split: {len(pretrain_split.pids)}, Finetune test split: {len(ft_test_split.pids)}")
         return folds
 
     def create_split(self, indices, mode):
@@ -89,7 +96,6 @@ class BatchTokenize:
         self.cfg = cfg
         self.tokenized_dir_name = tokenized_dir_name
         self.create_tokenized_directory()
-
         self.pid2fileid = self.map_pids_to_file_ids(pids)
 
     def create_tokenized_directory(self):

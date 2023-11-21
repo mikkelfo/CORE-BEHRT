@@ -49,18 +49,24 @@ def main_data(config_path):
     logger.info('Initialize Processors')
     logger.info('Starting feature creation and processing')
     if not check_directory_for_features(cfg.loader.data_dir):
+        logger.info('Creating features')
         pids = create_and_save_features(ConceptLoaderLarge(**cfg.loader), 
                                         Handler(**cfg.handler), 
                                         Excluder(**cfg.excluder), 
                                         cfg, logger)
         torch.save(pids, join(cfg.output_dir, 'features', 'pids_features.pt'))
     else:
+        logger.info('Loading features')
         pids = torch.load(join(cfg.loader.data_dir, 'features', 'pids_features.pt'))
-  
+        logger.info(f"Number of files with features: {len(pids)}")
+        logger.info(f"Total Number of patients in dataset {sum([len(pids_ls) for pids_ls in pids])}")
     check_and_clear_directory(cfg, logger, tokenized_dir_name=cfg.get('tokenized_dir_name','tokenized'))
     logger.info('Finished feature creation and processing')
 
     assigned_pids, exclude_pids = get_assigned_pids_and_exclude_pids(cfg)
+    logger.info("Excluding {} patients".format(len(exclude_pids)))
+    for split, split_pids in assigned_pids.items():
+        logger.info("Assigning {} to {}".format(len(split_pids), split))
     batches = Batches(cfg, pids, exclude_pids=exclude_pids, assigned_pids=assigned_pids)
     folds = batches.split_batches_cv()
     logger.info('Tokenizing')
@@ -76,8 +82,8 @@ def main_data(config_path):
         batch_tokenize.batch_tokenize(fold['finetune_test'], save_dir=fold_dir)
     shutil.copy(config_path, join(tokenized_dir, 'data_cfg.yaml'))
     if cfg.env=='azure':
-        save_to_blobstore(local_path=cfg.run_name, 
-                          remote_path=join(BLOBSTORE, 'features', cfg.run_name))
+        save_to_blobstore(local_path=cfg.paths.run_name, 
+                          remote_path=join(BLOBSTORE, 'features', cfg.paths.run_name))
         mount_context.stop()
     logger.info('Finished')
 
@@ -113,7 +119,7 @@ def get_assigned_pids_and_exclude_pids(cfg) -> Tuple[Dict, List]:
     """Retrieve assigned PIDs and exclude PIDs based on the configuration."""
     exclude_pids_path = cfg.get('exclude_pids', None)
     exclude_pids = [] if exclude_pids_path is None else load_and_flatten_pids(exclude_pids_path)
-
+    
     assigned_pids_path = cfg.get('assigned_pids', None)
     assigned_pids = {} if assigned_pids_path is None else cfg.assigned_pids
 

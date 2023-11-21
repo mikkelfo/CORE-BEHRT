@@ -3,7 +3,6 @@ import os
 import re
 from datetime import datetime
 from typing import Dict, List, Tuple, Union
-
 import pandas as pd
 from common.config import Config
 from common.utils import Data
@@ -154,3 +153,20 @@ class Utilities():
         if max_epoch is None:
             raise ValueError("No checkpoint found in folder {}".format(checkpoint_folder))
         return max_epoch
+    @staticmethod
+    def split_train_val(features: Dict[str, List], pids: List, val_ratio: float = 0.2)->Tuple[Dict, List, Dict, List]:
+        """Split features and pids into train and val sets.
+        Returns:
+            train_features: A dictionary of lists of features for training
+            train_pids: A list of patient IDs for training
+            val_features: A dictionary of lists of features for validation
+            val_pids: A list of patient IDs for validation
+        """
+        val_size = int(len(features['concept']) * val_ratio)
+        train_size = len(features['concept']) - val_size
+        train_features = {k: v[:train_size] for k, v in features.items()}
+        val_features = {k: v[train_size:] for k, v in features.items()}
+        train_pids = pids[:train_size]
+        val_pids = pids[train_size:]
+
+        return train_features, train_pids, val_features, val_pids

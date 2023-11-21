@@ -1,4 +1,5 @@
 import logging
+import os
 from os.path import join
 from typing import Tuple
 
@@ -14,6 +15,7 @@ VOCABULARY_FILE = 'vocabulary.pt'
 TREE_FILE = 'tree.pt'
 TREE_MATRIX_FILE = 'tree_matrix.pt'
 CHECKPOINT_FOLDER = 'checkpoints'
+VAL_RATIO = 0.2
 # TODO: Add option to load test set only!
         
 def load_checkpoint_and_epoch(cfg: Config)->Tuple:
@@ -32,20 +34,27 @@ def load_model_cfg_from_checkpoint(cfg: Config, config_name: str)->None:
 class FeaturesLoader():
     def __init__(self, cfg):
         self.path_cfg = cfg.paths
-
+        self.cfg = cfg
     def load_tokenized_data(self)->Tuple[dict, list, dict, list, dict]:
         tokenized_dir = self.path_cfg.get('tokenized_dir', 'tokenized')
         logger.info('Loading tokenized data from %s', tokenized_dir)
         tokenized_data_path = join(self.path_cfg.data_path, tokenized_dir)
-
+        if os.path.exists(join(tokenized_data_path, 'tokenized_train.pt')): # this is needed for backwards compatibility. New splits are pretrain and finetune_test.
+            split = "train"
+        else:
+            split = "pretrain"
         logger.info("Loading tokenized data train")
-        train_features  = torch.load(join(tokenized_data_path, 'tokenized_train.pt'))
-        train_pids = torch.load(join(tokenized_data_path,  'pids_train.pt'))
+        train_features  = torch.load(join(tokenized_data_path, f'tokenized_{split}.pt'))
+        train_pids = torch.load(join(tokenized_data_path,  f'pids_{split}.pt'))
         
-        logger.info("Loading tokenized data val")
-        val_features = torch.load(join(tokenized_data_path, 'tokenized_val.pt'))
-        val_pids = torch.load(join(tokenized_data_path, 'pids_val.pt'))
-        
+        if os.path.exists(join(tokenized_data_path, 'tokenized_val.pt')): 
+            logger.info("Loading tokenized data val")
+            val_features = torch.load(join(tokenized_data_path, 'tokenized_val.pt'))
+            val_pids = torch.load(join(tokenized_data_path, 'pids_val.pt'))
+        else:
+            logger.info("No validation set found. Split train into train and val.")
+            train_features, train_pids, val_features, val_pids = Utilities.split_train_val(train_features, train_pids, val_ratio=self.cfg.data.get('val_ratio', VAL_RATIO))
+        logger.info(f"Train size: {len(train_pids)}, Val size: {len(val_pids)}")
         logger.info("Loading vocabulary")
         try:
             vocabulary = torch.load(join(tokenized_data_path, VOCABULARY_FILE))

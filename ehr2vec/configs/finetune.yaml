@@ -1,8 +1,8 @@
 env: local
 paths:
   pretrain_model_path: "outputs/pretraining/behrt_test"
-  #model_path: "outputs/pretraining/behrt_test/finetune_TEST_OUTCOME_censored_4_days_pre_TEST_OUTCOME_test"
-  checkpoint_epoch: 1
+  # model_path: "outputs/pretraining/behrt_test/finetune_TEST_OUTCOME_censored_10_hours_pre_TEST_OUTCOME_test"
+  #checkpoint_epoch: 1
   outcome: "../outputs/data_icd10/outcomes/TEST_CENSOR/TEST_CENSOR.pt"
   #output_path: "outputs/finetuning"
   run_name: "test"
@@ -11,11 +11,11 @@ paths:
   tokenized_pids: "pids_val.pt"
 
 model:
-  pool_type: "mean"
+  pool_type: "cls"
   behrt_embeddings: false
 
 data:
-  num_patients: 30 #300
+  num_patients: 300 #300
   val_split: 0.2
   truncation_len: 30
   select_censored: false
@@ -26,11 +26,19 @@ data:
   #code_types:
    # - D
   min_len: 2
+  censorer:
+   _target_: data_fixes.censor.EQ_Censorer
+
 
 outcome: 
   type: TEST_OUTCOME
-  n_hours: -100 # censor time
+  n_hours: 100 # censor time
   censor_type: TEST_OUTCOME
+  # censor_type: 
+    # year: 2015
+    # month: 01
+    # day: 01
+    # TEST_OUTCOME
 
 trainer_args:
   sampler: true
@@ -39,7 +47,7 @@ trainer_args:
   batch_size: 8
   val_batch_size: 32
   effective_batch_size: 16
-  epochs: 1
+  epochs: 10
   info: true
   gradient_clip: 
     clip_value: 1.0

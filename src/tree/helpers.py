@@ -41,8 +41,8 @@ def build_tree(cfg, counts=None):
 
 def create_levels(
     files: list = [
-        "data/data_dumps/sks_dump_diagnose.xlsx",
-        "data/data_dumps/sks_dump_medication.xlsx",
+        "data/dumps/sks_dump_diagnose.xlsx",
+        "data/dumps/sks_dump_medication.xlsx",
     ]
 ):
     codes = []
@@ -54,7 +54,7 @@ def create_levels(
         for i, (code, text) in df.iterrows():
             if pd.isna(code):  # Only for diagnosis
                 # Manually set nan codes for Chapter and Topic (as they have ranges)
-                if text[:3].lower() == "kap":
+                if text.startswith('Kap.'):
                     code = "XX"  # Sets Chapter as level 2 (XX)
                 else:
                     if pd.isna(

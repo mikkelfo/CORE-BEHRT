@@ -54,7 +54,7 @@ def create_levels(
         for i, (code, text) in df.iterrows():
             if pd.isna(code):  # Only for diagnosis
                 # Manually set nan codes for Chapter and Topic (as they have ranges)
-                if text.startswith('Kap.'):
+                if text.startswith("Kap."):
                     code = "XX"  # Sets Chapter as level 2 (XX)
                 else:
                     if pd.isna(

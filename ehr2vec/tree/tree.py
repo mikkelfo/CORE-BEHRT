@@ -1,6 +1,6 @@
+import os
 from collections import Counter
 from os.path import join
-import os
 
 import pandas as pd
 import torch
@@ -45,27 +45,14 @@ class TreeBuilder:
             data_codes = self.select_codes_outside_database(database, data_codes)
             data_codes = self.sort_data_codes(data_codes)
             database = self.augment_database(database, data_codes)
+            database = self.determine_levels_and_codes(database)
             if self.filter_database:
                 database = self._filter_database(database, data_codes)
-
-            level = -1
-            prev_code = ''
-            for i, (code, text) in database.iterrows():
-                if pd.isna(code):   # Only for diagnosis
-                    # Manually set nan codes for Chapter and Topic (as they have ranges)
-                    if text[:3].lower() == 'kap':
-                        code = 'XX'             # Sets Chapter as level 2 (XX)
-                    else:
-                        if pd.isna(database.iloc[i+1].Kode):  # Skip "subsub"-topics (double nans not started by chapter)
-                            continue
-                        code = 'XXX'            # Sets Topic as level 3 (XXX)
-
-                level += len(code) - len(prev_code)  # Add distance between current and previous code to level
-                prev_code = code                # Set current code as previous code
-
-                if code.startswith('XX'):       # Gets proper code (chapter/topic range)
-                    code = text.split()[-1]
-
+            for _, row in database.iterrows():
+                level = row.level
+                code = row.code
+                if pd.isna(row.code):
+                    continue
                 # Needed to fix the levels for medication
                 if 'medication' in file and level in [3,4,5]:
                     codes.append((level-1, code))
@@ -73,6 +60,7 @@ class TreeBuilder:
                     codes.append((level-2, code))
                 else:
                     codes.append((level, code))
+
 
         # Add background
         background = [
@@ -89,7 +77,30 @@ class TreeBuilder:
         codes.extend(background)
 
         return codes
-    
+    @staticmethod
+    def determine_levels_and_codes(database:pd.DataFrame)->pd.DataFrame:
+        """Takes a DataFrame and returns a DataFrame with levels for each code. Also assigns proper codes for chapters and topics."""
+        prev_code = ''
+        level = -1
+        for i, (code, text) in database.iterrows():
+            if pd.isna(code):   # Only for diagnosis
+                # Manually set nan codes for Chapter and Topic (as they have ranges)
+                if text.startswith('Kap.'):
+                    code = 'XX'             # Sets Chapter as level 2 (XX)
+                else:
+                    if pd.isna(database.iloc[i+1].Kode):  # Skip "subsub"-topics (double nans not started by chapter)
+                        database.drop(i, inplace=True)
+                        continue
+                    code = 'XXX' # Sets Topic as level 3 (XXX)
+            level += int(len(code) - len(prev_code))  # Add distance between current and previous code to level
+            prev_code = code                # Set current code as previous code
+            database.loc[i, 'level'] = level
+            if code.startswith('XX'):       # Gets proper code (chapter/topic range)
+                    code = text.split()[-1]
+            database.loc[i, 'code'] = code
+        database = database.astype({'level': 'int32'})
+        return database
+
     @staticmethod
     def create_tree(codes):
         root = Node('root')
@@ -141,7 +152,28 @@ class TreeBuilder:
         """Takes a DataFrame and a dictionary of codes and returns a DataFrame with only the codes in the dictionary."""
         codes_ls = self._extend_data_codes_by_ancestors(data_codes)
         mask = (database['Kode'].isin(codes_ls)) | (database['Kode'].isna()) | (database['Kode'].str.len()<3)
-        return database[mask].reset_index(drop=True, inplace=False)
+        database = database[mask].reset_index(drop=True, inplace=False)
+        database = self.drop_empty_categories(database)
+        return database
+    
+    @staticmethod
+    def drop_empty_categories(database:pd.DataFrame)->pd.DataFrame:
+        """Takes a DataFrame and returns a DataFrame with empty chapters removed."""
+        rows_to_drop = []
+
+        # First pass: remove empty categories (level 2)
+        for i in range(len(database) - 1):
+            if database.iloc[i].level == 2 and database.iloc[i + 1].level <= 2:
+                rows_to_drop.append(i)
+        database = database.drop(rows_to_drop).reset_index(drop=True)
+
+        # Second pass: remove empty chapters (level 1)
+        rows_to_drop = []
+        for i in range(len(database) - 1):
+            if database.iloc[i].level == 1 and database.iloc[i + 1].level <= 1:
+                rows_to_drop.append(i)
+        database = database.drop(rows_to_drop).reset_index(drop=True)
+        return database
     @staticmethod
     def _extend_data_codes_by_ancestors(data_codes: dict)->list:
         """Takes a dictionary of codes and returns a list of codes with ancestors."""
@@ -186,7 +218,7 @@ def get_counts(cfg, logger)-> dict:
     train_val_files = [
         join(data_path, 'tokenized', f) 
         for f in os.listdir(join(data_path, tokenized_dir)) 
-        if f.startswith(('tokenized_train', 'tokenized_val'))
+        if f.startswith(('tokenized_train', 'tokenized_val', 'tokenized_pretrain'))
     ]
     counts = Counter()
     for f in tqdm(train_val_files, desc="Count" ,file=TqdmToLogger(logger)):

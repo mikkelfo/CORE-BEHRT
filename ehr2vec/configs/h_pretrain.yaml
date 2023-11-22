@@ -7,7 +7,7 @@ paths:
   type: med_diag
   run_name: test
   tokenized_dir: tokenized
-  model_path: outputs/h_pretraining/test
+  # model_path: outputs/h_pretraining/test
   
 data:
   dataset:
@@ -41,7 +41,7 @@ model:
   num_hidden_layers: 3
   num_attention_heads: 3
   intermediate_size: 64
-  type_vocab_size: 1000 
+  type_vocab_size: 40
   trainable_level_weights: true
   behrt_embeddings: false
 

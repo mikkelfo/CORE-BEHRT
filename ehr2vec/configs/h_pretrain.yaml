@@ -44,6 +44,7 @@ model:
   type_vocab_size: 40
   trainable_level_weights: true
   behrt_embeddings: false
+  level_weights: [.8, .6, .4, .2]
 
 optimizer:
   lr: 5e-4

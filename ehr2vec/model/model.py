@@ -91,20 +91,35 @@ class HierarchicalBertForPretraining(BertEHRModel):
 
         self.levels = config.levels
         
-        if getattr(config, "trainable_level_weights"):
-            self.trainable_level_weights = config.trainable_level_weights
-            self.linear_combination = nn.Parameter(torch.arange(self.levels-1, 0, -1).float() / self.levels)
-        else:
-            self.trainable_level_weights = False
-            self.linear_combination = torch.arange(self.levels-1, 0, -1) / self.levels
+        self.initialize_level_weights(config)
+        self.validate_and_register_tree_matrix(tree, tree_matrix)
         
+    def initialize_level_weights(self, config):
+        """
+        Initializes level weights, either as a fixed tensor or as a trainable parameter.
+        First level is weighted with 1. Other weights can be set.
+        """
+        if hasattr(config, 'level_weights'):
+            self.linear_combination = torch.tensor(config.level_weights).float()
+        else:
+            self.linear_combination = torch.arange(self.levels-1, 0, -1).float() / self.levels
+
+        if len(self.linear_combination) != (self.levels-1):
+            raise ValueError(f"level_weights {len(self.linear_combination)} must have the same length as levels-1 {self.levels-1}")
+
+        self.trainable_level_weights = getattr(config, "trainable_level_weights", False)
+        if self.trainable_level_weights:
+            self.linear_combination = nn.Parameter(self.linear_combination)
+
+    def validate_and_register_tree_matrix(self, tree, tree_matrix):
         if not isinstance(tree_matrix, torch.Tensor):
-            assert tree is not None, "Either tree or tree_matrix must be provided"
+            if tree is None:
+                raise ValueError("Either tree or tree_matrix must be provided")
             tree_matrix = tree.get_tree_matrix()
         self.register_tree_matrix(tree_matrix) 
-        
 
-    def register_tree_matrix(self, tree_matrix):
+    def register_tree_matrix(self, tree_matrix: torch.Tensor):
+        """Register tree matrix as buffer and create a mask for each level."""
         tree_mask = tree_matrix.any(2)
         for i in range(self.levels):
             self.register_buffer(f'tree_matrix_{i}', tree_matrix[i, tree_mask[i]])

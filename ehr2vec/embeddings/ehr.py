@@ -6,7 +6,7 @@ import torch.nn as nn
 from embeddings.time2vec import Time2Vec
 from transformers import BertConfig
 
-TIME2VEC_AGE_MULTIPLIER = 1e-2
+TIME2VEC_AGE_MULTIPLIER = None
 TIME2VEC_ABSPOS_MULTIPLIER = 1e-4
 TIME2VEC_MIN_CLIP = -100
 TIME2VEC_MAX_CLIP = 100

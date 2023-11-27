@@ -89,6 +89,6 @@ class EQ_Censorer(Censorer):
     @staticmethod
     def get_censor_outcomes_for_negatives(censor_outcomes: list) -> list:
         """Use distribution of censor times to generate censor times for negative patients."""
-        positive_censor_outcomes = [t for t in censor_outcomes if ~pd.isna(t)]
-        return [t if ~pd.isna(t) else random.choice(positive_censor_outcomes) for t in censor_outcomes]
+        positive_censor_outcomes = [t for t in censor_outcomes if pd.notna(t)]
+        return [t if pd.notna(t) else random.choice(positive_censor_outcomes) for t in censor_outcomes]
 

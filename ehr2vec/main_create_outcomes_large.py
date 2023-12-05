@@ -32,17 +32,17 @@ def process_data(loader, cfg, features_cfg, logger):
 
 def main_data(config_path):
     cfg = load_config(config_path)
-    outcome_dir = join(cfg.features_dir, 'outcomes', cfg.outcomes_name)
+    cfg.paths.outcome_dir = join(cfg.features_dir, 'outcomes', cfg.outcomes_name)
     
     cfg, _, mount_context = AzurePathContext(cfg).azure_outcomes_setup()
 
-    logger = DirectoryPreparer(config_path).prepare_directory_outcomes(outcome_dir, cfg.outcomes_name)
+    logger = DirectoryPreparer(config_path).prepare_directory_outcomes(cfg.paths.outcome_dir, cfg.outcomes_name)
     logger.info('Mount Dataset')
     logger.info('Starting outcomes creation')
     features_cfg = load_config(join(cfg.features_dir, 'data_config.yaml'))
     outcomes = process_data(ConceptLoaderLarge(**cfg.loader), cfg, features_cfg, logger)
     
-    torch.save(outcomes, join(outcome_dir, f'{cfg.outcomes_name}.pt'))
+    torch.save(outcomes, join(cfg.paths.outcome_dir, f'{cfg.outcomes_name}.pt'))
     
     logger.info('Finish outcomes creation')
 

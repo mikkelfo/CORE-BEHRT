@@ -1,4 +1,6 @@
 env: local
+paths:
+  run_name: test
 outcomes_name: "TEST_CENSOR"
 features_dir: ../outputs/data_icd10
 loader:

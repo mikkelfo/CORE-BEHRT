@@ -135,6 +135,7 @@ class AzurePathContext:
         if self.azure_env:
             self.cfg.loader.data_dir = self._prepend_mount_point(self.cfg.loader.data_dir)
             self.cfg.features_dir = self._prepend_mount_point(self.cfg.features_dir)
+            self.cfg.paths.outcome_dir = 'outputs/outcomes'
             self._handle_outputs_path()
         return self.cfg, self.run, self.mount_context
 

@@ -79,7 +79,7 @@ def compute_validation_scores_mean_std(finetune_folder: str)->None:
     val_scores = []
     for fold in range(1, N_SPLITS+1):
         fold_checkpoints_folder = join(finetune_folder, f'fold_{fold}', 'checkpoints')
-        last_epoch = max([int(f.split('_')[-1][:-4]) for f in os.listdir(fold_checkpoints_folder) if f.startswith('checkpoint_epoch')])
+        last_epoch = max([int(f.split("_")[-2].split("epoch")[-1]) for f in os.listdir(fold_checkpoints_folder) if f.startswith('checkpoint_epoch')])
         fold_validation_scores = pd.read_csv(join(fold_checkpoints_folder, f'validation_scores_{last_epoch}.csv'))
         val_scores.append(fold_validation_scores)
     val_scores = pd.concat(val_scores)

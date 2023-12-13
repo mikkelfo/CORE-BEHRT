@@ -84,9 +84,9 @@ def get_sampler(cfg, train_dataset, outcomes):
     if cfg.trainer_args['sampler']:
         labels = pd.Series(outcomes).notna().astype(int)
         label_weight = 1 / labels.value_counts()
+        label_weight[1] *= cfg.trainer_args.get('sample_weight', 1.0) 
         weights = labels.map(label_weight).values
         # Adjust the weight for the positive class (1) using the sample_weight
-        label_weight[1] *= cfg.trainer_args.get('sample_weight', 1.0) 
         sampler = WeightedRandomSampler(
             weights=weights,
             num_samples=len(train_dataset),

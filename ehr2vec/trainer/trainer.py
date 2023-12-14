@@ -91,6 +91,9 @@ class EHRTrainer():
         self.early_stopping_patience = early_stopping if early_stopping else 1000 # Set patience parameter, for example, to 10 epochs.
         self.early_stopping_counter = 0  # Counter to keep track of epochs since last best val loss
         self.stop_training = False
+        # Get the metric to use for early stopping from the config
+        self.stopping_metric = self.cfg.trainer_args.get('stopping_metric', 'val_loss')
+        self.log(f"Early stopping: {self.early_stopping} with patience {self.early_stopping_patience} and metric {self.stopping_metric}")
 
     def train(self, **kwargs):
         self.log(f"Torch version {torch.__version__}")
@@ -196,9 +199,11 @@ class EHRTrainer():
     def _should_stop_early(self, val_loss: float, epoch: int, epoch_loss: float, metrics: dict) -> bool:
         if not self.early_stopping:
             return False
-
-        if val_loss < self.best_val_loss:
-            self.best_val_loss = val_loss
+        # Get the current value of the metric
+        current_metric_value = metrics.get(self.stopping_metric, val_loss)
+        self._initialize_best_metric_value(current_metric_value)
+        if current_metric_value < self.best_metric_value:
+            self.best_metric_value = current_metric_value
             self.early_stopping_counter = 0
             self._save_checkpoint(epoch, train_loss=epoch_loss, val_loss=val_loss, metrics=metrics, final_step_loss=epoch_loss[-1])
             return False
@@ -209,6 +214,11 @@ class EHRTrainer():
                 self.stop_training = True
                 return True
         return False
+
+    def _initialize_best_metric_value(self, current_metric_value: float) -> None:
+        if not hasattr(self, 'best_metric_value'):
+            self.best_metric_value = current_metric_value
+    
 
     def setup_training(self) -> DataLoader:
         """Sets up the training dataloader and returns it"""

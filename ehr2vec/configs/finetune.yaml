@@ -5,10 +5,11 @@ paths:
   #checkpoint_epoch: 1
   outcome: "../outputs/data_icd10/outcomes/TEST_CENSOR/TEST_CENSOR.pt"
   #output_path: "outputs/finetuning"
+  data_path: "../outputs/data_icd10"
   run_name: "test"
   tokenized_dir: "tokenized"
-  tokenized_file: "tokenized_val.pt"
-  tokenized_pids: "pids_val.pt"
+  tokenized_file: "tokenized_finetune.pt"
+  tokenized_pids: "pids_finetune.pt"
 
 model:
   pool_type: "cls"
@@ -55,6 +56,7 @@ trainer_args:
   shuffle: true
   checkpoint_frequency: 2
   early_stopping: 20
+  stopping_criterion: roc_auc
   
 optimizer:
   lr: 5e-4

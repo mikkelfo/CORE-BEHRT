@@ -219,6 +219,9 @@ class EHRTrainer():
         if not hasattr(self, 'best_metric_value'):
             self.best_metric_value = current_metric_value
     
+    def _initialize_best_metric_value(self, current_metric_value: float) -> None:
+        if not hasattr(self, 'best_metric_value'):
+            self.best_metric_value = current_metric_value
 
     def setup_training(self) -> DataLoader:
         """Sets up the training dataloader and returns it"""

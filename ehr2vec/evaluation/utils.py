@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 from sklearn.utils import resample
 from torch.utils.data import WeightedRandomSampler
+from common.config import get_function
 
 logger = logging.getLogger(__name__)
 
@@ -83,8 +84,9 @@ def get_sampler(cfg, train_dataset, outcomes):
     """
     if cfg.trainer_args['sampler']:
         labels = pd.Series(outcomes).notna().astype(int)
-        label_weight = 1 / labels.value_counts()
-        label_weight[1] *= cfg.trainer_args.get('sample_weight', 1.0) 
+        value_counts = labels.value_counts()
+        label_weight = get_function(cfg.trainer_args['sample_weight_function'])(value_counts)
+        label_weight[1] *= cfg.trainer_args.get('sample_weight_multiplier', 1.0) 
         weights = labels.map(label_weight).values
         # Adjust the weight for the positive class (1) using the sample_weight
         sampler = WeightedRandomSampler(
@@ -95,6 +97,10 @@ def get_sampler(cfg, train_dataset, outcomes):
         return sampler
     else:
         return None
+def inverse(x):
+    return 1/x
+def inverse_sqrt(x):
+    return 1/np.sqrt(x)
 
 def get_pos_weight(cfg, outcomes):
     if cfg.trainer_args['pos_weight']:

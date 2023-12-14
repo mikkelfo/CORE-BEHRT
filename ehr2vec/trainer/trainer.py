@@ -202,7 +202,7 @@ class EHRTrainer():
         # Get the current value of the metric
         current_metric_value = metrics.get(self.stopping_metric, val_loss)
         self._initialize_best_metric_value(current_metric_value)
-        if current_metric_value < self.best_metric_value:
+        if self._is_improvement(current_metric_value):
             self.best_metric_value = current_metric_value
             self.early_stopping_counter = 0
             self._save_checkpoint(epoch, train_loss=epoch_loss, val_loss=val_loss, metrics=metrics, final_step_loss=epoch_loss[-1])
@@ -214,6 +214,13 @@ class EHRTrainer():
                 self.stop_training = True
                 return True
         return False
+
+    def _is_improvement(self, current_metric_value):
+        """Returns True if the current metric value is an improvement over the best metric value"""
+        if self.stopping_metric == 'val_loss':
+            return current_metric_value < self.best_metric_value
+        else:
+            return current_metric_value > self.best_metric_value
 
     def _initialize_best_metric_value(self, current_metric_value: float) -> None:
         if not hasattr(self, 'best_metric_value'):

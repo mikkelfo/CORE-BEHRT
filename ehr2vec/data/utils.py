@@ -11,8 +11,8 @@ logger = logging.getLogger(__name__)  # Get the logger for this module
 
 PID_KEY = 'PID'
 BG_GENDER_KEYS = {
-    'male': ['M', 'Kvinde', 'male', 'Male', 'man', 'MAN', '1'],
-    'female': ['W', 'Mand', 'F', 'female', 'woman', 'WOMAN', '0']
+    'male': ['M', 'Mand',  'male', 'Male', 'man', 'MAN', '1'],
+    'female': ['W', 'Kvinde', 'F', 'female', 'woman', 'WOMAN', '0']
 }
 MIN_POSITIVES = {'train': 10, 'val': 5}
 CHECKPOINT_FOLDER = 'checkpoints'

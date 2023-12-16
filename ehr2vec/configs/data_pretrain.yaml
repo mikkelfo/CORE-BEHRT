@@ -13,7 +13,9 @@ loader:
   chunksize: 300
 
 features:
-  age: true
+  age: 
+    round: 
+      decimal: 2
   abspos:
     year: 2020
     month: 1

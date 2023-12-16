@@ -22,7 +22,10 @@ class AgeCreator(BaseCreator):
     def create(self, concepts: pd.DataFrame, patients_info: pd.DataFrame)-> pd.DataFrame:
         birthdates = pd.Series(patients_info['BIRTHDATE'].values, index=patients_info['PID']).to_dict()
         # Calculate approximate age
-        ages = (((concepts['TIMESTAMP'] - concepts['PID'].map(birthdates)).dt.days / 365.25) + 0.5).round()
+        ages = (concepts['TIMESTAMP'] - concepts['PID'].map(birthdates)).dt.days / 365.25
+        round = self.config.age.get('round', False)
+        if round:
+            ages = ages.round(self.config.age.round.get('decimal', 0))
 
         concepts['AGE'] = ages
         return concepts

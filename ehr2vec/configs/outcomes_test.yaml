@@ -15,6 +15,8 @@ outcomes:
   TEST_OUTCOME: 
     type: [CONCEPT]
     match: [['DJ329', 'DN186']]
+    exclude: ['DT7432X']
   TEST_CENSOR:
     type: [CONCEPT]
     match: [['DJ0190']]
+    

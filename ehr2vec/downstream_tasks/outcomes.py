@@ -5,6 +5,7 @@ import pandas as pd
 import torch
 from data.utils import Utilities
 
+from typing import List, Dict
 
 class OutcomeMaker:
     def __init__(self, config: dict, features_cfg: dict):
@@ -26,12 +27,10 @@ class OutcomeMaker:
         for outcome, attrs in self.outcomes.items():
             types = attrs["type"]
             matches = attrs["match"]
-
             if types == "patients_info":
                 timestamps = self.match_patient_info(outcome_df, patients_info_dict, matches)
             else:
                 timestamps = self.match_concepts(concepts_plus, types, matches, attrs)
-
             timestamps = timestamps.rename(outcome)
             timestamps = Utilities.get_abspos_from_origin_point(timestamps, self.features_cfg.features.abspos)
             outcome_df = outcome_df.merge(timestamps, on="PID", how="left")
@@ -43,7 +42,7 @@ class OutcomeMaker:
     def remove_missing_timestamps(concepts_plus: pd.DataFrame )->pd.DataFrame:
         return concepts_plus[concepts_plus.TIMESTAMP.notna()]
 
-    def match_patient_info(self, outcome: pd.DataFrame, patients_info: dict, matches: list)->pd.Series:
+    def match_patient_info(self, outcome: pd.DataFrame, patients_info: dict, matches: List[List])->pd.Series:
         timestamps = outcome.PID.map(
                     lambda pid: patients_info[matches].get(pid, pd.NaT)
         )  # Get from dict [outcome] [pid]
@@ -52,20 +51,23 @@ class OutcomeMaker:
         )  # Convert to series
         return timestamps
 
-    def match_concepts(self, concepts_plus, types, matches, attrs):
+    def match_concepts(self, concepts_plus: pd.DataFrame, types: List[List], matches:List[List], attrs:Dict):
         """It first goes through all the types and returns true for a row if the entry starts with any of the matches.
         We then ensure all the types are true for a row by using bitwise_and.reduce. E.g. CONCEPT==COVID_TEST AND VALUE==POSITIVE"""
+        
+        if 'exclude' in attrs:
+            concepts_plus = concepts_plus[~concepts_plus['CONCEPT'].isin(attrs['exclude'])]
         col_booleans = self.get_col_booleans(concepts_plus, types, matches)
         mask = np.bitwise_and.reduce(col_booleans)
         if "negation" in attrs:
             mask = ~mask
         return self.select_first_event(concepts_plus, mask)
         
-    def select_first_event(self, concepts_plus, mask):
+    def select_first_event(self, concepts_plus:pd.DataFrame, mask:pd.Series):
         return concepts_plus[mask].groupby("PID").TIMESTAMP.min()
     
     @staticmethod
-    def get_col_booleans(concepts_plus, types, matches)->list:
+    def get_col_booleans(concepts_plus:pd.DataFrame, types:List, matches:List[List])->list:
         col_booleans = []
         for typ, lst in zip(types, matches):
             col_bool = concepts_plus[typ].astype(str).str.startswith(tuple(lst), False)

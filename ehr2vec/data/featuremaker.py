@@ -1,5 +1,3 @@
-from datetime import datetime
-
 import pandas as pd
 import torch
 from data.creators import BaseCreator

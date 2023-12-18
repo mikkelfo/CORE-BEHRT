@@ -70,10 +70,9 @@ class BackgroundCreator(BaseCreator):
         if 'age' in self.config:
             background['AGE'] = -1
 
-        if 'origin_point' in self.config:
-            abspos = Utilities.get_abspos_from_origin_point([patients_info['BIRTHDATE']], self.config.abspos)
-            background['ABSPOS'] = abspos * len(self.config.background)
-            
+        if 'abspos' in self.config:
+            abspos = Utilities.get_abspos_from_origin_point(patients_info['BIRTHDATE'], self.config.abspos)
+            background['ABSPOS'] = abspos.to_list() * len(self.config.background)
 
         # Prepend background to concepts
         background = pd.DataFrame(background)

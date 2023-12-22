@@ -1,6 +1,8 @@
+from itertools import combinations
 from os.path import join
 from typing import Iterator, Tuple
 
+import numpy as np
 import torch
 from common.utils import Data
 from sklearn.model_selection import KFold
@@ -54,5 +56,35 @@ def get_n_splits_cv(data: Data, n_splits: int)->Iterator[Tuple[Data,Data]]:
     """Get indices for n_splits cross validation."""
     kf = KFold(n_splits=n_splits) #! That should be shuffle=True
     indices = list(range(len(data.pids)))
-    for train_indices, val_indices in kf.split(indices):
+    folds = kf.split(indices)
+    for train_indices, val_indices in folds:
         yield train_indices, val_indices
+    
+def get_n_splits_cv_k_over_n(data: Data, k:int, n:int)->Iterator[Tuple[Data,Data]]:
+    """
+    Splits data into k sets, with n sets used for training and the remaining sets for validation.
+    
+    Parameters:
+    data: The dataset to be split.
+    k: Total number of subsets to split the data into.
+    n: Number of subsets to be used for training in each fold.
+    
+    Yields:
+    Tuples of training and validation indices for each fold.
+    """
+    indices = np.arange(len(data.pids))
+    split_size = len(indices) // k
+    remainder = len(indices) % k
+    sets = {i: indices[i * split_size:][:split_size] for i in range(k)}
+    
+    # Handle the remainder by adding it to the last set
+    if remainder:
+        sets[k - 1] = np.concatenate((sets[k - 1], indices[-remainder:]))
+    # Generate all combinations of picking n subsets out of k for training
+    for training_keys in combinations(sets.keys(), n):
+        train_indices = np.concatenate([sets[key] for key in training_keys])
+        validation_keys = [key for key in sets.keys() if key not in training_keys]
+        validation_subsets = [sets[key] for key in validation_keys]
+
+        yield train_indices, validation_subsets, validation_keys
+

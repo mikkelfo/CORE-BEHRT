@@ -52,10 +52,11 @@ class Splitter():
         torch.save(self.splits, join(dest, 'splits.pt'))
 
 
-def get_n_splits_cv(data: Data, n_splits: int)->Iterator[Tuple[Data,Data]]:
+def get_n_splits_cv(data: Data, n_splits: int, indices:list=None)->Iterator[Tuple[Data,Data]]:
     """Get indices for n_splits cross validation."""
     kf = KFold(n_splits=n_splits) #! That should be shuffle=True
-    indices = list(range(len(data.pids)))
+    if indices is None:
+        indices = list(range(len(data.pids)))
     folds = kf.split(indices)
     for train_indices, val_indices in folds:
         yield train_indices, val_indices

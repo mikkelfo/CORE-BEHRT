@@ -3,7 +3,7 @@ paths:
   pretrain_model_path: "outputs/pretraining/behrt_test"
   # model_path: "outputs/pretraining/behrt_test/finetune_TEST_OUTCOME_censored_10_hours_pre_TEST_OUTCOME_test"
   #checkpoint_epoch: 1
-  outcome: "../outputs/data_icd10/outcomes/TEST_CENSOR/TEST_CENSOR.pt"
+  outcome: "../outputs/data_icd10/outcomes/TEST_OUTCOME/TEST_OUTCOME.pt"
   #output_path: "outputs/finetuning"
   data_path: "../outputs/data_icd10"
   run_name: "test"
@@ -17,7 +17,8 @@ model:
 
 data:
   num_patients: 300 #300
-  val_split: 0.2
+  val_split: 0.1
+  test_split: 0.1
   truncation_len: 30
   select_censored: false
   # gender: M

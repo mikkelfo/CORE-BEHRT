@@ -102,7 +102,7 @@ class EHRTrainer():
         self.accumulation_steps: int = self.args['effective_batch_size'] // self.args['batch_size']
         dataloader = self.setup_training()
         self.log(f'Test validation before starting training')
-        self.validate(epoch=0)
+        self._evaluate(epoch=0, mode='val')
         for epoch in range(self.continue_epoch, self.args['epochs']):
             self._train_epoch(epoch, dataloader)
             if self.stop_training:
@@ -173,13 +173,14 @@ class EHRTrainer():
         self.run_log('Train loss', step_loss / self.accumulation_steps)
 
     def validate_and_log(self, epoch: int, epoch_loss: float, train_loop: DataLoader)-> None:
-        val_loss, metrics = self.validate(epoch)
+        val_loss, val_metrics = self._evaluate(epoch, mode='val')
+        _, test_metrics = self._evaluate(epoch, mode='test')
         if epoch==0:
-            self._save_checkpoint(epoch, train_loss=epoch_loss, val_loss=val_loss, metrics=metrics, final_step_loss=epoch_loss[-1])
-        if self._should_stop_early(val_loss, epoch, epoch_loss, metrics):
+            self._save_checkpoint(epoch, train_loss=epoch_loss, val_loss=val_loss, val_metrics=val_metrics, test_metrics=test_metrics, final_step_loss=epoch_loss[-1])
+        if self._should_stop_early(val_loss, epoch, epoch_loss, val_metrics, test_metrics):
             return 
         # self._save_checkpoint_conditionally(epoch, epoch_loss, val_loss, metrics)
-        self._self_log_results(epoch, val_loss, metrics, epoch_loss, len(train_loop))
+        self._self_log_results(epoch, val_loss, val_metrics, epoch_loss, len(train_loop))
 
     def _save_checkpoint_conditionally(self, epoch: int, epoch_loss: float, val_loss: float, metrics: dict) -> None:
         should_save = (
@@ -190,24 +191,24 @@ class EHRTrainer():
         if should_save:
             self._save_checkpoint(epoch, train_loss=epoch_loss, val_loss=val_loss, metrics=metrics, final_step_loss=epoch_loss[-1])
 
-    def _self_log_results(self, epoch: int, val_loss: float, metrics: dict, epoch_loss: float, len_train_loop: int)->None:
-        for k, v in metrics.items():
+    def _self_log_results(self, epoch: int, val_loss: float, val_metrics: dict, epoch_loss: float, len_train_loop: int)->None:
+        for k, v in val_metrics.items():
             self.run_log(name = k, value = v)
         self.run_log(name='Val loss', value=val_loss)
         self.log(f'Epoch {epoch} train loss: {sum(epoch_loss) / (len_train_loop / self.accumulation_steps)}')
         self.log(f'Epoch {epoch} val loss: {val_loss}')
-        self.log(f'Epoch {epoch} metrics: {metrics}\n')
+        self.log(f'Epoch {epoch} metrics: {val_metrics}\n')
 
-    def _should_stop_early(self, val_loss: float, epoch: int, epoch_loss: float, metrics: dict) -> bool:
+    def _should_stop_early(self, val_loss: float, epoch: int, epoch_loss: float, val_metrics: dict, test_metrics:dict={}) -> bool:
         if not self.early_stopping:
             return False
         # Get the current value of the metric
-        current_metric_value = metrics.get(self.stopping_metric, val_loss)
+        current_metric_value = val_metrics.get(self.stopping_metric, val_loss)
         self._initialize_best_metric_value(current_metric_value)
         if self._is_improvement(current_metric_value):
             self.best_metric_value = current_metric_value
             self.early_stopping_counter = 0
-            self._save_checkpoint(epoch, train_loss=epoch_loss, val_loss=val_loss, metrics=metrics, final_step_loss=epoch_loss[-1])
+            self._save_checkpoint(epoch, train_loss=epoch_loss, val_loss=val_loss, val_metrics=val_metrics, test_metrics=test_metrics, final_step_loss=epoch_loss[-1])
             return False
         else:
             self.early_stopping_counter += 1
@@ -241,27 +242,35 @@ class EHRTrainer():
                                 shuffle=self.args.get('shuffle', True), collate_fn=self.args['collate_fn'])
         return dataloader
 
-    def validate(self, epoch: int)->tuple:
-        """Returns the validation loss and metrics"""
-        if self.val_dataset is None:
-            self.log('No validation dataset provided')
-            return None, None
+    def _evaluate(self, epoch: int, mode='val')->tuple:
+        """Returns the validation/test loss and metrics"""
+        if mode == 'val':
+            if self.val_dataset is None:
+                self.log('No validation dataset provided')
+                return None, None
+            dataloader = self.get_val_dataloader()
+        elif mode == 'test':
+            if self.test_dataset is None:
+                self.log('No test dataset provided')
+                return None, None
+            dataloader = self.get_test_dataloader()
+        else:
+            raise ValueError(f"Mode {mode} not supported. Use 'val' or 'test'")
         
         self.model.eval()
-        dataloader = self.get_val_dataloader()
-        val_loop = get_tqdm(dataloader)
-        val_loop.set_description('Validation')
-        val_loss = 0
+        loop = get_tqdm(dataloader)
+        loop.set_description(mode)
+        loss = 0
         
         metric_values = {name: [] for name in self.metrics}
         logits_list = [] if self.accumulate_logits else None
         targets_list = [] if self.accumulate_logits else None
 
         with torch.no_grad():
-            for batch in val_loop:
+            for batch in loop:
                 self.batch_to_device(batch)
                 outputs = self.model(batch)
-                val_loss += outputs.loss.item()
+                loss += outputs.loss.item()
 
                 if self.accumulate_logits:
                     logits_list.append(outputs.logits.cpu())
@@ -271,33 +280,40 @@ class EHRTrainer():
                         metric_values[name].append(func(outputs, batch))
 
         if self.accumulate_logits:
-            metric_values = self.process_binary_classification_results(logits_list, targets_list, epoch)
+            metric_values = self.process_binary_classification_results(logits_list, targets_list, epoch, mode=mode)
         else:
             metric_values = compute_avg_metrics(metric_values)
         
         self.model.train()
         
-        return val_loss / len(val_loop), metric_values
+        return loss / len(loop), metric_values
 
-    def process_binary_classification_results(self, logits:list, targets:list, epoch:int)->dict:
+    def process_binary_classification_results(self, logits:list, targets:list, epoch:int, mode='val')->dict:
         """Process results specifically for binary classification."""
         targets = torch.cat(targets)
         logits = torch.cat(logits)
         batch = {'target': targets}
         outputs = namedtuple('Outputs', ['logits'])(logits)
-        acc_metrics = {}
+        metrics = {}
         for name, func in self.metrics.items():
             v = func(outputs, batch)
             self.log(f"{name}: {v}")
-            acc_metrics[name] = v
-        save_curves(self.run_folder, logits, targets, epoch)
-        save_metrics_to_csv(self.run_folder, acc_metrics, epoch)
-        return acc_metrics
+            metrics[name] = v
+        save_curves(self.run_folder, logits, targets, epoch, mode)
+        save_metrics_to_csv(self.run_folder, metrics, epoch, mode)
+        return metrics
 
     def get_val_dataloader(self):
         return DataLoader(
             self.val_dataset, 
             batch_size=self.args.get('val_batch_size', self.args['batch_size']), 
+            shuffle=self.args.get('shuffle', True), 
+            collate_fn=self.args['collate_fn']
+        )
+    def get_test_dataloader(self):
+        return DataLoader(
+            self.test_dataset, 
+            batch_size=self.args.get('test_batch_size', self.args['batch_size']), 
             shuffle=self.args.get('shuffle', True), 
             collate_fn=self.args['collate_fn']
         )
@@ -342,7 +358,6 @@ class EHRTrainer():
         id=f'epoch{epoch}_end'
         os.makedirs(os.path.join(self.run_folder, 'checkpoints'), exist_ok=True)
         checkpoint_name = os.path.join(self.run_folder, 'checkpoints', f'checkpoint_{id}.pt')
-
         torch.save({
             'epoch': epoch,
             'model_state_dict': self.model.state_dict(),

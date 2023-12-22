@@ -1,4 +1,5 @@
 import os
+import random
 from datetime import datetime
 from os.path import abspath, dirname, join
 from typing import List
@@ -24,7 +25,8 @@ config_path = join(dirname(abspath(__file__)), args.config_path)
 # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
 
-def finetune_fold(cfg, data:Data, train_indices:List[int], val_indices:List[int], fold:int)->None:
+def finetune_fold(cfg, data:Data, train_indices:List[int], val_indices:List[int], 
+                fold:int, test_indices: List[int]=[])->None:
     """Finetune model on one fold"""
     fold_folder = join(finetune_folder, f'fold_{fold}')
     os.makedirs(fold_folder, exist_ok=True)
@@ -33,10 +35,14 @@ def finetune_fold(cfg, data:Data, train_indices:List[int], val_indices:List[int]
     logger.info("Splitting data")
     train_data = data.select_data_subset_by_indices(train_indices, mode='train')
     val_data = data.select_data_subset_by_indices(val_indices, mode='val')
+    test_data = None if len(test_indices) == 0 else data.select_data_subset_by_indices(test_indices, mode='test')
 
     logger.info("Saving pids")
     torch.save(train_data.pids, join(fold_folder, 'train_pids.pt'))
     torch.save(val_data.pids, join(fold_folder, 'val_pids.pt'))
+    if len(test_indices) > 0:
+        test_data = data.select_data_subset_by_indices(test_indices, mode='test')
+        torch.save(test_data, join(fold_folder, 'test_data.pt'))
 
     logger.info("Saving patient numbers")
     dataset_preparer.saver.save_patient_nums(train_data, val_data, folder=fold_folder)
@@ -44,7 +50,8 @@ def finetune_fold(cfg, data:Data, train_indices:List[int], val_indices:List[int]
     logger.info('Initializing datasets')
     train_dataset = BinaryOutcomeDataset(train_data.features, train_data.outcomes)
     val_dataset = BinaryOutcomeDataset(val_data.features, val_data.outcomes)
-    
+    if len(test_indices) > 0:
+        test_dataset = BinaryOutcomeDataset(test_data.features, test_data.outcomes)
     modelmanager = ModelManager(cfg, fold)
     checkpoint = modelmanager.load_checkpoint() 
     modelmanager.load_model_config() # check whether cfg is changed after that.
@@ -59,6 +66,7 @@ def finetune_fold(cfg, data:Data, train_indices:List[int], val_indices:List[int]
         optimizer=optimizer,
         train_dataset=train_dataset, 
         val_dataset=val_dataset, 
+        test_dataset=test_dataset,
         args=cfg.trainer_args,
         metrics=cfg.metrics,
         sampler=sampler,
@@ -73,19 +81,19 @@ def finetune_fold(cfg, data:Data, train_indices:List[int], val_indices:List[int]
     trainer.train()
     
 
-def compute_validation_scores_mean_std(finetune_folder: str)->None:
+def compute_scores_mean_std(finetune_folder: str, mode='val')->None:
     """Compute mean and std of validation scores."""
     logger.info("Compute mean and std of validation scores")
-    val_scores = []
+    scores = []
     for fold in range(1, N_SPLITS+1):
         fold_checkpoints_folder = join(finetune_folder, f'fold_{fold}', 'checkpoints')
         last_epoch = max([int(f.split("_")[-2].split("epoch")[-1]) for f in os.listdir(fold_checkpoints_folder) if f.startswith('checkpoint_epoch')])
-        fold_validation_scores = pd.read_csv(join(fold_checkpoints_folder, f'validation_scores_{last_epoch}.csv'))
-        val_scores.append(fold_validation_scores)
-    val_scores = pd.concat(val_scores)
-    val_scores_mean_std = val_scores.groupby('metric')['value'].agg(['mean', 'std'])
+        fold_scores = pd.read_csv(join(fold_checkpoints_folder, f'{mode}_scores_{last_epoch}.csv'))
+        scores.append(fold_scores)
+    scores = pd.concat(scores)
+    scores_mean_std = scores.groupby('metric')['value'].agg(['mean', 'std'])
     date = datetime.now().strftime("%Y%m%d-%H%M")
-    val_scores_mean_std.to_csv(join(finetune_folder, f'validation_scores_mean_std_{date}.csv'))
+    scores_mean_std.to_csv(join(finetune_folder, f'{mode}_scores_mean_std_{date}.csv'))
 
 if __name__ == '__main__':
 
@@ -99,13 +107,25 @@ if __name__ == '__main__':
     
     dataset_preparer = DatasetPreparer(cfg)
     data = dataset_preparer.prepare_finetune_features()
+
+    indices = list(range(len(data.pids)))
+
+    if cfg.data.get('test_split', None) is not None:
+        test_indices = random.sample(indices, int(len(indices)*cfg.data.test_split))
+        test_indices_set = set(test_indices)
+        indices = [i for i in indices if i not in test_indices_set]
+    else:
+        test_indices = []
     
-    for fold, (train_indices, val_indices) in enumerate(get_n_splits_cv(data, N_SPLITS)):
+    for fold, (train_indices, val_indices) in enumerate(get_n_splits_cv(data, N_SPLITS, indices)):
         fold += 1
         logger.info(f"Training fold {fold}/{N_SPLITS}")
-        finetune_fold(cfg, data, train_indices, val_indices, fold)
+        finetune_fold(cfg, data, train_indices, val_indices, fold, test_indices)
         
-    compute_validation_scores_mean_std(finetune_folder)
+    compute_scores_mean_std(finetune_folder, mode='val')
+    if len(test_indices) > 0:
+        compute_scores_mean_std(finetune_folder, mode='test')
+
     
     if cfg.env=='azure':
         save_path = pretrain_model_path if cfg.paths.get("save_folder_path", None) is None else cfg.paths.save_folder_path

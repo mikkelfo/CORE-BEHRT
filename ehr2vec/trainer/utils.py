@@ -21,19 +21,19 @@ def get_nvidia_smi_output()->str:
 def get_tqdm(dataloader: DataLoader)->tqdm:
     return tqdm(dataloader, total=len(dataloader), file=TqdmToLogger(logger) if logger else None)
     
-def save_curves(run_folder:str, logits:torch.Tensor, targets:torch.Tensor, epoch:int)->None:
+def save_curves(run_folder:str, logits:torch.Tensor, targets:torch.Tensor, epoch:int, mode='val')->None:
     """Saves the ROC and PRC curves to a csv file in the run folder"""
-    roc_name = os.path.join(run_folder, 'checkpoints', f'roc_curve_{epoch}.npz')
-    prc_name = os.path.join(run_folder, 'checkpoints', f'prc_curve_{epoch}.npz')
+    roc_name = os.path.join(run_folder, 'checkpoints', f'roc_curve_{mode}_{epoch}.npz')
+    prc_name = os.path.join(run_folder, 'checkpoints', f'prc_curve_{mode}_{epoch}.npz')
     probas = torch.sigmoid(logits).cpu().numpy()
     fpr, tpr, threshold_roc = roc_curve(targets, probas)
     precision, recall, threshold_pr = precision_recall_curve(targets, probas)
     np.savez_compressed(roc_name, fpr=fpr, tpr=tpr, threshold=threshold_roc)
     np.savez_compressed(prc_name, precision=precision, recall=recall, threshold=np.append(threshold_pr, 1))
 
-def save_metrics_to_csv(run_folder:str, metrics: dict, epoch: int)->None:
+def save_metrics_to_csv(run_folder:str, metrics: dict, epoch: int, mode='val')->None:
     """Saves the metrics to a csv file"""
-    metrics_name = os.path.join(run_folder, 'checkpoints', f'validation_scores_{epoch}.csv')
+    metrics_name = os.path.join(run_folder, 'checkpoints', f'{mode}_scores_{epoch}.csv')
     with open(metrics_name, 'w') as file:
         file.write('metric,value\n')
         for key, value in metrics.items():

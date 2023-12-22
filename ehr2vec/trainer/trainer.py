@@ -69,10 +69,10 @@ class EHRTrainer():
         self.log(f"CUDA version: {torch.version.cuda}")
     
     def _set_default_args(self, args):
+        collate_fn = get_function(args['collate_fn']) if 'collate_fn' in args else dynamic_padding
         default_args = {
             'save_every_k_steps': float('inf'),
-            'collate_fn': get_function(dynamic_padding) if isinstance(dynamic_padding, str) else dynamic_padding
-        }
+            'collate_fn': collate_fn}
         self.args = {**default_args, **args}
         if not (self.args['effective_batch_size'] % self.args['batch_size'] == 0):
             raise ValueError('effective_batch_size must be a multiple of batch_size')

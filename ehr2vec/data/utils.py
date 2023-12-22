@@ -170,3 +170,42 @@ class Utilities():
         val_pids = pids[train_size:]
 
         return train_features, train_pids, val_features, val_pids
+
+    @staticmethod
+    def filter_and_order_outcomes(outcomes_dic:Dict[str, Dict], pids: List):
+        """outcomes_dic: groups of outcomes, every group contains another dictionary with pids and outcomes"""
+        ordered_outcomes = {}
+        for _, outcomes_group in outcomes_dic.items():
+            for outcome_name, _ in outcomes_group.items():
+                if outcome_name =='PID':
+                    continue
+                outcome_temp = Utilities.select_and_order_outcomes_for_patients(
+                    all_outcomes=outcomes_group, pids = pids, outcome=outcome_name)
+                assert len(outcome_temp)==len(pids), "Pids and outcomes do not have the same number of patients"
+                ordered_outcomes[outcome_name] = outcome_temp
+        del outcome_temp
+        return ordered_outcomes
+    @staticmethod
+    def iter_patients(data) -> tuple:
+        """Iterate over patients in a features dict."""
+        for i in range(len(data.features["concept"])):
+            yield {key: values[i] for key, values in data.features.items()}, {key: values[i] for key, values in data.outcomes.items()}
+    @staticmethod
+    def censor(patient: dict, event_timestamp: float) -> dict:
+        """Censor the patient's features based on the event timestamp."""
+        if not pd.isna(event_timestamp):
+            # Extract absolute positions and concepts for non-masked items
+            absolute_positions = patient["abspos"]
+            concepts = patient["concept"]
+            # Determine which items to censor based on the event timestamp and background flags
+            censor_flags = Utilities._generate_censor_flags(absolute_positions, event_timestamp)
+        
+            for key, value in patient.items():
+                patient[key] = [item for index, item in enumerate(value) if censor_flags[index]]
+        return patient
+    @staticmethod
+    def _generate_censor_flags(absolute_positions: List[float], event_timestamp: float) -> List[bool]:
+        """Generate flags indicating which items to censor."""
+        return [
+            position - event_timestamp <= 0 for position in absolute_positions
+        ]

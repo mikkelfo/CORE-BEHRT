@@ -174,6 +174,8 @@ class EHRTrainer():
 
     def validate_and_log(self, epoch: int, epoch_loss: float, train_loop: DataLoader)-> None:
         val_loss, metrics = self.validate(epoch)
+        if epoch==0:
+            self._save_checkpoint(epoch, train_loss=epoch_loss, val_loss=val_loss, metrics=metrics, final_step_loss=epoch_loss[-1])
         if self._should_stop_early(val_loss, epoch, epoch_loss, metrics):
             return 
         # self._save_checkpoint_conditionally(epoch, epoch_loss, val_loss, metrics)

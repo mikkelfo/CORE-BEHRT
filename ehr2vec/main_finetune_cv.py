@@ -1,10 +1,8 @@
 import os
 import random
-from datetime import datetime
 from os.path import abspath, dirname, join
 from typing import List
 
-import pandas as pd
 import torch
 from common.azure import save_to_blobstore
 from common.initialize import Initializer, ModelManager
@@ -14,6 +12,7 @@ from common.utils import Data
 from data.dataset import BinaryOutcomeDataset
 from data.prepare_data import DatasetPreparer
 from data.split import get_n_splits_cv
+from evaluation.utils import compute_and_save_scores_mean_std
 from trainer.trainer import EHRTrainer
 
 CONFIG_NAME = 'finetune.yaml'
@@ -81,20 +80,6 @@ def finetune_fold(cfg, data:Data, train_indices:List[int], val_indices:List[int]
     trainer.train()
     
 
-def compute_scores_mean_std(finetune_folder: str, mode='val')->None:
-    """Compute mean and std of validation scores."""
-    logger.info("Compute mean and std of validation scores")
-    scores = []
-    for fold in range(1, N_SPLITS+1):
-        fold_checkpoints_folder = join(finetune_folder, f'fold_{fold}', 'checkpoints')
-        last_epoch = max([int(f.split("_")[-2].split("epoch")[-1]) for f in os.listdir(fold_checkpoints_folder) if f.startswith('checkpoint_epoch')])
-        fold_scores = pd.read_csv(join(fold_checkpoints_folder, f'{mode}_scores_{last_epoch}.csv'))
-        scores.append(fold_scores)
-    scores = pd.concat(scores)
-    scores_mean_std = scores.groupby('metric')['value'].agg(['mean', 'std'])
-    date = datetime.now().strftime("%Y%m%d-%H%M")
-    scores_mean_std.to_csv(join(finetune_folder, f'{mode}_scores_mean_std_{date}.csv'))
-
 if __name__ == '__main__':
 
     cfg, run, mount_context, pretrain_model_path = Initializer.initialize_configuration_finetune(config_path)
@@ -122,9 +107,9 @@ if __name__ == '__main__':
         logger.info(f"Training fold {fold}/{N_SPLITS}")
         finetune_fold(cfg, data, train_indices, val_indices, fold, test_indices)
         
-    compute_scores_mean_std(finetune_folder, mode='val')
+    compute_and_save_scores_mean_std(N_SPLITS, finetune_folder, mode='val')
     if len(test_indices) > 0:
-        compute_scores_mean_std(finetune_folder, mode='test')
+        compute_and_save_scores_mean_std(N_SPLITS, finetune_folder, mode='test')
 
     
     if cfg.env=='azure':

@@ -1,10 +1,13 @@
 import logging
+import os
+from datetime import datetime
+from os.path import join
 
 import numpy as np
 import pandas as pd
+from common.config import get_function
 from sklearn.utils import resample
 from torch.utils.data import WeightedRandomSampler
-from common.config import get_function
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +111,7 @@ def get_pos_weight(cfg, outcomes):
     else:
         return None
     
-def evaluate_predictions(y_val, pred_probas, metrics, threshold=.5):
+def evaluate_predictions(y_val:np.ndarray, pred_probas:np.ndarray, metrics:list, threshold:float=.5):
     results = {}
     logger.info("Evaluate")
     pred = np.where(pred_probas>threshold, 1, 0)
@@ -117,3 +120,21 @@ def evaluate_predictions(y_val, pred_probas, metrics, threshold=.5):
         logger.info(f"{metric.__name__}: {score}")
         results[metric.__name__] = score
     return results
+
+def compute_and_save_scores_mean_std(n_splits:int, finetune_folder: str, mode='val')->None:
+    """Compute mean and std of test/val scores. And save to finetune folder."""
+    logger.info(f"Compute mean and std of {mode} scores")
+    scores = []
+    for fold in range(1, n_splits+1):
+        fold_checkpoints_folder = join(finetune_folder, f'fold_{fold}', 'checkpoints')
+        last_epoch = max([int(f.split("_")[-2].split("epoch")[-1]) for f in os.listdir(fold_checkpoints_folder) if f.startswith('checkpoint_epoch')])
+        table_path = join(fold_checkpoints_folder, f'{mode}_scores_{last_epoch}.csv')
+        if not os.path.exists(table_path):
+            logger.warning(f"File {table_path} not found. Skipping fold {fold}.")
+            continue
+        fold_scores = pd.read_csv(join(fold_checkpoints_folder, f'{mode}_scores_{last_epoch}.csv'))
+        scores.append(fold_scores)
+    scores = pd.concat(scores)
+    scores_mean_std = scores.groupby('metric')['value'].agg(['mean', 'std'])
+    date = datetime.now().strftime("%Y%m%d-%H%M")
+    scores_mean_std.to_csv(join(finetune_folder, f'{mode}_scores_mean_std_{date}.csv'))

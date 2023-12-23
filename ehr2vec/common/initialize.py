@@ -135,10 +135,10 @@ class Initializer:
     
 
 class ModelManager:
-    def __init__(self, cfg, fold:int=None):
+    def __init__(self, cfg, fold:int=None, model_path:str=None):
         self.cfg = cfg
         self.fold = fold
-        self.model_path = cfg.paths.get('model_path', None)
+        self.model_path = model_path if model_path is not None else cfg.paths.get('model_path', None)
         self.pretrain_model_path = cfg.paths.get('pretrain_model_path', None)
         self.check_arguments()
         if self.fold is not None:
@@ -148,6 +148,7 @@ class ModelManager:
                     logger.warning(f'Could not find model path {self.model_path}. Start from scratch')
                     self.model_path = None
         self.checkpoint_model_path = self.model_path if self.model_path is not None else self.pretrain_model_path
+        logger.info(f'Checkpoint model path: {self.checkpoint_model_path}')
         self.initializer = None
 
     def check_arguments(self):

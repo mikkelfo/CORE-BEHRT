@@ -3,11 +3,11 @@ Finetune model on 3/5 of the data, validate on 1/5 and test on 1/5.
 This results in 10 runs with 5 different test sets. 
 """
 
+import math
 import os
-from collections import defaultdict, namedtuple
-from datetime import datetime
+from collections import Counter, defaultdict
 from os.path import abspath, dirname, join
-from typing import List, Dict
+from typing import List
 
 import pandas as pd
 import torch
@@ -19,13 +19,14 @@ from common.utils import Data
 from data.dataset import BinaryOutcomeDataset
 from data.prepare_data import DatasetPreparer
 from data.split import get_n_splits_cv_k_over_n
-from dataloader.collate_fn import dynamic_padding
+from evaluation.utils import compute_and_save_scores_mean_std
 from trainer.trainer import EHRTrainer
-from trainer.utils import get_tqdm
 
 CONFIG_NAME = 'finetune.yaml'
-N_SPLITS = 5  # You can change this to desired value
+# When changing N_SPLITS or TRAIN_SPLITS, make sure that N_SPLITS >= TRAIN_SPLITS and adjust MAX_SET_REPETITIONS accordingly.
+N_SPLITS = 5  
 TRAIN_SPLITS = 3
+MAX_SET_REPETITIONS = 2
 BLOBSTORE='PHAIR'
 
 args = get_args(CONFIG_NAME)
@@ -34,7 +35,7 @@ config_path = join(dirname(abspath(__file__)), args.config_path)
 
 
 def finetune_fold(cfg, data:Data, train_indices:List[int], val_indices:List[int], 
-                  test_indices:List[int], test_set_id: int, fold:int, all_folds_metrics:dict):
+                  test_indices:List[int], test_set_id: int, fold:int):
     """Finetune model on one fold"""
     fold_folder = join(finetune_folder, f'fold_{fold}')
     os.makedirs(fold_folder, exist_ok=True)
@@ -71,6 +72,7 @@ def finetune_fold(cfg, data:Data, train_indices:List[int], val_indices:List[int]
         optimizer=optimizer,
         train_dataset=train_dataset, 
         val_dataset=val_dataset, 
+        test_dataset=test_dataset,
         args=cfg.trainer_args,
         metrics=cfg.metrics,
         sampler=sampler,
@@ -83,76 +85,25 @@ def finetune_fold(cfg, data:Data, train_indices:List[int], val_indices:List[int]
         last_epoch=epoch
     )
     trainer.train()
-    get_test_scores(cfg,train_dataset, test_dataset, test_set_id, fold, fold_folder,  
-                    all_folds_metrics, trainer)
 
-def get_test_scores(cfg, train_dataset:BinaryOutcomeDataset, 
-                    test_dataset:BinaryOutcomeDataset, 
-                    test_set_id:int, fold:int, fold_folder:str,
-                    all_folds_metrics:dict, trainer):
-    modelmanager = ModelManager(cfg, fold)
-    checkpoint = modelmanager.load_checkpoint() 
-    modelmanager.load_model_config() # check whether cfg is changed after that.
-    model = modelmanager.initialize_finetune_model(checkpoint, train_dataset)
+def select_val_test_sets(test_val_sets_ids:List[int], test_val_pids_sets:List[List[int]], val_set_id_counter:Counter, test_set_id_counter:Counter):
+    """Select val and test sets, such that each set is used equally often as val and test set."""
+    if  (val_set_id_counter[test_val_sets_ids[0]] == MAX_SET_REPETITIONS) or (test_set_id_counter[test_val_sets_ids[1]] == MAX_SET_REPETITIONS):
+        val_set_id = test_val_sets_ids[1]
+        test_set_id = test_val_sets_ids[0]
+        val_pids = test_val_pids_sets[1]
+        test_pids = test_val_pids_sets[0]
+    else:
+        val_set_id = test_val_sets_ids[0]
+        test_set_id = test_val_sets_ids[1]
+        val_pids = test_val_pids_sets[0]
+        test_pids = test_val_pids_sets[1]        
     
-    test_loader = torch.utils.data.DataLoader(test_dataset, 
-                                              batch_size=cfg.trainer_args.batch_size, 
-                                              shuffle=False, collate_fn=dynamic_padding)
-    metric_values = validate(model, test_loader, trainer)
-    torch.save(metric_values, join(fold_folder, f'test_scores_on_set_{test_set_id}.pt'))    
-    all_folds_metrics[test_set_id].append(metric_values)
-
-def validate(model, dataloader, trainer)->tuple:
-    """Returns the validation loss and metrics"""
-    model.eval()
-    val_loop = get_tqdm(dataloader)
-    val_loop.set_description('Post Hoc Validation')
-    
-    metric_values = {name: [] for name in trainer.metrics}
-    logits_list = [] 
-    targets_list = []
-
-    with torch.no_grad():
-        for batch in val_loop:
-            trainer.batch_to_device(batch)
-            outputs = model(batch)
-            logits_list.append(outputs.logits.cpu())
-            targets_list.append(batch['target'].cpu())
-            
-    metric_values = process_binary_classification_results(trainer.metrics, logits_list, targets_list)
-    
-    return metric_values
-
-def process_binary_classification_results(metrics: dict, logits:list, targets:list)->dict:
-        """Process results specifically for binary classification."""
-        targets = torch.cat(targets)
-        logits = torch.cat(logits)
-        batch = {'target': targets}
-        outputs = namedtuple('Outputs', ['logits'])(logits)
-        acc_metrics = {}
-        for name, func in metrics.items():
-            v = func(outputs, batch)
-            acc_metrics[name] = v
-        return acc_metrics
-from statistics import mean, stdev
-def save_mean_and_std_test_scores(all_folds_test_scores: Dict[str, List[Dict]], finetune_folder: str)->None:
-    """Compute mean and std of validation scores."""
-    logger.info("Compute mean and std of validation scores")
-    test_scores = []
-    for _, fold_test_scores in all_folds_test_scores.items():
-        for fold_test_score in fold_test_scores:
-            test_scores.append(fold_test_score)
-    # Calculate mean and std for each metric
-    test_scores_summary = {metric: {'mean': mean([d[metric] for d in test_scores]),
-                            'std': stdev([d[metric] for d in test_scores])}
-                   for metric in test_scores[0]}
-    
-    test_scores_summary_df = pd.DataFrame.from_dict(test_scores_summary, orient='index')
-    date = datetime.now().strftime("%Y%m%d-%H%M")
-    test_scores_summary_df.to_csv(join(finetune_folder, f'test_scores_mean_std_{date}.csv'))
+    val_set_id_counter[val_set_id] += 1
+    test_set_id_counter[test_set_id] += 1
+    return val_pids, val_set_id, test_pids, test_set_id
 
 if __name__ == '__main__':
-
     cfg, run, mount_context, pretrain_model_path = Initializer.initialize_configuration_finetune(config_path)
 
     logger, finetune_folder = DirectoryPreparer.setup_run_folder(cfg)
@@ -163,20 +114,23 @@ if __name__ == '__main__':
     
     dataset_preparer = DatasetPreparer(cfg)
     data = dataset_preparer.prepare_finetune_features()
-    all_folds_test_scores = defaultdict(list)
-    for fold, (train_pids, val_pids_sets, val_sets_ids) in enumerate(get_n_splits_cv_k_over_n(data, N_SPLITS, TRAIN_SPLITS)):
+    fold2sets = defaultdict(list)
+    test_set_id_counter = Counter()
+    val_set_id_counter = Counter()
+    for fold, (train_pids, test_val_pids_sets, test_val_sets_ids) in enumerate(get_n_splits_cv_k_over_n(data, N_SPLITS, TRAIN_SPLITS)):
         fold += 1
         logger.info(f"Training fold {fold}/{N_SPLITS}")
-        val_pids = val_pids_sets[0]
-        test_pids = val_pids_sets[1]
-        val_set_id = val_sets_ids[0]
-        test_set_id = val_sets_ids[1]
+        
+        val_pids, val_set_id, test_pids, test_set_id = select_val_test_sets(test_val_sets_ids, test_val_pids_sets, val_set_id_counter, test_set_id_counter)
         logger.info(f"Val set id: {val_set_id}")
         logger.info(f"Test set id: {test_set_id}")
-        finetune_fold(cfg, data, train_pids, val_pids, test_pids, test_set_id, fold, all_folds_test_scores)
-    torch.save(all_folds_test_scores, join(finetune_folder, 'all_folds_metrics.pt'))
-    save_mean_and_std_test_scores(all_folds_test_scores, finetune_folder)
-    
+        fold2sets['fold'].append(fold)
+        fold2sets['val_set_id'].append(val_set_id)
+        fold2sets['test_set_id'].append(test_set_id)
+        finetune_fold(cfg, data, train_pids, val_pids, test_pids, test_set_id, fold)
+    pd.DataFrame(fold2sets).to_csv(join(finetune_folder, 'test_sets_in_folds.csv'), index=False)
+    n_folds = math.comb(N_SPLITS, TRAIN_SPLITS)
+    compute_and_save_scores_mean_std(n_folds, finetune_folder, mode='test')
     if cfg.env=='azure':
         save_path = pretrain_model_path if cfg.paths.get("save_folder_path", None) is None else cfg.paths.save_folder_path
         save_to_blobstore(local_path=cfg.paths.run_name, 

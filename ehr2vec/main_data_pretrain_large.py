@@ -76,8 +76,8 @@ def main_data(config_path):
     
     
     if cfg.env=='azure':
-        save_to_blobstore(local_path=cfg.run_name, 
-                          remote_path=join(BLOBSTORE, 'features', cfg.run_name))
+        save_to_blobstore(local_path=cfg.paths.run_name, 
+                          remote_path=join(BLOBSTORE, 'features', cfg.paths.run_name))
         mount_context.stop()
     logger.info('Finished')
 

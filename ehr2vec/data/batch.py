@@ -112,7 +112,8 @@ class BatchTokenize:
         self.tokenizer.freeze_vocabulary()
         self.save_vocabulary()
         self.batch_tokenize(splits['finetune'])
-        self.batch_tokenize(splits['test'])
+        if len(splits['test'].pids) > 0:
+            self.batch_tokenize(splits['test'])
     
     def save_vocabulary(self):
         """Saves the tokenizer's vocabulary."""

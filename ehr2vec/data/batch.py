@@ -25,6 +25,8 @@ class Batches:
         """Initializes the class and splits the batches into pretrain, finetune and test sets
         pids should contain all the pids in the dataset, including assigned pids.
         Assigned pids should be a dictionary with the key being the split name and the value being a list of pids"""
+        self.cfg = cfg
+
         flattened_pids = self.flatten(pids)
         logger.info(f"Total number of pids: {len(flattened_pids)}")
         # We exclude all the assigned pids from the flattened pids, and assign them to the splits later
@@ -35,9 +37,8 @@ class Batches:
         self.flattened_pids = [pid for pid in flattened_pids if pid not in pids_to_exclude]
         self.assigned_pids = assigned_pids
 
-        self.cfg = cfg
-
-        self.split_ratios = cfg.get('split_ratios', None)
+        self.split_ratios = cfg['split_ratios']
+        assert sum(self.split_ratios.values()) == 1, f"Sum of split ratios must be 1. Current sum: {sum(self.split_ratios.values())}"
         self.n_splits = cfg.get('n_splits', 2)
 
     def split_batches(self)-> Dict[str, Split]:
@@ -49,9 +50,10 @@ class Batches:
         splits = {
             'pretrain': self.flattened_pids[finetune_end:pretrain_end],
             'finetune': self.flattened_pids[:finetune_end],
-            'test': self.flattened_pids[pretrain_end:]
         }
-        
+        if 'test' in self.split_ratios:
+            splits['test']= self.flattened_pids[pretrain_end:]
+            
         for split_name, pids in self.assigned_pids.items():
             if split_name in splits:
                 splits[split_name].extend(pids)
@@ -82,7 +84,8 @@ class Batches:
         """Calculates the indices for each split based on configured ratios."""
         finetune_end = int(self.split_ratios['finetune'] * total_length)
         pretrain_end = finetune_end + int(self.split_ratios['pretrain'] * total_length)
-        if self.split_ratios['test'] == 0:
+
+        if self.split_ratios.get('test', 0) == 0:
             pretrain_end = total_length
         return finetune_end, pretrain_end
 
@@ -112,8 +115,9 @@ class BatchTokenize:
         self.tokenizer.freeze_vocabulary()
         self.save_vocabulary()
         self.batch_tokenize(splits['finetune'])
-        if len(splits['test'].pids) > 0:
-            self.batch_tokenize(splits['test'])
+        if 'test' in splits:
+            if len(splits['test'].pids) > 0:
+                self.batch_tokenize(splits['test'])
     
     def save_vocabulary(self):
         """Saves the tokenizer's vocabulary."""

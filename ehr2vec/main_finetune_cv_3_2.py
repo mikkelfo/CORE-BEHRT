@@ -104,7 +104,7 @@ def select_val_test_sets(test_val_sets_ids:List[int], test_val_pids_sets:List[Li
     return val_pids, val_set_id, test_pids, test_set_id
 
 if __name__ == '__main__':
-    cfg, run, mount_context, pretrain_model_path = Initializer.initialize_configuration_finetune(config_path)
+    cfg, run, mount_context, pretrain_model_path = Initializer.initialize_configuration_finetune(config_path, dataset_name=BLOBSTORE)
 
     logger, finetune_folder = DirectoryPreparer.setup_run_folder(cfg)
     

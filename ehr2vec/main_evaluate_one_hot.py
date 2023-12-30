@@ -23,7 +23,7 @@ def main():
     features_path = cfg.paths.finetune_features_path
     cfg.paths.output_path = features_path
     
-    cfg, _, mount_context = AzurePathContext(cfg).azure_onehot_setup()
+    cfg, _, mount_context = AzurePathContext(cfg, dataset_name=BLOBSTORE).azure_onehot_setup()
 
     model = instantiate(cfg.model)
     model_name = model.__class__.__name__

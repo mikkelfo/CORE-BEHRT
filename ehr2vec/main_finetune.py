@@ -18,7 +18,8 @@ config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.conf
 # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
 def main_finetune():
-    cfg, run, mount_context, pretrain_model_path = Initializer.initialize_configuration_finetune(config_path)
+    cfg, run, mount_context, pretrain_model_path = Initializer.initialize_configuration_finetune(config_path, 
+                                                                                                 dataset_name=BLOBSTORE)
     
     logger, run_folder = DirectoryPreparer.setup_run_folder(cfg)
 

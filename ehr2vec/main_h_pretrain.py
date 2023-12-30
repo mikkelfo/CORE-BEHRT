@@ -23,7 +23,7 @@ config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.conf
 def main_train(config_path):
     cfg = load_config(config_path)
 
-    cfg, run, mount_context = AzurePathContext(cfg).adjust_paths_for_azure_pretrain()
+    cfg, run, mount_context = AzurePathContext(cfg, dataset_name=BLOBSTORE).adjust_paths_for_azure_pretrain()
     
     logger, run_folder = DirectoryPreparer.setup_run_folder(cfg)
     copy_data_config(cfg, run_folder)

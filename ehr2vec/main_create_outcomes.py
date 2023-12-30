@@ -26,7 +26,7 @@ def main_data(config_path):
     outcome_dir = join(cfg.features_dir, 'outcomes', cfg.outcomes_name)
     
     if cfg.env=='azure':
-        _, mount_context = setup_azure(cfg.run_name)
+        _, mount_context = setup_azure(cfg.run_name, dataset_name=BLOBSTORE)
         mount_dir = mount_context.mount_point
         cfg.loader.data_dir = join(mount_dir, cfg.loader.data_dir) # specify paths here
         cfg.features_dir = join(mount_dir, cfg.features_dir)

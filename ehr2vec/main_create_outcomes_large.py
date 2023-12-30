@@ -34,7 +34,7 @@ def main_data(config_path):
     cfg = load_config(config_path)
     cfg.paths.outcome_dir = join(cfg.features_dir, 'outcomes', cfg.outcomes_name)
     
-    cfg, _, mount_context = AzurePathContext(cfg).azure_outcomes_setup()
+    cfg, _, mount_context = AzurePathContext(cfg, dataset_name=BLOBSTORE).azure_outcomes_setup()
 
     logger = DirectoryPreparer(config_path).prepare_directory_outcomes(cfg.paths.outcome_dir, cfg.outcomes_name)
     logger.info('Mount Dataset')

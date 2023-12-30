@@ -41,7 +41,7 @@ def main_data(config_path):
         Saves
     """
     cfg = load_config(config_path)
-    cfg, _, mount_context = AzurePathContext(cfg).azure_data_pretrain_setup()
+    cfg, _, mount_context = AzurePathContext(cfg, dataset_name=BLOBSTORE).azure_data_pretrain_setup()
 
     logger = DirectoryPreparer(config_path).prepare_directory(cfg)  
     logger.info('Mount Dataset')

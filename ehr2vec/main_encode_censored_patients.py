@@ -54,7 +54,7 @@ def main_encode():
     logger.info(f"Access outcomes from {cfg.paths.outcomes_path}")
     
     cfg.output_dir = censored_patients_path
-    cfg, run, mount_context = AzurePathContext(cfg).azure_encode_setup()    
+    cfg, run, mount_context = AzurePathContext(cfg, dataset_name=BLOBSTORE).azure_encode_setup()    
 
     
     output_dir = cfg.output_dir # we will modify cfg. output_dir

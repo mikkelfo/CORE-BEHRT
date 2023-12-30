@@ -123,12 +123,12 @@ class Initializer:
                 if isinstance(v, torch.Tensor):
                     state[k] = v.to(self.device)
     @staticmethod
-    def initialize_configuration_finetune(config_path:str)->Tuple[Config, str, str, str]:
+    def initialize_configuration_finetune(config_path:str, dataset_name:str='PHAIR')->Tuple[Config, str, str, str]:
         """Load and adjust the configuration."""
         cfg = load_config(config_path)
         pretrain_model_path = cfg.paths.get('pretrain_model_path', None)
         cfg = DirectoryPreparer.adjust_paths_for_finetune(cfg)
-        azure_context = AzurePathContext(cfg)
+        azure_context = AzurePathContext(cfg, dataset_name=dataset_name)
         cfg, run, mount_context = azure_context.azure_finetune_setup()
         cfg = azure_context.add_pretrain_info_to_cfg()
         return cfg, run, mount_context, pretrain_model_path

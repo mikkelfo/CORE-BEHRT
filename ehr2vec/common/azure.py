@@ -71,9 +71,10 @@ def save_to_blobstore(local_path: str, remote_path: str):
 
 class AzurePathContext:
     """Context manager for azure paths. Adjusts paths for azure environment."""
-    def __init__(self, cfg: Config):
+    def __init__(self, cfg: Config, dataset_name:str='PHAIR'):
         self.cfg = cfg
         self.azure_env = cfg.env=='azure'
+        self.dataset_name = dataset_name
         self.run, self.mount_context = self.setup_run_and_mount_context()
         if self.azure_env:
             self.mount_point = self.mount_context.mount_point
@@ -81,7 +82,7 @@ class AzurePathContext:
     def setup_run_and_mount_context(self)->Tuple:
         run, mount_context = None, None
         if self.azure_env:
-            run, mount_context = setup_azure(self.cfg.paths.run_name)
+            run, mount_context = setup_azure(self.cfg.paths.run_name, dataset_name=self.dataset_name)
         return run, mount_context
 
     def adjust_paths_for_azure_pretrain(self)->Tuple:

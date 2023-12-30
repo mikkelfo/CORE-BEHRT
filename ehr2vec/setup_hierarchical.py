@@ -19,7 +19,7 @@ def setup_hierarchical(config_path=config_path):
     data_dir = cfg.paths.features
     hierarchical_name = cfg.paths.get('hierarchical_name', 'hierarchical')
 
-    cfg, _, mount_context = AzurePathContext(cfg).azure_hierarchical_setup()
+    cfg, _, mount_context = AzurePathContext(cfg, dataset_name=BLOBSTORE).azure_hierarchical_setup()
     logger = DirectoryPreparer(config_path).prepare_directory_hierarchical(data_dir, hierarchical_name)  
     
     logger.info('Get Counts')

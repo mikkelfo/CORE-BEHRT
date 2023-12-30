@@ -82,7 +82,7 @@ def finetune_fold(cfg, data:Data, train_indices:List[int], val_indices:List[int]
 
 if __name__ == '__main__':
 
-    cfg, run, mount_context, pretrain_model_path = Initializer.initialize_configuration_finetune(config_path)
+    cfg, run, mount_context, pretrain_model_path = Initializer.initialize_configuration_finetune(config_path, dataset_name=BLOBSTORE)
 
     logger, finetune_folder = DirectoryPreparer.setup_run_folder(cfg)
     

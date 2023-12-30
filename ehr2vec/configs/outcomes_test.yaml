@@ -1,7 +1,7 @@
 env: local
 paths:
   run_name: test
-outcomes_name: "TEST_CENSOR"
+outcomes_name: "TEST_OUTCOME"
 features_dir: ../outputs/data_icd10
 loader:
   data_dir: ../data/formatted/synthea500_icd10 
@@ -14,9 +14,13 @@ loader:
 outcomes:
   TEST_OUTCOME: 
     type: [CONCEPT]
-    match: [['DJ329', 'DN186']]
+    match: [['J329', 'DN186']]
     exclude: ['DT7432X']
+    match_how: contains
+    case_sensitive: true
   TEST_CENSOR:
     type: [CONCEPT]
-    match: [['DJ0190']]
+    match: [['Dj019']]
+    match_how: startswith
+    case_sensitive: false
     

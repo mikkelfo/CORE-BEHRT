@@ -54,10 +54,10 @@ class OutcomeMaker:
     def match_concepts(self, concepts_plus: pd.DataFrame, types: List[List], matches:List[List], attrs:Dict):
         """It first goes through all the types and returns true for a row if the entry starts with any of the matches.
         We then ensure all the types are true for a row by using bitwise_and.reduce. E.g. CONCEPT==COVID_TEST AND VALUE==POSITIVE"""
-        
         if 'exclude' in attrs:
             concepts_plus = concepts_plus[~concepts_plus['CONCEPT'].isin(attrs['exclude'])]
-        col_booleans = self.get_col_booleans(concepts_plus, types, matches)
+        col_booleans = self.get_col_booleans(concepts_plus, types, matches, 
+                                             attrs.get("match_how", 'startswith'), attrs.get("case_sensitive", True))
         mask = np.bitwise_and.reduce(col_booleans)
         if "negation" in attrs:
             mask = ~mask
@@ -67,10 +67,26 @@ class OutcomeMaker:
         return concepts_plus[mask].groupby("PID").TIMESTAMP.min()
     
     @staticmethod
-    def get_col_booleans(concepts_plus:pd.DataFrame, types:List, matches:List[List])->list:
+    def get_col_booleans(concepts_plus:pd.DataFrame, types:List, matches:List[List], 
+                         match_how:str='startswith', case_sensitive:bool=True)->list:
         col_booleans = []
         for typ, lst in zip(types, matches):
-            col_bool = concepts_plus[typ].astype(str).str.startswith(tuple(lst), False)
+            if match_how=='startswith':
+                if case_sensitive:
+                    col_bool = concepts_plus[typ].astype(str).str.startswith(tuple(lst), False)
+                else:
+                    match_lst = [x.lower() for x in lst]
+                    col_bool = concepts_plus[typ].astype(str).str.lower().str.startswith(tuple(match_lst), False)
+            elif match_how == 'contains':
+                col_bool = pd.Series([False] * len(concepts_plus), index=concepts_plus.index)
+                for item in lst:
+                    pattern = item if case_sensitive else item.lower()
+                    if case_sensitive:
+                        col_bool |= concepts_plus[typ].astype(str).str.contains(pattern, na=False)
+                    else:
+                        col_bool |= concepts_plus[typ].astype(str).str.lower().str.contains(pattern, na=False)
+            else:
+                raise ValueError(f"match_how must be startswith or contains, not {match_how}")
             col_booleans.append(col_bool)
         return col_booleans
     

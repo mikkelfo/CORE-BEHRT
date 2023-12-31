@@ -19,8 +19,8 @@ class Handler():
             patient = self.handle_incorrect_ages(patient)
 
             patient = self.handle_nans(patient)
-
-            patient['segment'] = self.normalize_segments(patient['segment'])
+            if 'segment' in patient:
+                patient['segment'] = self.normalize_segments(patient['segment'])
 
             for key, values in patient.items():
                 handled_patients[key].append(values)

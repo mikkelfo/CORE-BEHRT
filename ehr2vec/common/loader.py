@@ -65,22 +65,51 @@ class FeaturesLoader():
     def load_tokenized_finetune_data(self, mode: str)->Data:
         """Load features for finetuning"""
         tokenized_dir = self.path_cfg.get('tokenized_dir', 'tokenized')
-        tokenized_file = self.path_cfg.get('tokenized_file', 'tokenized_val.pt')
-        tokenized_pids = self.path_cfg.get('tokenized_pids', 'pids_val.pt')
+        tokenized_files = self.path_cfg.get('tokenized_file', 'tokenized_val.pt')
+        tokenized_pids_files = self.path_cfg.get('tokenized_pids', 'pids_val.pt')
         
+        # Ensure the files are in a list. We might want to load multiple files.
+        if isinstance(tokenized_files, str):
+            tokenized_files = [tokenized_files]
+        if isinstance(tokenized_pids_files, str):
+            tokenized_pids_files = [tokenized_pids_files]
+        assert len(tokenized_files) == len(tokenized_pids_files), "Number of tokenized files and pids files must be equal."
         tokenized_data_path = join(self.path_cfg.data_path, tokenized_dir)
         
         logger.info(f"Loading tokenized data from {tokenized_data_path}")
-        features  = torch.load(join(tokenized_data_path, tokenized_file))
-        pids = torch.load(join(tokenized_data_path,  tokenized_pids))
+        features, pids = self.load_features_and_pids(tokenized_data_path, tokenized_files, tokenized_pids_files)
         
         logger.info("Loading vocabulary")
+        vocabulary = self.load_vocabulary(tokenized_data_path)
+        
+        return Data(features, pids, vocabulary=vocabulary, mode=mode)
+    
+    def load_features_and_pids(self, tokenized_data_path:str, tokenized_files:list, tokenized_pids_files:list):
+        features = {}
+        pids = []
+        for tokenized_file, tokenized_pids_file in zip(tokenized_files, tokenized_pids_files):
+            features_temp = torch.load(join(tokenized_data_path, tokenized_file))
+            pids_temp = torch.load(join(tokenized_data_path, tokenized_pids_file))
+            # Concatenate features
+            for key in features_temp.keys():
+                if key in features:
+                    features[key].extend(features_temp[key])
+                else:
+                    features[key] = features_temp[key]
+            
+            # Concatenate pids
+            pids.extend(pids_temp)
+        
+        return features, pids
+
+    def load_vocabulary(self, tokenized_data_path:str):
         try:
             vocabulary = torch.load(join(tokenized_data_path, VOCABULARY_FILE))
         except:
             vocabulary = torch.load(join(self.path_cfg.data_path, VOCABULARY_FILE))
-        return Data(features, pids, vocabulary=vocabulary, mode=mode)
-    
+        
+        return vocabulary
+
     def load_outcomes(self)->Tuple[dict, dict]:
         logger.info(f'Load outcomes from {self.path_cfg.outcome}')
         censoring_timestamps_path = self.path_cfg.censor if self.path_cfg.get("censor", False) else self.path_cfg.outcome

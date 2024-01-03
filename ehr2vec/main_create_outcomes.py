@@ -42,8 +42,8 @@ def main_data(config_path):
     logger.info('Finish outcomes creation')
 
     if cfg.env=='azure':
-        save_to_blobstore(local_path=join('outcomes', cfg.run_name), 
-                          remote_path=join(BLOBSTORE, 'outcomes', cfg.run_name))
+        save_to_blobstore(local_path='outcomes' , 
+                          remote_path=join(BLOBSTORE, 'outcomes', cfg.paths.run_name))
         mount_context.stop()
 
 if __name__ == '__main__':

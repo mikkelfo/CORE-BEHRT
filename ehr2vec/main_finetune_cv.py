@@ -1,8 +1,8 @@
 import os
-import random
 from os.path import abspath, dirname, join
-from typing import List
+from typing import List, Tuple
 
+import numpy as np
 import torch
 from common.azure import save_to_blobstore
 from common.initialize import Initializer, ModelManager
@@ -18,8 +18,6 @@ from trainer.trainer import EHRTrainer
 CONFIG_NAME = 'finetune.yaml'
 N_SPLITS = 2  # You can change this to desired value
 BLOBSTORE='PHAIR'
-
-random.seed(42)
 
 args = get_args(CONFIG_NAME)
 config_path = join(dirname(abspath(__file__)), args.config_path)
@@ -81,6 +79,13 @@ def finetune_fold(cfg, data:Data, train_indices:List[int], val_indices:List[int]
     )
     trainer.train()
     
+def split_test_set(indices:list, test_split:float)->Tuple[list, list]:
+    """Split intro test and train_val indices"""
+    np.random.seed(42)
+    test_indices = np.random.sample(indices, int(len(indices)*test_split))
+    test_indices_set = set(test_indices)
+    train_val_indices = [i for i in indices if i not in test_indices_set]
+    return test_indices, train_val_indices
 
 if __name__ == '__main__':
 
@@ -97,14 +102,16 @@ if __name__ == '__main__':
 
     indices = list(range(len(data.pids)))
 
-    if cfg.data.get('test_split', None) is not None:
-        test_indices = random.sample(indices, int(len(indices)*cfg.data.test_split))
-        test_indices_set = set(test_indices)
-        indices = [i for i in indices if i not in test_indices_set]
+    test_split = cfg.data.get('test_split', None)
+    if  test_split is not None:
+        test_indices, train_val_indices = split_test_set(indices, test_split)
+        test_pids = [data.pids[i] for i in test_indices]
+        torch.save(test_pids, join(finetune_folder, 'test_pids.pt'))
     else:
         test_indices = []
+        train_val_indices = indices
     
-    for fold, (train_indices, val_indices) in enumerate(get_n_splits_cv(data, N_SPLITS, indices)):
+    for fold, (train_indices, val_indices) in enumerate(get_n_splits_cv(data, N_SPLITS, train_val_indices)):
         fold += 1
         logger.info(f"Training fold {fold}/{N_SPLITS}")
         finetune_fold(cfg, data, train_indices, val_indices, fold, test_indices)

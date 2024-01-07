@@ -71,6 +71,7 @@ class ConceptLoaderLarge(ConceptLoader):
         self.concept_paths = [p for p in concept_paths if (split(p)[1]).split('.')[1] in concepts]
         self.patients_df = self._read_file(join(data_dir, patients_info))
         self.patient_ids = self.patients_df['PID'].unique().tolist()
+        random.seed(42)
         random.shuffle(self.patient_ids)  # Shuffle the patient IDs
         self.chunksize = kwargs.get('chunksize', 10000)
         self.batch_size = kwargs.get('batch_size', 100000)
@@ -129,7 +130,7 @@ class ConceptLoaderLarge(ConceptLoader):
         """Yield successive batches of patient IDs from patient_ids."""
         for i in range(0, len(self.patient_ids), self.batch_size):
             if self.test:
-                if i>5:
+                if i>5*self.batch_size:
                     break
             yield self.patient_ids[i:i + self.batch_size]
 

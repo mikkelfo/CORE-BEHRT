@@ -43,6 +43,7 @@ class Batches:
 
     def split_batches(self)-> Dict[str, Split]:
         """Splits the batches into pretrain, finetune and test sets"""
+        np.random.seed(42)
         np.random.shuffle(self.flattened_pids)
         # calculate the number of batches for each set
         finetune_end, pretrain_end = self.calculate_split_indices(len(self.flattened_pids))

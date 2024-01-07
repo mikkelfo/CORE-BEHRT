@@ -69,15 +69,16 @@ def main_data(config_path):
     logger.info('Tokenizing')
     tokenizer = EHRTokenizer(config=cfg.tokenizer)
     batch_tokenize = BatchTokenize(pids, tokenizer, cfg, tokenized_dir_name=tokenized_dir_name)
-    shutil.copy(config_path, join(cfg.output_dir,tokenized_dir_name,  'data_cfg.yaml'))
+    shutil.copy(config_path, join(cfg.output_dir, tokenized_dir_name,  'data_cfg.yaml'))
     
     batch_tokenize.tokenize(batches_split)
     logger.info('Finished tokenizing')
     
     
     if cfg.env=='azure':
+        features_dir_name  = cfg.paths.get('features_dir_name', cfg.paths.run_name)
         save_to_blobstore(local_path='/data', 
-                          remote_path=join(BLOBSTORE, 'features', cfg.paths.run_name))
+                          remote_path=join(BLOBSTORE, 'features', features_dir_name))
         mount_context.stop()
     logger.info('Finished')
 

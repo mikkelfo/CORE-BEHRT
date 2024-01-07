@@ -19,6 +19,8 @@ CONFIG_NAME = 'finetune.yaml'
 N_SPLITS = 2  # You can change this to desired value
 BLOBSTORE='PHAIR'
 
+random.seed(42)
+
 args = get_args(CONFIG_NAME)
 config_path = join(dirname(abspath(__file__)), args.config_path)
 # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"

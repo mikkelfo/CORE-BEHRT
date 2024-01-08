@@ -4,7 +4,6 @@ outcomes_name: "PREGNANCY"
 features_dir: features/diagnosis_medication/01082023/outputs/data
 loader:
   data_dir: formatted_data/diagnosis_medication_full_250623/outputs
-  patients_info: patients_info.parquet
   concepts: [
     diagnosis,
   ]

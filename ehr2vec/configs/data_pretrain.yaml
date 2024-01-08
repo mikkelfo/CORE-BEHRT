@@ -7,7 +7,6 @@ paths:
 loader:
   # can provide formatted data or features
   data_dir:  ../outputs/features_test #../data/formatted/synthea500_icd10 # ../outputs/features_test # ../data/formatted/synthea500_icd10 #../outputs/data_icd10
-  patients_info: patients_info.csv
   concepts: [
     diagnose
   ]

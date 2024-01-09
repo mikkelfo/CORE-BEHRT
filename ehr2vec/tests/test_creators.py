@@ -12,7 +12,8 @@ class TestBaseCreator(unittest.TestCase):
         self.concepts = pd.DataFrame({
             'PID': ['1', '2', '3', '1'],
             'CONCEPT': ['DA1', 'DA2', 'MA1', 'DA2'],
-            'TIMESTAMP': pd.to_datetime(['2020-01-02', '2021-03-20', '2022-05-08', '2023-01-02'])
+            'TIMESTAMP': pd.to_datetime(['2020-01-02', '2021-03-20', '2022-05-08', '2023-01-02']),
+            'ADMISSION_ID': ['A', 'B', 'C', 'D']
         })
         self.patients_info = pd.DataFrame({
             'PID': ['1', '2', '3'],
@@ -49,7 +50,6 @@ class TestBaseCreator(unittest.TestCase):
 
     def test_segment_creator(self):
         creator = SegmentCreator(self.config)
-        self.concepts['ADMISSION_ID'] = ['1', '2', '3', '4']
         result = creator.create(self.concepts, self.patients_info)
         self.assertIsInstance(result, pd.DataFrame)
         self.assertIn('SEGMENT', result.columns)

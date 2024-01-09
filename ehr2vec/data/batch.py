@@ -1,17 +1,17 @@
-import logging
-import math
 import os
-from dataclasses import dataclass
+import math
+import torch
+import random
+import logging
+from tqdm import tqdm
 from os.path import join
+from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
-import numpy as np
-import torch
+from data.utils import Utilities
 from common.loader import load_assigned_pids, load_exclude_pids
 from common.logger import TqdmToLogger
 from common.utils import check_directory_for_features
-from data.utils import Utilities
-from tqdm import tqdm
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
 PRETRAIN = 'pretrain'
@@ -29,7 +29,6 @@ class Batches:
         """Initializes the class and splits the batches into pretrain, finetune and test sets
         pids should contain all the pids in the dataset, including assigned pids.
         Assigned pids should be a dictionary with the key being the split name and the value being a list of pids"""
-        self.cfg = cfg
 
         self.predefined_splits_dir = cfg.get('predefined_splits_dir', None)
         self.flattened_pids = self.flatten(pids)
@@ -116,8 +115,8 @@ class Batches:
 
     def shuffle_pids(self):
         """Shuffles the flattened pids."""
-        np.random.seed(42)
-        np.random.shuffle(self.flattened_pids)
+        random.seed(42)
+        random.shuffle(self.flattened_pids)
 
     @staticmethod
     def create_split_dict(splits: Dict[str, Split])-> Dict[str, Split]:
@@ -216,6 +215,7 @@ class BatchTokenize:
             filtered_features, filtered_pids = self.load_and_filter_batch(file_id, selected_pids_in_file, features_dir)
             encoded_batch = self.tokenizer(filtered_features)
             self.merge_dicts(encoded, encoded_batch)
+            pids.extend(filtered_pids)
             pids = pids + filtered_pids
 
         # use the order of split.pids to ensure the order of encoded and pids is the same
@@ -251,8 +251,9 @@ class BatchTokenize:
     @staticmethod
     def merge_dicts(dict1:dict, dict2:dict)->None:
         """Merges two dictionaries in place (dict1)"""
-        for key, finetuneue in dict2.items():
-            dict1.setdefault(key, []).extend(finetuneue)
+        for key, finetune in dict2.items():
+            dict1.setdefault(key, []).extend(finetune)
+
     @staticmethod    
     def invert_dictionary(original_dict: Dict[str, str])->Dict[str, List[str]]:
         """Inverts a dictionary, stores values as keys and keys as values. New values are stored in lists."""

@@ -65,8 +65,8 @@ def save_to_blobstore(local_path: str, remote_path: str):
         file_dataset_save(local_path=src_dir, datastore_name = "workspaceblobstore",
                     remote_path = remote_path)
         logger.info('Saved model to blob')
-    except:
-        logger.warning('Could not save model to blob')
+    except Exception as e:
+        logger.warning(f'Could not save to blob. Exception: {e}')
 
 
 class AzurePathContext:

@@ -48,7 +48,7 @@ class ConceptLoader:
         concepts = concepts.sort_values('TIMESTAMP')
 
         """ Process patients info """
-        patients_info = self.read_file(self.patients_info_path[0]).drop_duplicates()
+        patients_info = self.read_file(self.patients_info_path[0])#.drop_duplicates()
 
         return concepts, patients_info
 
@@ -58,6 +58,9 @@ class ConceptLoader:
             df = pd.read_csv(file_path)
         elif file_ext == '.parquet':
             df = pd.read_parquet(file_path)
+
+        if "patients_info" in file_path:
+            assert len(df.PID) == len(df.PID.unique()), f"Found {len(df.PID) - len(df.PID.unique())} duplicate patient IDs in patients info file"
 
         return self._handle_datetime_columns(df)
 

@@ -15,8 +15,7 @@ loader:
 
 features:
   age: 
-    round: 
-      decimal: 2
+    round: 2
   abspos:
     year: 2020
     month: 1

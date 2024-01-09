@@ -1,7 +1,7 @@
-import unittest
-from unittest.mock import patch, MagicMock
-from ehr2vec.data.dataset import MLMDataset   # replace with the actual module name
 import torch
+import unittest
+from unittest.mock import patch
+from data.dataset import MLMDataset   # replace with the actual module name
 
 class TestMLMDataset(unittest.TestCase):
     @patch('torch.load')

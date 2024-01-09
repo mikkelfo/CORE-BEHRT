@@ -97,8 +97,9 @@ class ConceptLoaderLarge(ConceptLoader):
         return self.process()
     
     def process(self) -> Iterator[Tuple[pd.DataFrame, pd.DataFrame]]:
-        patients_info = self.read_file(self.patients_info_path[0]).drop_duplicates()
+        patients_info = self.read_file(self.patients_info_path[0])#.drop_duplicates()
         patient_ids = patients_info['PID'].unique()
+        random.seed(42)
         random.shuffle(patient_ids)
 
         for chunk_ids in self.get_patient_batch(patient_ids, self.batch_size):

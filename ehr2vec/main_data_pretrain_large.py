@@ -12,6 +12,7 @@ import shutil
 from os.path import join
 
 import torch
+from typing import List, Dict, Union
 from common.azure import AzurePathContext, save_to_blobstore
 from common.config import load_config
 from common.logger import TqdmToLogger
@@ -60,8 +61,16 @@ def main_data(config_path):
     else:
         pids = torch.load(join(cfg.loader.data_dir, 'features', 'pids_features.pt'))
     logger.info('Finished feature creation and processing')
+    
+    exclude_pids = load_exclude_pids(cfg)
+    assigned_pids = load_assigned_pids(cfg)
+    for split, split_assigned_pids in assigned_pids.items():
+        logger.info(f"Number of assigned pids in split {split}: {len(split_assigned_pids)}")
+    logger.info(f"Number of pids to exclude: {len(exclude_pids)}")
     logger.info('Splitting batches')
-    batches = Batches(cfg, pids)
+    batches = Batches(cfg, pids, 
+                      exclude_pids=exclude_pids, 
+                      assigned_pids=assigned_pids)
     logger.info("Check for existing splits")
     batches_split = batches.split_batches()
     tokenized_dir_name = cfg.get('tokenized_dir_name','tokenized')
@@ -95,7 +104,6 @@ def check_and_clear_directory(cfg, logger, tokenized_dir_name='tokenized'):
             else:
                 shutil.rmtree(file_path)
 
-
 def create_and_save_features(conceptloader, handler, excluder, cfg, logger, )-> list:
     """
     Creates features and saves them to disk.
@@ -112,6 +120,34 @@ def create_and_save_features(conceptloader, handler, excluder, cfg, logger, )-> 
         torch.save(kept_pids, join(cfg.output_dir, 'features', f'pids_features_{i}.pt'))
         pids.append(kept_pids)
     return pids
+
+def load_exclude_pids(cfg)->List:
+    """
+    Loads pids from file
+    Excluded pids
+    """
+    if cfg.get('exclude_pids', None) is None:
+        return []
+    return load_pids(cfg.exclude_pids)
+
+def load_assigned_pids(cfg)->Dict:
+    """ Loads pids which should be assigned to certain splits."""
+    if cfg.get('assigned_pids', None) is None:
+        return {}
+    assigned_pids = {}
+    for split, files in cfg.assigned_pids.items():
+        assigned_pids[split] = load_pids(files)
+    return assigned_pids
+
+def load_pids(files: Union[List, str])->List:
+    if isinstance(files, str):
+        return torch.load(files)    
+    pids = []
+    for file in files:
+        pids.extend(torch.load(file))
+    return pids
+
+
 
 if __name__ == '__main__':
     main_data(config_path)

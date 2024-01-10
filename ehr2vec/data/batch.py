@@ -21,20 +21,23 @@ class Split:
 
 class Batches:
     """Class for splitting batches into pretrain, finetune and test sets"""
-    def __init__(self, cfg, pids: List[List[str]], exclude_pids: List[str]=[], assigned_pids: Dict[str, List[str]]={}):
+    def __init__(self, cfg, pids: List[List[str]], exclude_pids: List[str]=None, assigned_pids: Dict[str, List[str]]=None):
         """Initializes the class and splits the batches into pretrain, finetune and test sets
         pids should contain all the pids in the dataset, including assigned pids.
         Assigned pids should be a dictionary with the key being the split name and the value being a list of pids"""
         self.cfg = cfg
 
+        if exclude_pids is None:
+            exclude_pids = []
+        if assigned_pids is None:
+            assigned_pids = {}
+
         flattened_pids = self.flatten(pids)
         logger.info(f"Total number of pids: {len(flattened_pids)}")
         # We exclude all the assigned pids from the flattened pids, and assign them to the splits later
         assigned_pids_set = set(self.flatten([v for v in assigned_pids.values()]))
-        logger.info(f"Total Number of assigned pids: {len(assigned_pids_set)}")
-        logger.info(f"Total number of pids to exclude: {len(exclude_pids)}")
-        pids_to_exclude = set(exclude_pids).union(assigned_pids_set)
-        self.flattened_pids = [pid for pid in flattened_pids if pid not in pids_to_exclude]
+        pids_to_exclude_set = set(exclude_pids).union(assigned_pids_set)
+        self.flattened_pids = [pid for pid in flattened_pids if pid not in pids_to_exclude_set]
         self.assigned_pids = assigned_pids
 
         self.split_ratios = cfg['split_ratios']
@@ -55,12 +58,16 @@ class Batches:
         if 'test' in self.split_ratios:
             splits['test']= self.flattened_pids[pretrain_end:]
             
-        for split_name, pids in self.assigned_pids.items():
-            if split_name in splits:
-                splits[split_name].extend(pids)
+        for split, pids in self.assigned_pids.items():
+            if split in splits:
+                splits[split].extend(pids)
             else:
-                raise ValueError(f"Split name {split_name} not recognized. Must be one of ['pretrain', 'finetune', 'test', 'finetune_test']")
-        return {name: Split(pids=pids, mode=name) for name, pids in splits.items()}
+                raise ValueError(f"Split name {split} not recognized. Must be one of {splits.keys()}")
+        split_dic = {}
+        for split, pids in splits.items():
+            logger.info(f"Final number of pids in split {split}: {len(pids)}")
+            split_dic[split] = Split(pids=pids, mode=split)
+        return split_dic
 
     def split_batches_cv(self)-> List[Dict[str, Split]]:
         """Splits the batches into pretrain and finetune_test (finetune and test can be split during cv.) sets for crossvalidation"""

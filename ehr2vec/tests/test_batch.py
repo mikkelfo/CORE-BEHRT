@@ -1,14 +1,13 @@
-import random
 import unittest
-import numpy as np
+from tests.helpers import ConfigMock
 from data.batch import Batches
 
 class TestBatches(unittest.TestCase):
     def setUp(self):
-        self.cfg = {
-            'split_ratios': {'pretrain': 0.7, 'finetune': 0.2, 'test': 0.1},
-            'n_splits': 2
-        }
+        self.cfg = ConfigMock()
+        self.cfg.split_ratios = {'pretrain': 0.7, 'finetune': 0.2, 'test': 0.1}
+        self.cfg.n_splits = 2
+
         self.pids = [[str(i) for i in range(50)], [str(i) for i in range(50, 101)]]
         self.exclude_pids = ['100']
         self.assigned_pids = {'pretrain': [str(i) for i in range(10)], 'finetune': [str(i) for i in range(90, 100)]}

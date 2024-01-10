@@ -1,13 +1,17 @@
 import unittest
 import pandas as pd
 from data.featuremaker import FeatureMaker
-from tests.helpers import FeaturesConfig
+from tests.helpers import ConfigMock
 
 
 class TestFeatureMaker(unittest.TestCase):
     def setUp(self):
-        self.config = FeaturesConfig()
-        self.feature_maker = FeatureMaker(self.config)
+        self.cfg = ConfigMock()
+        self.cfg.age = {'round': 2}
+        self.cfg.abspos = {'year': 2020, 'month': 1, 'day': 26}
+        self.cfg.segment = True
+        self.cfg.background = ['GENDER']
+        self.feature_maker = FeatureMaker(self.cfg)
 
         self.concepts = pd.DataFrame({
             'PID': ['1', '2', '3', '1'],
@@ -25,7 +29,7 @@ class TestFeatureMaker(unittest.TestCase):
         features, pids = self.feature_maker(self.concepts, self.patients_info)
         self.assertIsInstance(features, dict)
         self.assertIsInstance(pids, list)
-        for key in self.config.keys():
+        for key in self.cfg.keys():
             if key == 'background':
                 continue
             self.assertIn(key, features.keys())
@@ -35,10 +39,10 @@ class TestFeatureMaker(unittest.TestCase):
     def test_create_pipeline(self):
         pipeline = self.feature_maker.create_pipeline()
         self.assertIsInstance(pipeline, list)
-        self.assertEqual(len(pipeline), len(self.config))
+        self.assertEqual(len(pipeline), len(self.cfg))
 
         for key, pos in self.feature_maker.order.items():
-            if key in self.config.keys():
+            if key in self.cfg.keys():
                 self.assertEqual(pipeline[pos].id, key)
 
 if __name__ == '__main__':

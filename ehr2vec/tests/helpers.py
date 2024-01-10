@@ -1,19 +1,16 @@
-class FeaturesConfig:
-    def __init__(self):
-        self.age = {'round': 2}
-        self.abspos = {'year': 2020, 'month': 1, 'day': 26}
-        self.segment = True
-        self.background = ['GENDER']
+from typing import Any
+from unittest.mock import Mock
 
+class ConfigMock(Mock):
     def __contains__(self, item):
         return self.__getattribute__(item)
         
     def keys(self):
-        return [attr for attr in dir(self) if not attr.startswith('__') and not callable(getattr(self, attr))]
+        return [attr for attr in self.__dict__ if self._user_attr(attr)]
 
     def __iter__(self):
-        for attr in dir(self):
-            if not attr.startswith('__') and not callable(getattr(self, attr)):
+        for attr in self.keys():
+            if self._user_attr(attr):
                 yield attr
 
     def __len__(self):
@@ -21,3 +18,6 @@ class FeaturesConfig:
 
     def __getitem__(self, item):
         return self.__getattribute__(item)
+    
+    def _user_attr(self, attr):
+        return not attr.startswith('_') and not callable(getattr(self, attr)) and attr != 'method_calls'

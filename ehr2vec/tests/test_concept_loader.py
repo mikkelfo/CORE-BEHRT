@@ -1,6 +1,6 @@
 import unittest
 import pandas as pd
-from data.concept_loader import ConceptLoader, ConceptLoaderLarge
+from data.concept_loader import ConceptLoader
 
 class TestConceptLoader(unittest.TestCase):
     def setUp(self):

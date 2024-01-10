@@ -1,7 +1,7 @@
 import torch
 from transformers import BatchEncoding
+
 from data_fixes.handle import Handler
-from typing import Iterator
 from common.utils import iter_patients
 
 class EHRTokenizer():
@@ -24,10 +24,8 @@ class EHRTokenizer():
         self.cutoffs = config.get('cutoffs', None)
         
     def __call__(self, features: dict, padding=None, truncation=None)->BatchEncoding:
-        if not padding:
-            padding = self.padding
-        if not truncation:
-            truncation = self.truncation
+        padding = self.padding if padding is None else padding
+        truncation = self.truncation if truncation is None else truncation
         return self.batch_encode(features, padding, truncation)
 
     def batch_encode(self, features: dict, padding=True, truncation=512)->BatchEncoding:
@@ -62,7 +60,7 @@ class EHRTokenizer():
             for concept in concepts:
                 if concept not in self.vocabulary:
                     self.vocabulary[concept] = len(self.vocabulary)
-        if self.new_vocab:
+
             encoded_sequence = [self.vocabulary.get(concept, self.vocabulary['[UNK]']) for concept in concepts]
         else:
             encoded_sequence = [self.vocabulary.get(concept, self.find_closest_ancestor(concept)) for concept in concepts]

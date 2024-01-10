@@ -1,51 +1,55 @@
-import logging
-from os.path import join
-from typing import List
-
-import numpy as np
-import pandas as pd
 import torch
-from common.utils import Data, iter_patients
+import logging
+import random
+# import numpy as np
+import pandas as pd
+from os.path import join
+from typing import List, Tuple
+
+
 from data.utils import Utilities
 from data_fixes.exclude import Excluder
+from common.utils import Data, iter_patients
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
 
-SPECIAL_CODES = ['[', 'BG_', 'BG']
+SPECIAL_CODES = ['[', 'BG_']
 
-class CodeTypeFilter():
+class CodeTypeFilter:
     def __init__(self, cfg):
         self.cfg = cfg
-        self.utils = Utilities()
+        self.utils = Utilities
         self.SPECIAL_CODES = SPECIAL_CODES
 
     def filter(self, data: Data)->Data:
         """Filter code types, e.g. keep only diagnoses. Remove patients with not sufficient data left."""
-        keep_codes = self._get_keep_codes()
+        keep_codes = self._combine_to_tuple(self.SPECIAL_CODES, self.cfg.data.code_types)
         keep_tokens = set([token for code, token in data.vocabulary.items() if self.utils.code_starts_with(code, keep_codes)])
         logger.info(f"Keep only codes starting with: {keep_codes}")
         for patient_index, patient in enumerate(iter_patients(data.features)):
             self._filter_patient(data, patient, keep_tokens, patient_index)
         return data
 
-    def _filter_patient(self, data: Data, patient: dict, keep_tokens: set, patient_index: int)->None:
+    @staticmethod
+    def _filter_patient(data: Data, patient: dict, keep_tokens: set, patient_index: int)->None:
         """Filter patient in place by removing tokens that are not in keep_tokens"""
         concepts = patient['concept']
-        keep_entries = {i:token for i, token in enumerate(concepts) if \
-                            token in keep_tokens}
+        keep_entries = {i:token for i, token in enumerate(concepts) if token in keep_tokens}
         for k, v in patient.items():
             filtered_list = [v[i] for i in keep_entries]
             data.features[k][patient_index] = filtered_list
 
-    def _get_keep_codes(self)->set:
-        """Return a set of codes to keep according to cfg.data.code_types."""
-        return set(self.SPECIAL_CODES + self.cfg.data.code_types)
+    @staticmethod
+    def _combine_to_tuple(*args: Tuple[List[str]])->tuple:
+        """Return a tuple of codes to keep according to cfg.data.code_types."""
+        flatten_args = sum(args, [])
+        return tuple(flatten_args)
     
 
-class PatientFilter():
+class PatientFilter:
     def __init__(self, cfg) -> None:
         self.cfg = cfg
-        self.utils = Utilities()
+        self.utils = Utilities
 
     def exclude_pretrain_patients(self, data: Data)->Data:
         """Exclude patients from pretraining set."""
@@ -67,9 +71,9 @@ class PatientFilter():
         return self.select_entries(data, kept_indices)
     
     def select_censored(self, data: Data)->Data:
-        """Select only censored patients. This is only relevant for the fine-tuning data. 
+        """Select only censored patients. This is only relevant for the fine-tuning  data. 
         E.g. for pregnancy complications select only pregnant women."""
-        kept_indices = [i for i, censor in enumerate(data.censor_outcomes) if not pd.isna(censor)]
+        kept_indices = [i for i, censor in enumerate(data.censor_outcomes) if pd.notna(censor)]
         return self.select_entries(data, kept_indices)
 
     def exclude_short_sequences(self, data: Data)->Data:
@@ -97,13 +101,13 @@ class PatientFilter():
         kept_indices = [i for i, concepts in enumerate(data.features['concept']) if gender_token in set(concepts)]
         return self.select_entries(data, kept_indices)
     
-    def select_random_subset(self, data, num_patients, seed=0)->Data:
+    def select_random_subset(self, data, num_patients, seed=42)->Data:
         """Select a num_patients random patients"""
         if len(data.pids) <= num_patients:
             return data
-        np.random.seed(seed)
-        indices = np.arange(len(data.pids))
-        np.random.shuffle(indices)
+        random.seed(seed)
+        indices = list(range(len(data.pids)))
+        random.shuffle(indices)
         indices = indices[:num_patients]
         return self.select_entries(data, indices)
 
@@ -121,3 +125,4 @@ class PatientFilter():
         if data.censor_outcomes is not None:
             data.censor_outcomes = [data.censor_outcomes[i] for i in indices]
         return data
+

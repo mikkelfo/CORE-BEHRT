@@ -27,7 +27,7 @@ HIERARCHICAL_VOCABULARY_FILE = 'h_vocabulary.pt'
 class DatasetPreparer:
     def __init__(self, cfg: Config):
         self.cfg = cfg
-        self.utils = Utilities()
+        self.utils = Utilities
         self.loader = FeaturesLoader(cfg)
         
         run_folder = join(self.cfg.paths.output_path, self.cfg.paths.run_name)

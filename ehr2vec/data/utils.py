@@ -18,8 +18,9 @@ MIN_POSITIVES = {'train': 10, 'val': 5}
 CHECKPOINT_FOLDER = 'checkpoints'
 ORIGIN_POINT = {'year': 2020, 'month': 1, 'day': 26, 'hour': 0, 'minute': 0, 'second': 0}
 
-class Utilities():
-    def process_datasets(self, datasets: Dict, func: callable, args_for_func: Dict=None)->Dict:
+class Utilities:
+    @classmethod
+    def process_datasets(cls, datasets: Dict, func: callable, args_for_func: Dict=None)->Dict:
         """Apply a function to all datasets in a dictionary"""
         if args_for_func is None:
             args_for_func = {}
@@ -27,7 +28,7 @@ class Utilities():
             # Get mode-specific arguments, or an empty dictionary if they don't exist
             mode_args = args_for_func.get(split, {})
             datasets[split] = func(data, **mode_args)
-        self.log_patient_nums(func.__name__, datasets)
+        cls.log_patient_nums(func.__name__, datasets)
         return datasets
     @staticmethod
     def log_patient_nums(operation:str, datasets: Dict)->None:
@@ -127,9 +128,9 @@ class Utilities():
             background_indices.append(max(background_indices)+1)
         return background_indices
     @staticmethod
-    def code_starts_with(code: int, prefixes: set)->bool:
+    def code_starts_with(code: int, prefixes: tuple)->bool:
         """Check if the code starts with any of the given prefixes."""
-        return any(code.startswith(prefix) for prefix in prefixes)
+        return code.startswith(prefixes)
     @staticmethod
     def log_pos_patients_num(datasets: Dict)->None:
         for mode, data in datasets.items():

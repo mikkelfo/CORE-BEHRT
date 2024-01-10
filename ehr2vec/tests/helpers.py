@@ -21,3 +21,6 @@ class ConfigMock(Mock):
     
     def _user_attr(self, attr):
         return not attr.startswith('_') and not callable(getattr(self, attr)) and attr != 'method_calls'
+    
+    def get(self, item, default=None):
+        return self.__getitem__(item) if self.__contains__(item) else default

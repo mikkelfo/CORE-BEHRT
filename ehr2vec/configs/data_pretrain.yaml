@@ -3,9 +3,10 @@ output_dir: ../outputs/features_test
 tokenized_dir_name: "tokenized_02"
 paths:
   run_name: "icd10_small"
-  features_dir: "features"
+  save_features_dir_name: "features" # saves in this directory on azure. If not provided use run_name.
 loader:
-  data_dir:  ../data/formatted/synthea500_icd10 #../outputs/data_icd10
+  # can provide formatted data or features
+  data_dir:  ../outputs/features_test #../data/formatted/synthea500_icd10 # ../outputs/features_test # ../data/formatted/synthea500_icd10 #../outputs/data_icd10
   patients_info: patients_info.csv
   concepts: [
     diagnose
@@ -39,7 +40,6 @@ excluder:
 split_ratios:
   pretrain: 0.72 # 80% of 90%
   finetune: 0.28 # 20% of 90%
-n_splits: 2 # used when splitting in cv fashion
 handler:
   concept_fill: "[UNK]"    
   num_fill: -100
@@ -51,5 +51,5 @@ assigned_pids:
   # can be a list
  pretrain: 
     - outputs/pretraining/behrt_test/finetune_TEST_OUTCOME_censored_4_days_post_TEST_OUTCOME_test/fold_1/val_pids.pt
-predefined_splits_dir: ../outputs/features_test/tokenized
+predefined_splits_dir: ../outputs/data_icd10/tokenized #../outputs/features_test/tokenized
 

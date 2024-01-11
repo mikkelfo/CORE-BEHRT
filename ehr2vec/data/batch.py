@@ -53,28 +53,21 @@ class Batches:
         if self.predefined_splits_dir is not None:
             logger.warn(f'Loading predefined splits from {self.predefined_splits_dir}. Ignores all other settings related to splits.')
             return self.get_predefined_splits()
-        np.random.seed(42)
-        np.random.shuffle(self.flattened_pids)
+        
+        # Calculate the remaining number of pids for each split
+        total_pids = len(self.flattened_pids) # total number of pids, excluding the assigned pids
+
+        for pids in self.assigned_pids.values():
+            total_pids += len(pids) # include the assigned pids in the total number of pids to calculate the remaining ratios
+
+        self.update_split_ratios(total_pids)
+        self.shuffle_pids()
+
         # calculate the number of batches for each set
         finetune_end, pretrain_end = self.calculate_split_indices(len(self.flattened_pids))
-        # split the batches into pretrain, finetune and test
-        splits = {
-            PRETRAIN: self.flattened_pids[finetune_end:pretrain_end],
-            FINETUNE: self.flattened_pids[:finetune_end],
-        }
-        if TEST in self.split_ratios:
-            splits[TEST]= self.flattened_pids[pretrain_end:]
-            
-        for split, pids in self.assigned_pids.items():
-            if split in splits:
-                splits[split].extend(pids)
-            else:
-                raise ValueError(f"Split name {split} not recognized. Must be one of {splits.keys()}")
-        split_dic = {}
-        for split, pids in splits.items():
-            logger.info(f"Final number of pids in split {split}: {len(pids)}")
-            split_dic[split] = Split(pids=pids, mode=split)
-        return split_dic
+        splits = self.allocate_splits(pretrain_end, finetune_end)
+        
+        return self.create_split_dict(splits)
     
     def get_predefined_splits(self)-> Dict[str, Split]:
         """Loads predefined splits from predefined_splits_dir if in config."""
@@ -89,13 +82,71 @@ class Batches:
             splits[mode] = Split(pids=pids, mode=mode)
         assert all_predefined_pids_set.issubset(set(self.flattened_pids)), f"Predefined pids are not a subset of all pids."
         return splits
+    
+    def update_split_ratios(self, total_length: int) -> None:
+        """
+        Calculates the remaining split ratios after allocating assigned pids,
+        and updates the split ratios. 
+        Raises an error if the ratios cannot be satisfied.
+        """
+        # Calculate the total number of pids already allocated to each split
+        allocated_counts = {split: len(pids) for split, pids in self.assigned_pids.items()}
+        # Check if the allocated counts exceed the split ratios
+        for split, ratio in self.split_ratios.items():
+            # Calculate the maximum number of pids that can be allocated to this split
+            max_allowed_pids = int(ratio * total_length)
+            if allocated_counts.get(split, 0) > max_allowed_pids:
+                raise ValueError(f"Cannot satisfy split ratios for split '{split}'. Allocated count exceeds the ratio limit {int(ratio * total_length)}.")
+
+        # Calculate the remaining length after allocating assigned pids
+        remaining_length = total_length - sum(allocated_counts.values())
+        # Calculate remaining ratios for the unallocated pids
+        remaining_ratios = {}
+        for split, ratio in self.split_ratios.items():
+            # Calculate the portion of the total dataset that should be allocated to this split
+            # after accounting for already allocated pids
+            target_ratio = ratio * total_length - allocated_counts.get(split, 0)
+            remaining_ratios[split] = target_ratio / remaining_length if remaining_length > 0 else 0
+        self.split_ratios = remaining_ratios
+    
+    def shuffle_pids(self):
+        """Shuffles the flattened pids."""
+        np.random.seed(42)
+        np.random.shuffle(self.flattened_pids)
+
+    @staticmethod
+    def create_split_dict(splits: Dict[str, Split])-> Dict[str, Split]:
+        split_dic = {}
+        for split, pids in splits.items():
+            logger.info(f"Final number of pids in split {split}: {len(pids)}")
+            split_dic[split] = Split(pids=pids, mode=split)
+        return split_dic
+
+    def allocate_splits(self, pretrain_end: int, finetune_end: int)-> Dict[str, list]:
+        """Allocates pids to each split."""
+        # split the batches into pretrain, finetune and test
+        splits = {
+            PRETRAIN: self.flattened_pids[finetune_end:pretrain_end],
+            FINETUNE: self.flattened_pids[:finetune_end],
+        }
+        if TEST in self.split_ratios:
+            splits[TEST]= self.flattened_pids[pretrain_end:]
+        logger.info("Pids in each split before assigning pids:")
+        for split, pids in splits.items():
+            logger.info(f"Number of pids in split {split}: {len(pids)}")
+        for split, pids in self.assigned_pids.items():
+            if split in splits:
+                splits[split].extend(pids)
+            else:
+                raise ValueError(f"Split name {split} not recognized. Must be one of {splits.keys()}")
+        return splits
 
     def create_split(self, indices: List, mode: str)-> Split:
         """Create a Split object for the given indices and mode. And assigns pids."""
         pids = [self.flattened_pids[i] for i in indices]
         pids += self.assigned_pids.get(mode, [])
         return Split(pids=pids, mode=mode)
-
+    
     def calculate_split_indices(self, total_length: int)-> Tuple[int, int]:
         """Calculates the indices for each split based on configured ratios."""
         finetune_end = int(self.split_ratios[FINETUNE] * total_length)
@@ -164,18 +215,11 @@ class BatchTokenize:
 
         # use the order of split.pids to ensure the order of encoded and pids is the same
         assert set(split.pids)==set(pids), f"Split pids ({len(split.pids)}) and pids ({len(pids)}) do not match"
-        pids, encoded = self.reorder_pids_and_encoded_feats(split.pids, pids, encoded)
+        encoded, pids = self.select_and_reorder_feats_and_pids(encoded, pids, split.pids)
         
         assert len(pids) == len(encoded['concept']), f"Length of pids ({len(pids)}) does not match length of encoded ({len(encoded['concept'])})"
         
         return encoded, pids
-    @staticmethod
-    def reorder_pids_and_encoded_feats(split_pids: List[str], pids: List[str], encoded: Dict[str, torch.tensor])->Tuple[List[str], Dict[str, torch.tensor]]:
-        """Reorders pids and encoded to match the order of split_pids"""
-        indices = [pids.index(pid) for pid in split_pids]
-        for key, value in encoded.items():
-            encoded[key] = [value[idx] for idx in indices]
-        return split_pids, encoded
     
     @staticmethod
     def load_and_filter_batch(file_id: str, 
@@ -184,7 +228,8 @@ class BatchTokenize:
         """Load features and pids for file_id, filter them by selected_pids_in_file and tokenize them."""
         features = torch.load(join(features_dir, f'features_{file_id}.pt'))
         pids_file = torch.load(join(features_dir, f'pids_features_{file_id}.pt'))
-        filtered_features, filtered_pids = BatchTokenize.filter_features_by_pids(features, pids_file, selected_pids_in_file)
+        filtered_features, filtered_pids = BatchTokenize.select_and_reorder_feats_and_pids(
+            features, pids_file, selected_pids_in_file)
         return filtered_features, filtered_pids 
     
     def save_tokenized_data(self, encoded: Dict[str, torch.tensor], pids: List[str], mode:str, save_dir:str=None)->None:
@@ -198,18 +243,15 @@ class BatchTokenize:
             return join(self.cfg.loader.data_dir, 'features')
         else:
             return join(self.cfg.output_dir, 'features')
-        
-    @staticmethod  
-    def filter_features_by_pids(features: Dict[str, List[List]], pids_batch: List[str], split_pids: List[str])->Tuple[Dict[str, List], List[str]]:
-        """Filters features and pids. Keep only split_pids by pids"""
-        filtered_features = {}
-        assert set(split_pids).issubset(set(pids_batch)), f"Batch pids are not a subset of pids in file. Batch pids: {split_pids}, pids in file: {pids_file}"
-        indices_to_keep = [pids_batch.index(pid) for pid in split_pids]
-        kept_pids = [pids_batch[idx] for idx in indices_to_keep]
-        for key, feature in features.items():
-            filtered_features[key] = [entry for idx, entry in enumerate(feature) if idx in indices_to_keep]
-        return filtered_features, kept_pids 
-    
+    @staticmethod
+    def select_and_reorder_feats_and_pids(feats: Dict[str, List], pids: List[str], select_pids: List[str])->Tuple[Dict[str, List], List[str]]:
+        """Reorders pids and feats to match the order of select_pids"""
+        assert set(select_pids).issubset(set(pids)), f"Select pids are not a subset of features pids. Select pids: {len(select_pids)}, pids in file: {len(pids)}"
+        pid2idx = {pid: index for index, pid in enumerate(pids)}
+        indices_to_keep = [pid2idx[pid] for pid in select_pids] # order is important, so keep select_pids as list
+        for key, value in feats.items():
+            feats[key] = [value[idx] for idx in indices_to_keep]
+        return feats, select_pids
     @staticmethod
     def merge_dicts(dict1:dict, dict2:dict)->None:
         """Merges two dictionaries in place (dict1)"""

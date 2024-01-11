@@ -209,3 +209,13 @@ class Utilities():
         return [
             position - event_timestamp <= 0 for position in absolute_positions
         ]
+    @staticmethod
+    def select_and_reorder_feats_and_pids(feats: Dict[str, List], pids: List[str], select_pids: List[str])->Tuple[Dict[str, List], List[str]]:
+        """Reorders pids and feats to match the order of select_pids"""
+        assert set(select_pids).issubset(set(pids)), f"Select pids are not a subset of features pids. Select pids: {len(select_pids)}, pids in file: {len(pids)}"
+        pid2idx = {pid: index for index, pid in enumerate(pids)}
+        indices_to_keep = [pid2idx[pid] for pid in select_pids] # order is important, so keep select_pids as list
+        selected_feats = {}
+        for key, value in feats.items():
+            selected_feats[key] = [value[idx] for idx in indices_to_keep]
+        return selected_feats, select_pids

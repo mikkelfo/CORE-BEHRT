@@ -1,5 +1,4 @@
 import logging
-import os
 from os.path import join
 from typing import Tuple, List, Dict, Union
 
@@ -39,21 +38,23 @@ class FeaturesLoader():
         tokenized_dir = self.path_cfg.get('tokenized_dir', 'tokenized')
         logger.info('Loading tokenized data from %s', tokenized_dir)
         tokenized_data_path = join(self.path_cfg.data_path, tokenized_dir)
-        if os.path.exists(join(tokenized_data_path, 'tokenized_train.pt')): # this is needed for backwards compatibility. New splits are pretrain and finetune_test.
-            split = "train"
-        else:
-            split = "pretrain"
-        logger.info("Loading tokenized data train")
-        train_features  = torch.load(join(tokenized_data_path, f'tokenized_{split}.pt'))
-        train_pids = torch.load(join(tokenized_data_path,  f'pids_{split}.pt'))
         
-        if os.path.exists(join(tokenized_data_path, 'tokenized_val.pt')): 
-            logger.info("Loading tokenized data val")
-            val_features = torch.load(join(tokenized_data_path, 'tokenized_val.pt'))
-            val_pids = torch.load(join(tokenized_data_path, 'pids_val.pt'))
+        logger.info("Loading tokenized data pretrain")
+        split = "pretrain"
+        pt_features  = torch.load(join(tokenized_data_path, f'tokenized_{split}.pt'))
+        pt_pids = torch.load(join(tokenized_data_path,  f'pids_{split}.pt'))
+        
+        if self.cfg.paths.get('predefined_splits', None) is not None:
+            predefined_pids_dir = self.cfg.paths.predefined_splits
+            logger.info(f"Loading predefined pids from {predefined_pids_dir}")
+            train_pids = torch.load(join(predefined_pids_dir, 'pids_train.pt'))
+            val_pids = torch.load(join(predefined_pids_dir, 'pids_val.pt'))
+            train_features, train_pids = Utilities.select_and_reorder_feats_and_pids(pt_features, pt_pids, train_pids)
+            val_features, val_pids = Utilities.select_and_reorder_feats_and_pids(pt_features, pt_pids, val_pids)
         else:
             logger.info("No validation set found. Split train into train and val.")
-            train_features, train_pids, val_features, val_pids = Utilities.split_train_val(train_features, train_pids, val_ratio=self.cfg.data.get('val_ratio', VAL_RATIO))
+            train_features, train_pids, val_features, val_pids = Utilities.split_train_val(
+                pt_features, pt_pids, val_ratio=self.cfg.data.get('val_ratio', VAL_RATIO))
         logger.info(f"Train size: {len(train_pids)}, Val size: {len(val_pids)}")
         logger.info("Loading vocabulary")
         try:
@@ -204,8 +205,8 @@ def load_assigned_pids(cfg)->Dict:
 
 def _load_pids(files: Union[List, str])->List:
     if isinstance(files, str):
-        return torch.load(files)    
-    pids = []
+        return set(torch.load(files))    
+    pids = set()
     for file in files:
-        pids.extend(torch.load(file))
+        pids.update(set(torch.load(file)))
     return pids

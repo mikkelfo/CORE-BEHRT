@@ -9,6 +9,7 @@ import torch
 from common.loader import load_assigned_pids, load_exclude_pids
 from common.logger import TqdmToLogger
 from common.utils import check_directory_for_features
+from data.utils import Utilities
 from tqdm import tqdm
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
@@ -140,12 +141,6 @@ class Batches:
             else:
                 raise ValueError(f"Split name {split} not recognized. Must be one of {splits.keys()}")
         return splits
-
-    def create_split(self, indices: List, mode: str)-> Split:
-        """Create a Split object for the given indices and mode. And assigns pids."""
-        pids = [self.flattened_pids[i] for i in indices]
-        pids += self.assigned_pids.get(mode, [])
-        return Split(pids=pids, mode=mode)
     
     def calculate_split_indices(self, total_length: int)-> Tuple[int, int]:
         """Calculates the indices for each split based on configured ratios."""
@@ -204,6 +199,7 @@ class BatchTokenize:
         encoded, pids = {}, []
         # we need to know which pid is in which file
         split_pids_set = set(split.pids)
+        assert split_pids_set.issubset(set(self.pid2fileid.keys())), f"Split pids ({len(split_pids_set)}) is not a subset of pid2fileid keys ({len(self.pid2fileid.keys())})"
         pid2fileid = {pid: file_id for pid, file_id in self.pid2fileid.items() if pid in split_pids_set} 
         fileid2pid = self.invert_dictionary(pid2fileid)
         # select only file ids 
@@ -215,7 +211,7 @@ class BatchTokenize:
 
         # use the order of split.pids to ensure the order of encoded and pids is the same
         assert set(split.pids)==set(pids), f"Split pids ({len(split.pids)}) and pids ({len(pids)}) do not match"
-        encoded, pids = self.select_and_reorder_feats_and_pids(encoded, pids, split.pids)
+        encoded, pids = Utilities.select_and_reorder_feats_and_pids(encoded, pids, split.pids)
         
         assert len(pids) == len(encoded['concept']), f"Length of pids ({len(pids)}) does not match length of encoded ({len(encoded['concept'])})"
         
@@ -228,7 +224,7 @@ class BatchTokenize:
         """Load features and pids for file_id, filter them by selected_pids_in_file and tokenize them."""
         features = torch.load(join(features_dir, f'features_{file_id}.pt'))
         pids_file = torch.load(join(features_dir, f'pids_features_{file_id}.pt'))
-        filtered_features, filtered_pids = BatchTokenize.select_and_reorder_feats_and_pids(
+        filtered_features, filtered_pids = Utilities.select_and_reorder_feats_and_pids(
             features, pids_file, selected_pids_in_file)
         return filtered_features, filtered_pids 
     
@@ -243,15 +239,6 @@ class BatchTokenize:
             return join(self.cfg.loader.data_dir, 'features')
         else:
             return join(self.cfg.output_dir, 'features')
-    @staticmethod
-    def select_and_reorder_feats_and_pids(feats: Dict[str, List], pids: List[str], select_pids: List[str])->Tuple[Dict[str, List], List[str]]:
-        """Reorders pids and feats to match the order of select_pids"""
-        assert set(select_pids).issubset(set(pids)), f"Select pids are not a subset of features pids. Select pids: {len(select_pids)}, pids in file: {len(pids)}"
-        pid2idx = {pid: index for index, pid in enumerate(pids)}
-        indices_to_keep = [pid2idx[pid] for pid in select_pids] # order is important, so keep select_pids as list
-        for key, value in feats.items():
-            feats[key] = [value[idx] for idx in indices_to_keep]
-        return feats, select_pids
     @staticmethod
     def merge_dicts(dict1:dict, dict2:dict)->None:
         """Merges two dictionaries in place (dict1)"""

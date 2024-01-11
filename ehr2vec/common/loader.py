@@ -1,7 +1,7 @@
 import logging
 import os
 from os.path import join
-from typing import Tuple
+from typing import Tuple, List, Dict, Union
 
 import torch
 from common.config import Config, load_config
@@ -184,6 +184,28 @@ class ModelLoader():
                 self.model_path, CHECKPOINT_FOLDER))
         return checkpoint_epoch
 
+def load_exclude_pids(cfg)->List:
+    """
+    Loads pids from file
+    Excluded pids
+    """
+    if cfg.get('exclude_pids', None) is None:
+        return []
+    return _load_pids(cfg.exclude_pids)
 
+def load_assigned_pids(cfg)->Dict:
+    """ Loads pids which should be assigned to certain splits."""
+    if cfg.get('assigned_pids', None) is None:
+        return {}
+    assigned_pids = {}
+    for split, files in cfg.assigned_pids.items():
+        assigned_pids[split] = _load_pids(files)
+    return assigned_pids
 
-
+def _load_pids(files: Union[List, str])->List:
+    if isinstance(files, str):
+        return torch.load(files)    
+    pids = []
+    for file in files:
+        pids.extend(torch.load(file))
+    return pids

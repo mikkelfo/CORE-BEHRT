@@ -1,8 +1,9 @@
 env: local
-output_dir: ../outputs/data_icd10
-tokenized_dir_name: "tokenized"
+output_dir: ../outputs/features_test
+tokenized_dir_name: "tokenized_02"
 paths:
   run_name: "icd10_small"
+  features_dir: "features"
 loader:
   data_dir:  ../data/formatted/synthea500_icd10 #../outputs/data_icd10
   patients_info: patients_info.csv
@@ -24,7 +25,7 @@ features:
   background: ['GENDER']
 
 tokenizer:
-  sep_tokens: true
+  sep_tokens: false
   cls_token: true
   padding: false
   truncation: null
@@ -37,18 +38,18 @@ excluder:
 
 split_ratios:
   pretrain: 0.72 # 80% of 90%
-  finetune: 0.18 # 20% of 90%
-  test: 0.1
+  finetune: 0.28 # 20% of 90%
 n_splits: 2 # used when splitting in cv fashion
 handler:
   concept_fill: "[UNK]"    
   num_fill: -100
   drop: true
 
-exclude_pids: outputs/pretraining/behrt_test/finetune_TEST_OUTCOME_censored_4_days_post_TEST_OUTCOME_test/val_pids.pt
-assigned_pids:
-  pretrain: 
-   - outputs/pretraining/behrt_test/finetune_TEST_OUTCOME_censored_4_days_post_TEST_OUTCOME_test/train_pids.pt
-   - outputs/pretraining/behrt_test/finetune_TEST_OUTCOME_censored_4_days_post_TEST_OUTCOME_test/val_pids.pt
-   
+# can be a list
+exclude_pids: outputs/pretraining/behrt_test/finetune_TEST_OUTCOME_censored_4_days_post_TEST_OUTCOME_test/test_pids.pt
+assigned_pids: 
+  # can be a list
+ pretrain: 
+    - outputs/pretraining/behrt_test/finetune_TEST_OUTCOME_censored_4_days_post_TEST_OUTCOME_test/fold_1/val_pids.pt
+predefined_splits_dir: ../outputs/features_test/tokenized
 

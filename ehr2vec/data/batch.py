@@ -152,7 +152,8 @@ class BatchTokenize:
         """
         encoded, pids = {}, []
         # we need to know which pid is in which file
-        pid2fileid = {pid: file_id for pid, file_id in self.pid2fileid.items() if pid in set(split.pids)} 
+        split_pids_set = set(split.pids)
+        pid2fileid = {pid: file_id for pid, file_id in self.pid2fileid.items() if pid in split_pids_set} 
         fileid2pid = self.invert_dictionary(pid2fileid)
         # select only file ids 
         for file_id, selected_pids_in_file in tqdm(fileid2pid.items(), desc=f'Tokenizing {split.mode} batches', file=TqdmToLogger(logger)):

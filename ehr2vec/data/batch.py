@@ -37,6 +37,7 @@ class Batches:
             exclude_pids = load_exclude_pids(cfg)
             logger.info(f"Number of pids to exclude: {len(exclude_pids)}")
             assigned_pids = load_assigned_pids(cfg)
+            assigned_pids = self.filter_assigned_pids(assigned_pids, self.flattened_pids)
             for split, split_assigned_pids in assigned_pids.items():
                 logger.info(f"Number of assigned pids in split {split}: {len(split_assigned_pids)}")
     
@@ -79,6 +80,7 @@ class Batches:
         all_predefined_pids_set = set()
         for mode, file in split_files.items():
             pids = torch.load(join(self.predefined_splits_dir, file))
+            assert len(pids)==len(set(pids)), f"Predefined pids for split {mode} contain duplicates."
             all_predefined_pids_set.update(set(pids))
             splits[mode] = Split(pids=pids, mode=mode)
         assert all_predefined_pids_set.issubset(set(self.flattened_pids)), f"Predefined pids are not a subset of all pids."
@@ -154,6 +156,11 @@ class Batches:
     @staticmethod
     def flatten(ls_of_ls: List[List])-> List:
         return [item for sublist in ls_of_ls for item in sublist] 
+    @staticmethod
+    def filter_assigned_pids(assigned_pids, pids):
+        """Filters assigned pids by pids."""
+        pids_set = set(pids)
+        return {split: [pid for pid in pids if pid in pids_set] for split, pids in assigned_pids.items()}
 
 class BatchTokenize:
     def __init__(self, pids: List[List[str]], tokenizer, cfg, tokenized_dir_name:str='tokenized'):

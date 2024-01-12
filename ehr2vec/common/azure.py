@@ -94,6 +94,8 @@ class AzurePathContext:
         """
         if self.azure_env:
             self.cfg.paths.data_path = self._prepend_mount_point(self.cfg.paths.data_path)
+            if 'predefined_splits_dir' in self.cfg.paths:
+                self.cfg.paths.predefined_splits = self._prepend_mount_point(self.cfg.paths.predefined_splits)
             if self.cfg.paths.get('model_path', None) is not None:
                 self.cfg.paths.model_path = self._prepend_mount_point(self.cfg.paths.model_path)
             self._handle_outputs_path()
@@ -125,6 +127,8 @@ class AzurePathContext:
         """Azure setup for pretraining. Prepend mount folder."""
         if self.azure_env:
             self.cfg.loader.data_dir = self._prepend_mount_point(self.cfg.loader.data_dir)
+            if 'predefined_splits_dir' in self.cfg:
+                self.cfg.predefined_splits_dir = self._prepend_mount_point(self.cfg.predefined_splits_dir)
             if 'exclude_pids' in self.cfg and self.cfg['exclude_pids']:
                 self.cfg.exclude_pids = self.prepend_mount_point_to_paths(self.cfg['exclude_pids'])
             if 'assigned_pids' in self.cfg and self.cfg['assigned_pids']:

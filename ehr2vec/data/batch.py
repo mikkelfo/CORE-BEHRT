@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 from dataclasses import dataclass
 from os.path import join
@@ -48,7 +49,7 @@ class Batches:
             self.assigned_pids = assigned_pids
 
             self.split_ratios = cfg['split_ratios']
-            assert sum(self.split_ratios.values()) == 1, f"Sum of split ratios must be 1. Current sum: {sum(self.split_ratios.values())}"
+            assert math.isclose(sum(self.split_ratios.values()), 1, abs_tol=1e-6), f"Sum of split ratios must be 1. Current sum: {sum(self.split_ratios.values())}"
 
     def split_batches(self)-> Dict[str, Split]:
         """Splits the batches into pretrain, finetune and test sets. """
@@ -111,7 +112,8 @@ class Batches:
             target_ratio = ratio * total_length - allocated_counts.get(split, 0)
             remaining_ratios[split] = target_ratio / remaining_length if remaining_length > 0 else 0
         self.split_ratios = remaining_ratios
-    
+        assert math.isclose(sum(self.split_ratios.values()), 1, abs_tol=1e-5), f"Sum of split ratios must be 1. Current sum: {sum(self.split_ratios.values())}"
+
     def shuffle_pids(self):
         """Shuffles the flattened pids."""
         np.random.seed(42)

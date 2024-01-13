@@ -94,7 +94,7 @@ class AzurePathContext:
         """
         if self.azure_env:
             self.cfg.paths.data_path = self._prepend_mount_point(self.cfg.paths.data_path)
-            if 'predefined_splits_dir' in self.cfg.paths:
+            if 'predefined_splits' in self.cfg.paths:
                 self.cfg.paths.predefined_splits = self._prepend_mount_point(self.cfg.paths.predefined_splits)
             if self.cfg.paths.get('model_path', None) is not None:
                 self.cfg.paths.model_path = self._prepend_mount_point(self.cfg.paths.model_path)

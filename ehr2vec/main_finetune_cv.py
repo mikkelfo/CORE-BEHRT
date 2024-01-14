@@ -36,7 +36,7 @@ def finetune_fold(cfg, train_data:Data, val_data:Data,
     torch.save(train_data.pids, join(fold_folder, 'train_pids.pt'))
     torch.save(val_data.pids, join(fold_folder, 'val_pids.pt'))
     if len(test_data) > 0:
-        torch.save(test_data, join(fold_folder, 'test_data.pt'))
+        torch.save(test_data.pids, join(fold_folder, 'test_pids.pt'))
     dataset_preparer.saver.save_patient_nums(train_data, val_data, folder=fold_folder)
 
     logger.info('Initializing datasets')
@@ -120,6 +120,8 @@ if __name__ == '__main__':
             raise ValueError(f"Data pids must be a subset of the pids in the predefined splits. There are {difference} pids in the data that are not in the predefined splits")
         test_pids = torch.load(join(cfg.paths.predefined_splits, 'test_pids.pt')) if os.path.exists(join(cfg.paths.predefined_splits, 'test_pids.pt')) else []
         test_data = data.select_data_subset_by_pids(test_pids, mode='test')
+        if len(test_data) > 0:
+            torch.save(test_data.pids, join(finetune_folder, 'test_pids.pt'))
         N_SPLITS = cv_loop_predefined_splits(data, cfg.paths.predefined_splits, test_data)
 
     else:

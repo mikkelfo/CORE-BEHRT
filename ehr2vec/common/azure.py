@@ -112,21 +112,20 @@ class AzurePathContext:
     def azure_finetune_setup(self)->Tuple:
         """Azure setup for finetuning. Prepend mount folder."""
         if self.azure_env:
-            if self.cfg.paths.get('pretrain_model_path', None) is not None:
-                self.cfg.paths.pretrain_model_path = self._prepend_mount_point(self.cfg.paths.pretrain_model_path)
-            if self.cfg.paths.get('model_path', None) is not None:
-                self.cfg.paths.model_path = self._prepend_mount_point(self.cfg.paths.model_path)
-
-            self.cfg.paths.outcome = self._prepend_mount_point(self.cfg.paths.outcome)
-            if self.cfg.paths.get('censor', None) is not None:
-                self.cfg.paths.censor = self._prepend_mount_point(self.cfg.paths.censor)
+            for entry in self.cfg.paths:
+                if entry not in ['output_path', 'run_name', 'save_folder_path']:
+                    self.cfg.paths[entry] = self._prepend_mount_point(self.cfg.paths[entry])
             self.cfg.paths.output_path = OUTPUTS_DIR
         return self.cfg, self.run, self.mount_context
     
     def azure_data_pretrain_setup(self)->Tuple:
         """Azure setup for pretraining. Prepend mount folder."""
         if self.azure_env:
+            for entry in self.cfg.paths:
+                if entry not in ['output_path', 'run_name', 'save_folder_path']:
+                    self.cfg.paths[entry] = self._prepend_mount_point(self.cfg.paths[entry])
             self.cfg.loader.data_dir = self._prepend_mount_point(self.cfg.loader.data_dir)
+            
             if 'predefined_splits_dir' in self.cfg:
                 self.cfg.predefined_splits_dir = self._prepend_mount_point(self.cfg.predefined_splits_dir)
             if 'exclude_pids' in self.cfg and self.cfg['exclude_pids']:

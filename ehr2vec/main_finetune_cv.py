@@ -1,8 +1,6 @@
 import os
-from os.path import abspath, dirname, join
-from typing import List, Tuple
+from os.path import abspath, dirname, join, split
 
-import numpy as np
 import torch
 from common.azure import save_to_blobstore
 from common.initialize import Initializer, ModelManager
@@ -12,7 +10,9 @@ from common.utils import Data
 from data.dataset import BinaryOutcomeDataset
 from data.prepare_data import DatasetPreparer
 from data.split import get_n_splits_cv
-from evaluation.utils import compute_and_save_scores_mean_std
+from evaluation.utils import (check_data_for_overlap,
+                              compute_and_save_scores_mean_std,
+                              split_into_test_and_train_val_and_save_test_set)
 from trainer.trainer import EHRTrainer
 
 CONFIG_NAME = 'finetune.yaml'
@@ -24,33 +24,25 @@ config_path = join(dirname(abspath(__file__)), args.config_path)
 # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
 
-def finetune_fold(cfg, data:Data, train_indices:List[int], val_indices:List[int], 
-                fold:int, test_indices: List[int]=[])->None:
+def finetune_fold(cfg, train_data:Data, val_data:Data, 
+                fold:int, test_data: Data=None)->None:
     """Finetune model on one fold"""
     fold_folder = join(finetune_folder, f'fold_{fold}')
     os.makedirs(fold_folder, exist_ok=True)
     os.makedirs(join(fold_folder, "checkpoints"), exist_ok=True)
 
-    logger.info("Splitting data")
-    train_data = data.select_data_subset_by_indices(train_indices, mode='train')
-    val_data = data.select_data_subset_by_indices(val_indices, mode='val')
-    test_data = None if len(test_indices) == 0 else data.select_data_subset_by_indices(test_indices, mode='test')
-
+    logger.info("Saving patient numbers")
     logger.info("Saving pids")
     torch.save(train_data.pids, join(fold_folder, 'train_pids.pt'))
     torch.save(val_data.pids, join(fold_folder, 'val_pids.pt'))
-    if len(test_indices) > 0:
-        test_data = data.select_data_subset_by_indices(test_indices, mode='test')
+    if len(test_data) > 0:
         torch.save(test_data, join(fold_folder, 'test_data.pt'))
-
-    logger.info("Saving patient numbers")
     dataset_preparer.saver.save_patient_nums(train_data, val_data, folder=fold_folder)
 
     logger.info('Initializing datasets')
     train_dataset = BinaryOutcomeDataset(train_data.features, train_data.outcomes)
     val_dataset = BinaryOutcomeDataset(val_data.features, val_data.outcomes)
-    if len(test_indices) > 0:
-        test_dataset = BinaryOutcomeDataset(test_data.features, test_data.outcomes)
+    test_dataset = BinaryOutcomeDataset(test_data.features, test_data.outcomes) if len(test_data) > 0 else None
     modelmanager = ModelManager(cfg, fold)
     checkpoint = modelmanager.load_checkpoint() 
     modelmanager.load_model_config() # check whether cfg is changed after that.
@@ -79,16 +71,35 @@ def finetune_fold(cfg, data:Data, train_indices:List[int], val_indices:List[int]
     )
     trainer.train()
     
-def split_test_set(indices:list, test_split:float)->Tuple[list, list]:
-    """Split intro test and train_val indices"""
-    np.random.seed(42)
-    test_indices = np.random.sample(indices, int(len(indices)*test_split))
-    test_indices_set = set(test_indices)
-    train_val_indices = [i for i in indices if i not in test_indices_set]
-    return test_indices, train_val_indices
+def cv_loop(data: Data, train_val_indices: list, test_data: Data)->None:
+    """Loop over cross validation folds."""
+    for fold, (train_indices, val_indices) in enumerate(get_n_splits_cv(data, N_SPLITS, train_val_indices)):
+        fold += 1
+        logger.info(f"Training fold {fold}/{N_SPLITS}")
+        logger.info("Splitting data")
+        train_data = data.select_data_subset_by_indices(train_indices, mode='train')
+        val_data = data.select_data_subset_by_indices(val_indices, mode='val')
+        check_data_for_overlap(train_data, val_data, test_data)
+        finetune_fold(cfg, train_data, val_data, fold, test_data)
+
+def cv_loop_predefined_splits(data: Data, predefined_splits_dir: str, test_data: Data)->int:
+    """Loop over predefined splits"""
+    # find fold_1, fold_2, ... folders in predefined_splits_dir
+    fold_dirs = [join(predefined_splits_dir, d) for d in os.listdir(predefined_splits_dir) if os.path.isdir(os.path.join(predefined_splits_dir, d)) and 'fold_' in d]
+    N_SPLITS = len(fold_dirs)
+    for fold_dir in fold_dirs:
+        fold = int(split(fold_dir)[1].split('_')[1])
+        logger.info(f"Training fold {fold}/{len(fold_dirs)}")
+        logger.info("Load and select pids")
+        train_pids = torch.load(join(fold_dir, 'train_pids.pt'))
+        val_pids = torch.load(join(fold_dir, 'val_pids.pt'))
+        train_data = data.select_data_subset_by_pids(train_pids, mode='train')
+        val_data = data.select_data_subset_by_pids(val_pids, mode='val')
+        check_data_for_overlap(train_data, val_data, test_data)
+        finetune_fold(cfg, train_data, val_data, fold, test_data)
+    return N_SPLITS
 
 if __name__ == '__main__':
-
     cfg, run, mount_context, pretrain_model_path = Initializer.initialize_configuration_finetune(config_path, dataset_name=BLOBSTORE)
 
     logger, finetune_folder = DirectoryPreparer.setup_run_folder(cfg)
@@ -99,27 +110,25 @@ if __name__ == '__main__':
     
     dataset_preparer = DatasetPreparer(cfg)
     data = dataset_preparer.prepare_finetune_features()
-
-    indices = list(range(len(data.pids)))
-
-    test_split = cfg.data.get('test_split', None)
-    if  test_split is not None:
-        test_indices, train_val_indices = split_test_set(indices, test_split)
-        test_pids = [data.pids[i] for i in test_indices]
-        torch.save(test_pids, join(finetune_folder, 'test_pids.pt'))
-    else:
-        test_indices = []
-        train_val_indices = indices
+    logger.info('Splitting data')
     
-    for fold, (train_indices, val_indices) in enumerate(get_n_splits_cv(data, N_SPLITS, train_val_indices)):
-        fold += 1
-        logger.info(f"Training fold {fold}/{N_SPLITS}")
-        finetune_fold(cfg, data, train_indices, val_indices, fold, test_indices)
-        
-    compute_and_save_scores_mean_std(N_SPLITS, finetune_folder, mode='val')
-    if len(test_indices) > 0:
-        compute_and_save_scores_mean_std(N_SPLITS, finetune_folder, mode='test')
+    if 'predefined_splits' in cfg.paths:
+        logger.warning("Using predefined splits. Ignoring test_split parameter")
+        all_predefined_pids = torch.load(join(cfg.paths.predefined_splits, 'pids.pt'))
+        if not set(all_predefined_pids).issubset(set(data.pids)):
+            difference = len(set(all_predefined_pids).difference(set(data.pids)))
+            raise ValueError(f"Data pids must be a subset of the pids in the predefined splits. There are {difference} pids in the data that are not in the predefined splits")
+        test_pids = torch.load(join(cfg.paths.predefined_splits, 'test_pids.pt')) if os.path.exists(join(cfg.paths.predefined_splits, 'test_pids.pt')) else []
+        test_data = data.select_data_subset_by_pids(test_pids, mode='test')
+        N_SPLITS = cv_loop_predefined_splits(data, cfg.paths.predefined_splits, test_data)
 
+    else:
+        test_data, train_val_indices = split_into_test_and_train_val_and_save_test_set(cfg, data, finetune_folder)
+        cv_loop(data, train_val_indices, test_data)
+    
+    compute_and_save_scores_mean_std(N_SPLITS, finetune_folder, mode='val')
+    if len(test_data) > 0:
+        compute_and_save_scores_mean_std(N_SPLITS, finetune_folder, mode='test')    
     
     if cfg.env=='azure':
         save_path = pretrain_model_path if cfg.paths.get("save_folder_path", None) is None else cfg.paths.save_folder_path

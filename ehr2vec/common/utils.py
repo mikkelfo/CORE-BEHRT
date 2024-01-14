@@ -94,13 +94,22 @@ class Data:
         val_data = self.select_data_subset_by_indices(val_indices, 'val')
         return train_data, val_data
     
-    def select_data_subset_by_indices(self, indices: list, mode: str)->'Data':
+    def select_data_subset_by_indices(self, indices: list, mode:str ='')->'Data':
         return Data(features={key: [values[i] for i in indices] for key, values in self.features.items()}, 
                         pids=[self.pids[i] for i in indices],
-                        outcomes=[self.outcomes[i] for i in indices],
+                        outcomes=[self.outcomes[i] for i in indices] if self.outcomes is not None else None,
                         censor_outcomes=[self.censor_outcomes[i] for i in indices] if self.censor_outcomes is not None else None,
                         vocabulary=self.vocabulary,
                         mode=mode)
+    
+    def select_data_subset_by_pids(self, pids: list, mode:str='')->'Data':
+        pid2index = {pid: index for index, pid in enumerate(self.pids)}
+        if not set(pids).issubset(set(self.pids)):
+            difference = len(set(pids).difference(set(self.pids)))
+            raise ValueError(f"Selection pids for split {mode} must be a subset of the pids in the data. There are {difference} pids in the data that are not in the selection pids.")
+
+        indices = [pid2index[pid] for pid in pids]
+        return self.select_data_subset_by_indices(indices, mode)
 
     def _get_train_val_splits(self, split: float)->Tuple[list, list]:
         """Randomly split a list of items into two lists of lengths determined by split"""

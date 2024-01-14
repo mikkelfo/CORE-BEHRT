@@ -2,10 +2,13 @@ import logging
 import os
 from datetime import datetime
 from os.path import join
+from typing import Tuple
 
 import numpy as np
 import pandas as pd
+import torch
 from common.config import get_function
+from common.utils import Data
 from sklearn.utils import resample
 from torch.utils.data import WeightedRandomSampler
 
@@ -138,3 +141,34 @@ def compute_and_save_scores_mean_std(n_splits:int, finetune_folder: str, mode='v
     scores_mean_std = scores.groupby('metric')['value'].agg(['mean', 'std'])
     date = datetime.now().strftime("%Y%m%d-%H%M")
     scores_mean_std.to_csv(join(finetune_folder, f'{mode}_scores_mean_std_{date}.csv'))
+
+def check_data_for_overlap(train_data: Data, val_data: Data, test_data: Data)->None:
+    """Check that there is no overlap between train, val and test data"""
+    train_pids = set(train_data.pids)
+    val_pids = set(val_data.pids)
+    test_pids = set(test_data.pids) if len(test_data) > 0 else set()
+    assert len(train_pids.intersection(val_pids)) == 0, "Train and val data overlap"
+    assert len(train_pids.intersection(test_pids)) == 0, "Train and test data overlap"
+    assert len(val_pids.intersection(test_pids)) == 0, "Val and test data overlap"
+
+def split_test_set(indices:list, test_split:float)->Tuple[list, list]:
+    """Split intro test and train_val indices"""
+    np.random.seed(42)
+    test_indices = np.random.choice(indices, size=int(len(indices)*test_split))
+    test_indices_set = set(test_indices)
+    train_val_indices = [i for i in indices if i not in test_indices_set]
+    return test_indices, train_val_indices
+
+def split_into_test_and_train_val_and_save_test_set(cfg, data:Data, finetune_folder:str)->Tuple[Data, list]:
+    """Split data into test and train_val indices. And save test set."""
+    indices = list(range(len(data.pids)))
+    test_split = cfg.data.get('test_split', None)
+    if  test_split is not None:
+        test_indices, train_val_indices = split_test_set(indices, test_split)
+        test_pids = [data.pids[i] for i in test_indices]
+        torch.save(test_pids, join(finetune_folder, 'test_pids.pt'))
+    else:
+        test_indices = []
+        train_val_indices = indices
+    test_data = Data() if len(test_indices) == 0 else data.select_data_subset_by_indices(test_indices, mode='test')
+    return test_data, train_val_indices

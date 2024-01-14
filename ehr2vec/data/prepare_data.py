@@ -125,7 +125,7 @@ class DatasetPreparer:
         datasets = self.utils.process_datasets(datasets, self.patient_filter.exclude_short_sequences)
         self.utils.log_pos_patients_num(datasets)
         # 11. Patient selection
-        if data_cfg.get('num_patients', False):
+        if data_cfg.get('num_patients', False) and not self.cfg.paths.get('predefined_splits', False):
             datasets = self.utils.process_datasets(datasets, self.patient_filter.select_random_subset, 
                                               {'val': {'num_patients':data_cfg.num_patients}})
             self.utils.log_pos_patients_num(datasets)

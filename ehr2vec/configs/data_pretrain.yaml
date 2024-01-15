@@ -40,9 +40,8 @@ split_ratios:
   finetune: 0.18 # 20% of 90%
   test: 0.1
 handler:
-  concept_fill: "[UNK]"    
-  num_fill: -100
-  drop: true
+  min_age: -1
+  max_age: 120
 
 # can be a list
 exclude_pids: outputs/pretraining/behrt_test/finetune_TEST_OUTCOME_censored_4_days_post_TEST_OUTCOME_test/test_pids.pt

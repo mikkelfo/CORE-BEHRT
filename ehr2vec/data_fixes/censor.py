@@ -1,7 +1,7 @@
 import random
+import pandas as pd
 from typing import List, Union
 
-import pandas as pd
 from ehr2vec.common.utils import iter_patients
 from ehr2vec.data_fixes.exclude import Excluder
 
@@ -39,15 +39,15 @@ class Censorer:
         if not pd.isna(event_timestamp):
             # Extract the attention mask and determine the number of non-masked items
             attention_mask = patient["attention_mask"]
-            num_non_masked = sum(attention_mask)
+            num_non_masked = attention_mask.count(1)
 
             # Extract absolute positions and concepts for non-masked items
             absolute_positions = patient["abspos"][:num_non_masked]
             concepts = patient["concept"][:num_non_masked]
 
             # Determine if the concepts are tokenized and if they are background
-            tokenized_concepts = self._identify_if_tokenized(concepts)
-            background_flags = self._identify_background(concepts, tokenized_concepts)
+            tokenized_flag = self._identify_if_tokenized(concepts)
+            background_flags = self._identify_background(concepts, tokenized_flag)
             
             # Determine which items to censor based on the event timestamp and background flags
             censor_flags = self._generate_censor_flags(absolute_positions, background_flags, event_timestamp)
@@ -64,18 +64,29 @@ class Censorer:
             for position, is_background in zip(absolute_positions, background_flags)
         ]
 
-    def _identify_background(self, concepts: List[Union[int, str]], tokenized: bool) -> List[bool]:
+    def _identify_background(self, concepts: List[Union[int, str]], tokenized_flag: bool) -> List[bool]:
         """
         Identify background items in the patient's concepts.
         Return a list of booleans of the same length as concepts indicating if each item is background.
         """
-        if tokenized:
+        if tokenized_flag:
             bg_values = set([v for k, v in self.vocabulary.items() if k.startswith('BG_')])
-            return [concept in bg_values for concept in concepts]
+            flags = [concept in bg_values for concept in concepts]
+            first_background = flags.index(True)
         else:
-            return [concept.startswith('BG_') for concept in concepts]
+            flags = [concept.startswith('BG_') for concept in concepts]
 
-    def _identify_if_tokenized(self, concepts:list)->bool:
+        # Dont censor [CLS] and [SEP] tokens of background
+        first_background = flags.index(True)
+        if concepts[0] == '[CLS]' or concepts[0] == self.vocabulary.get('[CLS]'):
+            flags[0] = True
+        if concepts[first_background+1] == '[SEP]' or concepts[first_background+1] == self.vocabulary.get('[SEP]'):
+            flags[first_background+1] = True
+
+        return flags
+
+    @staticmethod
+    def _identify_if_tokenized(concepts:list) -> bool:
         """Identify if the features are tokenized."""
         return concepts and isinstance(concepts[0], int)
 

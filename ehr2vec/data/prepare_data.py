@@ -254,7 +254,7 @@ class DatasetPreparer:
             setattr(data, outcome_type, torch.load(join(self.cfg.paths.predefined_splits, f'{outcome_type}.pt')))
 
 
-class OneHotEncoder():
+class OneHotEncoder:
     @staticmethod
     def encode(data:Data, token2index: dict)->Tuple[np.ndarray, np.ndarray]:
         # ! Potentially map gender onto one index?
@@ -291,7 +291,7 @@ class OneHotEncoder():
         y = np.zeros(num_samples, dtype=np.int16)
         return X, y
     
-class DataModifier():
+class DataModifier:
     def __init__(self, cfg) -> None:
         self.cfg = cfg
     @staticmethod
@@ -335,41 +335,6 @@ class DataModifier():
         
         data.features[segments_key] = segments
         return data
-    
-def create_binary_outcome_datasets(all_outcomes: Dict, cfg: Config)->Tuple[BinaryOutcomeDataset, BinaryOutcomeDataset, List]:
-    """
-    This function is used to create outcome datasets based on the configuration provided.
-    """
-    raise NotImplementedError("This function is not used anymore. Use prepare_finetune_features instead.")
-    outcomes, censor_outcomes, pids = retrieve_outcomes(all_outcomes, all_outcomes, cfg)
-    if cfg.get("encode_pos_only", False):
-        outcomes, censor_outcomes, pids = select_positives(outcomes, censor_outcomes, pids)
-        cfg.train_data.num_patients = None
-        cfg.val_data.num_patients = None
-    if cfg.train_data.num_patients == 0:
-        train_dataset = None
-    else:
-        train_dataset = BinaryOutcomeDataset(cfg.paths.data_path, 'train', outcomes, 
-                                    censor_outcomes=censor_outcomes, 
-                                    outcome_pids=pids,
-                                    num_patients=cfg.train_data.num_patients,
-                                    pids=pids if cfg.get("encode_pos_only", False) else None,
-                                    n_hours=cfg.outcome.n_hours,
-                                    n_procs=cfg.train_data.get('n_procs', None))
-
-    if cfg.val_data.num_patients == 0:
-        val_dataset = None
-    else:
-        val_dataset = BinaryOutcomeDataset(cfg.paths.data_path, 'val',  outcomes, 
-                                    censor_outcomes=censor_outcomes, 
-                                    outcome_pids=pids,
-                                    num_patients=cfg.val_data.num_patients,
-                                    pids=pids if cfg.get("encode_pos_only", False) else None, 
-                                    n_hours=cfg.outcome.n_hours,
-                                    n_procs=cfg.val_data.get('n_procs', None),
-                                    )
-    
-    return train_dataset, val_dataset, outcomes
 
 def retrieve_outcomes(all_outcomes: Dict, all_censor_outcomes: Dict, cfg: Config)->Union[List, List]:
     """From the configuration, load the outcomes and censor outcomes."""
@@ -386,3 +351,4 @@ def select_positives(outcomes: List, censor_outcomes: List, pids: List)->Tuple[L
     censor_outcomes = [censor_outcomes[i] for i in select_indices]
     pids = [pids[i] for i in select_indices]
     return outcomes, censor_outcomes, pids
+

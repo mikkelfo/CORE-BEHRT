@@ -4,7 +4,7 @@ from data.creators import BaseCreator
 from data.utils import Utilities
 
 
-class FeatureMaker():
+class FeatureMaker:
     def __init__(self, config):
         self.config = config
 

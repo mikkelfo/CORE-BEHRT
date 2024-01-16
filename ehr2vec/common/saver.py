@@ -8,7 +8,7 @@ from ehr2vec.common.utils import Data
 
 VOCABULARY_FILE = 'vocabulary.pt'
 
-class Saver():
+class Saver:
     """Save features, pids, vocabulary and sequence lengths to a folder"""
     def __init__(self, run_folder) -> None:
         self.run_folder = run_folder

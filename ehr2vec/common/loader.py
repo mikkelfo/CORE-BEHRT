@@ -31,7 +31,7 @@ def load_model_cfg_from_checkpoint(cfg: Config, config_name: str)->None:
         old_cfg = load_config(join(cfg.paths.model_path, config_name))
         cfg.model = old_cfg.model
 
-class FeaturesLoader():
+class FeaturesLoader:
     def __init__(self, cfg):
         self.path_cfg = cfg.paths
         self.cfg = cfg
@@ -137,7 +137,7 @@ class FeaturesLoader():
         vocabulary = torch.load(join(path, 'vocabulary.pt'))
         return Data(features, pids, outcomes, vocabulary=vocabulary, mode=mode)
 
-class ModelLoader():
+class ModelLoader:
     def __init__(self, cfg: Config, model_path: str=None):
         """Load model from config and checkpoint."""
         self.cfg = cfg

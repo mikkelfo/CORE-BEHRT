@@ -3,7 +3,7 @@ import pandas as pd
 from data.utils import Utilities
 
 
-class BaseCreator():
+class BaseCreator:
     def __init__(self, config: dict):
         self.config = config
 

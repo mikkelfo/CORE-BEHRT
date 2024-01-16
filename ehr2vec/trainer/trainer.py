@@ -13,7 +13,7 @@ from ehr2vec.trainer.utils import (compute_avg_metrics, get_nvidia_smi_output,
 
 yaml.add_representer(Config, lambda dumper, data: data.yaml_repr(dumper))
 
-class EHRTrainer():
+class EHRTrainer:
     def __init__(self, 
         model: torch.nn.Module,
         train_dataset: Dataset = None,

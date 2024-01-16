@@ -4,7 +4,7 @@ from transformers import BatchEncoding
 from data_fixes.handle import Handler
 from common.utils import iter_patients
 
-class EHRTokenizer():
+class EHRTokenizer:
     def __init__(self, config, vocabulary=None):
         self.config = config
         if vocabulary is None:

@@ -163,7 +163,7 @@ def split_into_test_and_train_val_and_save_test_set(cfg, data:Data, finetune_fol
     """Split data into test and train_val indices. And save test set."""
     indices = list(range(len(data.pids)))
     test_split = cfg.data.get('test_split', None)
-    if  test_split is not None:
+    if test_split is not None:
         test_indices, train_val_indices = split_test_set(indices, test_split)
         test_pids = [data.pids[i] for i in test_indices]
         torch.save(test_pids, join(finetune_folder, 'test_pids.pt'))

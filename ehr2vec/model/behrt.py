@@ -100,10 +100,10 @@ class BertModel(Bert.modeling.BertPreTrainedModel):
     def forward(self, batch,
                 output_all_encoded_layers=True):
         input_ids = batch['concept']
-        age_ids = batch['age']
-        seg_ids = batch['segment']
-        posi_ids = batch['position_ids']
-        attention_mask = batch['attention_mask']
+        age_ids = batch.get('age', None)
+        seg_ids = batch.get('segment', None)
+        posi_ids = batch.get('position_ids', None)
+        attention_mask = batch.get('attention_mask', None)
         if attention_mask is None:
             attention_mask = torch.ones_like(input_ids)
         if age_ids is None:

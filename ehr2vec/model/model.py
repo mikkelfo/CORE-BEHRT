@@ -18,13 +18,8 @@ class BertEHREncoder(BertModel):
         self,
         batch: dict,
     ):
-        position_ids={
-            'age': batch.get('age', None),
-            'abspos': batch.get('abspos', None),
-            'position_ids': batch.get('position_ids', None),
-            'dosage': batch.get('dosage', None),
-            'unit': batch.get('unit', None),
-        }
+        present_keys = [k for k in ['age', 'abspos', 'position_ids', 'dosage', 'unit'] if k in batch]
+        position_ids = {key: batch.get(key) for key in  present_keys}
         outputs = super().forward(
             input_ids=batch['concept'],
             attention_mask=batch.get('attention_mask', None),

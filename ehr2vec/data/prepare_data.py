@@ -151,6 +151,11 @@ class DatasetPreparer:
         if self.cfg.model.get('behrt_embeddings', False):
             logger.info('Adapting features for behrt embeddings')
             data.features = BehrtAdapter().adapt_features(data.features)
+
+        if 'remove_features' in data_cfg:
+            for feature in data_cfg.remove_features:
+                logger.info(f"Removing {feature}")
+                data.features.pop(feature, None)
         self.saver.save_data(data)
   
         return data

@@ -121,9 +121,6 @@ class AzurePathContext:
     def azure_data_pretrain_setup(self)->Tuple:
         """Azure setup for pretraining. Prepend mount folder."""
         if self.azure_env:
-            for entry in self.cfg.paths:
-                if entry not in ['output_path', 'run_name', 'save_folder_path']:
-                    self.cfg.paths[entry] = self._prepend_mount_point(self.cfg.paths[entry])
             self.cfg.loader.data_dir = self._prepend_mount_point(self.cfg.loader.data_dir)
             
             if 'predefined_splits_dir' in self.cfg:

@@ -11,7 +11,6 @@ from data.dataset import BinaryOutcomeDataset
 from data.prepare_data import DatasetPreparer
 from data.split import get_n_splits_cv
 from evaluation.utils import (check_data_for_overlap,
-from evaluation.utils import (check_data_for_overlap,
                               compute_and_save_scores_mean_std,
                               split_into_test_and_train_val_and_save_test_set)
 from trainer.trainer import EHRTrainer

@@ -48,7 +48,10 @@ class PatientFilter():
         self.utils = Utilities()
 
     def exclude_pretrain_patients(self, data: Data)->Data:
-        pretrain_pids = set(torch.load(join(self.cfg.paths.pretrain_model_path, f'pids_{data.mode}.pt')))
+        """Exclude patients from pretraining set."""
+        pretrain_pids = set()
+        for mode in ['train', 'val']:
+            pretrain_pids.update(set(torch.load(join(self.cfg.paths.pretrain_model_path, f'pids_{mode}.pt'))))
         kept_indices = [i for i, pid in enumerate(data.pids) if pid not in pretrain_pids]
         return self.select_entries(data, kept_indices)
 

@@ -32,7 +32,7 @@ def copy_data_config(cfg: Config, run_folder: str)->None:
     tokenized_dir_name = cfg.paths.get('tokenized_dir', 'tokenized')
     
     try:
-        copyfile(join(cfg.paths.data_path, tokenized_dir_name, 'data_config.yaml'), join(run_folder, 'data_config.yaml'))
+        copyfile(join(cfg.paths.data_path, tokenized_dir_name, 'data_cfg.yaml'), join(run_folder, 'data_config.yaml'))
     except:
         copyfile(join(cfg.paths.data_path, 'data_config.yaml'), join(run_folder, 'data_config.yaml'))
 

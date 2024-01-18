@@ -14,13 +14,13 @@ class Censorer:
         self.vocabulary = vocabulary
         self.excluder = Excluder(min_len=min_len, vocabulary=vocabulary)
 
-    def __call__(self, features: dict, censor_outcomes: list, exclude: bool = True) -> dict:
+    def __call__(self, features: dict, censor_outcomes: list, exclude: bool = True) -> tuple:
         features = self.censor(features, censor_outcomes)
         if exclude:
             features, _, kept_indices = self.excluder(features, None)
             return features, kept_indices
         else:
-            return features
+            return features, censor_outcomes
 
     def censor(self, features: dict, censor_outcomes: list) -> dict:
         censored_features = {key: [] for key in features}

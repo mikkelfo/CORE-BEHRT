@@ -47,6 +47,8 @@ class Saver():
         torch.save(data.vocabulary, join(self.run_folder, 'vocabulary.pt'))
         if data.outcomes is not None:
             torch.save(data.outcomes, join(self.run_folder, 'outcomes.pt'))
+        if data.censor_outcomes is not None:
+            torch.save(data.censor_outcomes, join(self.run_folder, 'censor_outcomes.pt'))
 
     def save_vocab(self, vocabulary, name: str=VOCABULARY_FILE):
         torch.save(vocabulary, join(self.run_folder, name))

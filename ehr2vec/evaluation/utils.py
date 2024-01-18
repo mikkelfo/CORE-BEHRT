@@ -151,6 +151,14 @@ def check_data_for_overlap(train_data: Data, val_data: Data, test_data: Data)->N
     assert len(train_pids.intersection(test_pids)) == 0, "Train and test data overlap"
     assert len(val_pids.intersection(test_pids)) == 0, "Val and test data overlap"
 
+def check_predefined_pids(data :Data, cfg)->None:
+    if 'predefined_splits' in cfg.paths:
+        logger.warning("Using predefined splits. Ignoring test_split parameter")
+        all_predefined_pids = torch.load(join(cfg.paths.predefined_splits, 'pids.pt'))
+        if not set(all_predefined_pids).issubset(set(data.pids)):
+            difference = len(set(all_predefined_pids).difference(set(data.pids)))
+            raise ValueError(f"Pids in the predefined splits must be a subset of data.pids. There are {difference} pids in the data that are not in the predefined splits")
+
 def split_test_set(indices:list, test_split:float)->Tuple[list, list]:
     """Split intro test and train_val indices"""
     np.random.seed(42)

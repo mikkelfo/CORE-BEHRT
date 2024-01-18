@@ -11,6 +11,7 @@ from data.dataset import BinaryOutcomeDataset
 from data.prepare_data import DatasetPreparer
 from data.split import get_n_splits_cv
 from evaluation.utils import (check_data_for_overlap,
+from evaluation.utils import (check_data_for_overlap,
                               compute_and_save_scores_mean_std,
                               split_into_test_and_train_val_and_save_test_set)
 from trainer.trainer import EHRTrainer
@@ -110,14 +111,10 @@ if __name__ == '__main__':
     
     dataset_preparer = DatasetPreparer(cfg)
     data = dataset_preparer.prepare_finetune_features()
-    logger.info('Splitting data')
+    
     
     if 'predefined_splits' in cfg.paths:
-        logger.warning("Using predefined splits. Ignoring test_split parameter")
-        all_predefined_pids = torch.load(join(cfg.paths.predefined_splits, 'pids.pt'))
-        if not set(all_predefined_pids).issubset(set(data.pids)):
-            difference = len(set(all_predefined_pids).difference(set(data.pids)))
-            raise ValueError(f"Data pids must be a subset of the pids in the predefined splits. There are {difference} pids in the data that are not in the predefined splits")
+        logger.info('Using predefined splits')
         test_pids = torch.load(join(cfg.paths.predefined_splits, 'test_pids.pt')) if os.path.exists(join(cfg.paths.predefined_splits, 'test_pids.pt')) else []
         test_data = data.select_data_subset_by_pids(test_pids, mode='test')
         if len(test_data) > 0:
@@ -125,6 +122,7 @@ if __name__ == '__main__':
         N_SPLITS = cv_loop_predefined_splits(data, cfg.paths.predefined_splits, test_data)
 
     else:
+        logger.info('Splitting data')
         test_data, train_val_indices = split_into_test_and_train_val_and_save_test_set(cfg, data, finetune_folder)
         cv_loop(data, train_val_indices, test_data)
     

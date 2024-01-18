@@ -2,9 +2,10 @@ import logging
 from os.path import join
 from typing import Dict, List, Tuple, Union
 
+import torch
 import numpy as np
 import pandas as pd
-from common.config import Config, instantiate
+from common.config import Config, instantiate, load_config
 from common.loader import FeaturesLoader
 from common.saver import Saver
 from common.utils import Data
@@ -81,51 +82,61 @@ class DatasetPreparer:
 
         # 1. Loading tokenized data
         data = self.loader.load_tokenized_finetune_data('val')
-        datasets = {'val': data}
-        
-        # 2. Excluding pretrain patients
-        datasets = self.utils.process_datasets(datasets, self.patient_filter.exclude_pretrain_patients) 
-        
-        # 3. Optinally select gender group
-        if data_cfg.get('gender', False):
-            datasets = self.utils.process_datasets(datasets, self.patient_filter.select_by_gender)
-        
-        # 4. Select Patients By Age
-        if data_cfg.get('min_age', False) or data_cfg.get('max_age', False):
-            datasets = self.utils.process_datasets(datasets, self.patient_filter.select_by_age)
 
-        # 5. Loading and processing outcomes
-        outcomes, censor_outcomes = self.loader.load_outcomes()
-        logger.info("Assigning outcomes to data")
-        datasets = self.utils.process_datasets(datasets, self._retrieve_and_assign_outcomes, 
-                                           {'val': {'outcomes': outcomes, 'censor_outcomes': censor_outcomes}})
-        self.utils.log_pos_patients_num(datasets)
-        # 6. Optionally select patients of interest
-        if data_cfg.get("select_censored", False):
-            datasets = self.utils.process_datasets(datasets, self.patient_filter.select_censored)
-            self.utils.log_pos_patients_num(datasets)
+        predefined_pids =  'predefined_splits' in self.cfg.paths
+        if predefined_pids:
+            logger.warning("Using predefined splits. Ignoring test_split parameter")
+            logger.warning("Use original censoring time. Overwrite n_hours parameter.")
+            original_config = load_config(join(self.cfg.paths.predefined_splits, 'finetune_config.yaml'))
+            self.cfg.outcome.n_hours = original_config.outcome.n_hours
+            data = self._load_predefined_pids(data)
+            self._load_outcomes_to_data(data)
+
+        datasets = {'val': data}
+        if not predefined_pids:
+            # 2. Excluding pretrain patients
+            datasets = self.utils.process_datasets(datasets, self.patient_filter.exclude_pretrain_patients) 
         
-        # 7. Filter patients with outcome before censoring
-        if self.cfg.outcome.type != self.cfg.outcome.get('censor_type', None):
-            datasets = self.utils.process_datasets(datasets, self.patient_filter.filter_outcome_before_censor) # !Timeframe (earlier instance of outcome)
+            # 3. Optinally select gender group
+            if data_cfg.get('gender', False):
+                datasets = self.utils.process_datasets(datasets, self.patient_filter.select_by_gender)
+            # 4. Select Patients By Age
+            if data_cfg.get('min_age', False) or data_cfg.get('max_age', False):
+                datasets = self.utils.process_datasets(datasets, self.patient_filter.select_by_age)
+            
+            # 5. Loading and processing outcomes
+            outcomes, censor_outcomes = self.loader.load_outcomes()
+            logger.info("Assigning outcomes to data")
+            datasets = self.utils.process_datasets(datasets, self._retrieve_and_assign_outcomes, 
+                                            {'val': {'outcomes': outcomes, 'censor_outcomes': censor_outcomes}})
+
             self.utils.log_pos_patients_num(datasets)
-        
-        # 8. Filter code types
-        if data_cfg.get('code_types', False):
-            datasets = self.utils.process_datasets(datasets, self.code_type_filter.filter)
-            datasets = self.utils.process_datasets(datasets, self.patient_filter.exclude_short_sequences)
-            self.utils.log_pos_patients_num(datasets)
+            # 6. Optionally select patients of interest
+            if data_cfg.get("select_censored", False):
+                datasets = self.utils.process_datasets(datasets, self.patient_filter.select_censored)
+                self.utils.log_pos_patients_num(datasets)
+
+            # 7. Filter patients with outcome before censoring
+            if self.cfg.outcome.type != self.cfg.outcome.get('censor_type', None):
+                datasets = self.utils.process_datasets(datasets, self.patient_filter.filter_outcome_before_censor) # !Timeframe (earlier instance of outcome)
+                self.utils.log_pos_patients_num(datasets)
+
+            # 8. Filter code types
+            if data_cfg.get('code_types', False):
+                datasets = self.utils.process_datasets(datasets, self.code_type_filter.filter)
+                datasets = self.utils.process_datasets(datasets, self.patient_filter.exclude_short_sequences)
+                self.utils.log_pos_patients_num(datasets)
 
         # 9. Data censoring
         datasets = self.utils.process_datasets(datasets, self.data_modifier.censor_data,
                                                {'val': {'n_hours': self.cfg.outcome.n_hours}})
         self.utils.log_pos_patients_num(datasets)
-
+        
         # 10. Exclude patients with less than k concepts
         datasets = self.utils.process_datasets(datasets, self.patient_filter.exclude_short_sequences)
         self.utils.log_pos_patients_num(datasets)
         # 11. Patient selection
-        if data_cfg.get('num_patients', False) and not self.cfg.paths.get('predefined_splits', False):
+        if data_cfg.get('num_patients', False) and not predefined_pids:
             datasets = self.utils.process_datasets(datasets, self.patient_filter.select_random_subset, 
                                               {'val': {'num_patients':data_cfg.num_patients}})
             self.utils.log_pos_patients_num(datasets)
@@ -228,6 +239,21 @@ class DatasetPreparer:
             data.censor_outcomes = [None]*len(outcomes)
         return data
     
+    def _load_predefined_pids(self, data: Data):
+        """ Validate predefined splits as subset of data."""
+        predefined_pids = torch.load(join(self.cfg.paths.predefined_splits, 'pids.pt'))
+        if not set(predefined_pids).issubset(set(data.pids)):
+            difference = len(set(predefined_pids).difference(set(data.pids)))
+            raise ValueError(f"Pids in the predefined splits must be a subset of data.pids. There are {difference} pids in the data that are not in the predefined splits")
+        data = data.select_data_subset_by_pids(predefined_pids)
+        return data
+    
+    def _load_outcomes_to_data(self, data: Data)->None:
+        """ Load outcomes and censor outcomes to data. """
+        for outcome_type in ['outcomes', 'censor_outcomes']:
+            setattr(data, outcome_type, torch.load(join(self.cfg.paths.predefined_splits, f'{outcome_type}.pt')))
+
+
 class OneHotEncoder():
     @staticmethod
     def encode(data:Data, token2index: dict)->Tuple[np.ndarray, np.ndarray]:
@@ -289,12 +315,13 @@ class DataModifier():
                 new_tokens_lists.append(new_tokens)
             data.features[k] = new_tokens_lists 
         return data
+    
     def censor_data(self, data: Data, n_hours: float)->Data:
         """Censors data n_hours after censor_outcome."""
         censorer_cfg = self.cfg.data.get('censorer', {'_target_': 'data_fixes.censor.Censorer'})
         censorer = instantiate(censorer_cfg, vocabulary= data.vocabulary, n_hours=n_hours)
         logger.info(f"Censoring data {n_hours} hours after outcome with {censorer.__class__.__name__}")
-        data.features = censorer(data.features, data.censor_outcomes, exclude=False)
+        data.features, data.censor_outcomes = censorer(data.features, data.censor_outcomes, exclude=False)
         return data
     @staticmethod
     def normalize_segments(data: Data)->Data:

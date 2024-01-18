@@ -1,11 +1,12 @@
 env: local
 paths:
   # data_path: 'pretrain_datasets/diagnosis_medication/070623/outputs/data' # inside mounted datastore
-  data_path: "..\\outputs\\data_icd10"
+  data_path: "..\\outputs\\features_test"
   output_path: outputs/pretraining
   type: med_diag
   run_name: behrt_test
-  tokenized_dir: tokenized/fold_0
+  tokenized_dir: tokenized
+  #predefined_splits: outputs/pretraining/behrt_base
   
 data:
   dataset:

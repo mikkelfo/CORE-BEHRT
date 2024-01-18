@@ -39,7 +39,8 @@ excluder:
 
 split_ratios:
   pretrain: 0.72 # 80% of 90%
-  finetune: 0.28 # 20% of 90%
+  finetune: 0.18 # 20% of 90%
+  test: 0.1
 handler:
   concept_fill: "[UNK]"    
   num_fill: -100

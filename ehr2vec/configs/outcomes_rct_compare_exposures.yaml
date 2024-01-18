@@ -1,0 +1,156 @@
+env: azure
+paths:
+  run_name: RCTS_TREATMENTS_COMPARE
+outcomes_name: RCTS_TREATMENTS_COMPARE
+features_dir: features/med
+loader:
+  data_dir: formatted_data/med_name
+  patients_info: patients_info.parquet
+  concepts: [
+    medication,
+  ]
+  batch_size: 20000 # 200000
+  chunksize: 20000000
+  test: true
+outcomes:
+  GLIMEPIRIDE:
+    match_how: contains
+    case_sensitive: false
+    type: [CONCEPT]
+    match: [[glimepirid]]
+
+  METFORMIN:
+    match_how: contains
+    case_sensitive: false
+    type: [CONCEPT]
+    match: [[metformin]]
+
+  DPP4I:
+    match_how: contains
+    case_sensitive: false
+    type: [CONCEPT]
+    match: [[sitagliptin, saxagliptin, linagliptin, alogliptin, vildagliptin]]
+
+  SULFONYLUREA:
+    match_how: contains
+    case_sensitive: false
+    type: [CONCEPT]
+    match: [[glimepirid, glibenclamid, glipizid, tolbutamid, gliclazid]]
+
+  CLOPIDOGREL:
+    match_how: contains
+    case_sensitive: false
+    type: [CONCEPT]
+    match: [[clopidogrel]]
+
+  TICAGRELOR:
+    match_how: contains
+    case_sensitive: false
+    type: [CONCEPT]
+    match: [[ticagrelor]]
+
+  WARFARIN:
+    match_how: contains
+    case_sensitive: false
+    type: [CONCEPT]
+    match: [[warfarin]]
+
+  ENOXAPARIN:
+    match_how: contains 
+    case_sensitive: false
+    type: [CONCEPT]
+    match: [[enoxaparin]]
+  
+  ENOXAPARIN_VKA:
+    match_how: contains 
+    case_sensitive: false
+    type: [CONCEPT]
+    match: [[enoxaparin, warfarin]]
+
+  ENOXAPARIN_WARFARIN:
+    match_how: contains 
+    case_sensitive: false
+    type: [CONCEPT]
+    match: [[enoxaparin, warfarin]]
+
+  LOOP_CCB_TZ:
+    match_how: contains
+    case_sensitive: false
+    type: [CONCEPT]
+    match: [[furosemid, bumetanid, Torsemid, amlodipin, diltiazem, verapamil, hydrochlorthiazid, metolazon]]
+
+  RAMIPRIL:
+    match_how: contains
+    case_sensitive: false
+    type: [CONCEPT]
+    match: [[ramipril]]
+
+  SITAGLIPTIN:
+    match_how: contains
+    case_sensitive: false
+    type: [CONCEPT]
+    match: [[sitagliptin]]
+
+  ENALAPRIL:
+    match_how: contains
+    case_sensitive: false
+    type: [CONCEPT]
+    match: [[enalapril]]
+
+  ACEI:
+    match_how: contains
+    case_sensitive: false
+    type: [CONCEPT]
+    match: [[captopril, enalapril, ramipril, fosinopril, lisinopril, perindopril, trandolapril]]
+  
+  FORMOTEROL:
+    match_how: contains
+    case_sensitive: false
+    type: [CONCEPT]
+    match: [[formoterol]]
+
+  BUDESONIDE:
+    match_how: contains
+    case_sensitive: false
+    type: [CONCEPT]
+    match: [[budesonid]]
+
+  FLUTICASONE_VILANTEROL:
+    match_how: contains
+    case_sensitive: false
+    type: [CONCEPT]
+    match: [[fluticason, vilanterol]]
+
+  SALMETEROL:
+    match_how: contains
+    case_sensitive: false
+    type: [CONCEPT]
+    match: [[salmeterol]]
+
+  TIOTROPIUM:
+    match_how: contains
+    case_sensitive: false
+    type: [CONCEPT]
+    match: [[tiotropium]]
+
+  # RISEDRONATE:
+  #   match_how: contains
+  #   case_sensitive: false
+  #   type: [CONCEPT]
+  #   match: [[risedronsyre]] # is this correct?
+
+  # LEUPROLIDE:
+  #   match_how: contains
+  #   case_sensitive: false
+  #   type: [CONCEPT]
+  #   match: [[leuprolid]] # no leuprolid in data
+
+
+
+
+
+
+
+
+    
+  

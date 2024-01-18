@@ -5,16 +5,15 @@ paths:
   #checkpoint_epoch: 1
   outcome: "../outputs/data_icd10/outcomes/TEST_OUTCOME/TEST_OUTCOME.pt"
   #output_path: "outputs/finetuning"
-  #data_path: "../outputs/data_icd10"
   run_name: "test"
-  tokenized_dir: "tokenized"
+  #tokenized_dir: "tokenized"
   tokenized_file: "tokenized_finetune.pt" # can also be a list
   tokenized_pids: "pids_finetune.pt" # can also be a list
-  predefined_splits: outputs\pretraining\behrt_test\finetune_TEST_OUTCOME_censored_10_hours_post_TEST_OUTCOME_test
+  #predefined_splits: outputs\pretraining\behrt_test\finetune_TEST_OUTCOME_censored_10_hours_pre_TEST_OUTCOME_test
 
 model:
   pool_type: "cls"
-  behrt_embeddings: false
+  behrt_embeddings: true
 
 data:
   num_patients: 300 #300
@@ -31,7 +30,7 @@ data:
   min_len: 2
   censorer:
    _target_: data_fixes.censor.EQ_Censorer
-
+  remove_features: ['age']
 
 outcome: 
   type: TEST_OUTCOME

@@ -7,3 +7,10 @@ outputs
 ehr2vec.egg-info
 /results/*.png
 /results/*.svg
+results/initial_pt_experiments/pr_roc_auc.png
+data/formatted/synthea10k/patients_info.csv
+data/formatted/synthea10k/concept.medication.csv
+data/formatted/synthea10k/concept.diagnose.csv
+/results/initial_pt_experiments
+/results/GraphicalAbstract
+requirements.txt

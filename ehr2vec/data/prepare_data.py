@@ -1,16 +1,15 @@
+import torch
 import logging
+import numpy as np
+import pandas as pd
 from os.path import join
 from typing import Dict, List, Tuple, Union
 
-import torch
-import numpy as np
-import pandas as pd
 from common.config import Config, instantiate, load_config
 from common.loader import FeaturesLoader
 from common.saver import Saver
 from common.utils import Data
-from data.dataset import (BinaryOutcomeDataset, HierarchicalMLMDataset,
-                          MLMDataset)
+from data.dataset import (HierarchicalMLMDataset, MLMDataset)
 from data.filter import CodeTypeFilter, PatientFilter
 from data.utils import Utilities
 from data_fixes.adapt import BehrtAdapter
@@ -58,26 +57,8 @@ class DatasetPreparer:
                                             h_vocabulary, tree, tree_matrix, 
                                             **self.cfg.data.dataset)
         return train_dataset, val_dataset
-    # ! TODO: add option to load pids, instead of loading all and excluding.
-    def prepare_finetune_features(self)->Tuple[dict]:
-        """
-        Prepare the features for fine-tuning. 
-        The process includes:
-        1. Loading tokenized data
-        2. Excluding pretrain patients 
-        3. Optional: Select male/female
-        4. Optional: Select age group
-        5. Loading and processing outcomes
-        6. Optional: Select only patients with a censoring outcome
-        7. Filter patients with outcome before censoring
-        8. Optional: Filter code types (e.g. only diagnoses)
-        9. Data censoring
-        10. Exclude patients with less than k concepts
-        11. Optional select random subset
-        12. Optional: Remove background tokens
-        13. Truncation
-        14. Normalize segments
-        """
+    
+    def prepare_finetune_data(self) -> Data:
         data_cfg = self.cfg.data
 
         # 1. Loading tokenized data
@@ -145,21 +126,8 @@ class DatasetPreparer:
         if data_cfg.get("remove_background", False):
             datasets = self.utils.process_datasets(datasets, self.data_modifier.remove_background)
 
-        # 13. Truncation
-        logger.info('Truncating')
-        datasets = self.utils.process_datasets(datasets, self.data_modifier.truncate,
-                                               {'val': {'truncation_len': data_cfg.truncation_len}})
-
-        # 14. Normalize Segments
-        logger.info('Normalizing segments')
-        datasets = self.utils.process_datasets(datasets, self.data_modifier.normalize_segments)
-
-        datasets['val'].check_lengths()
-
-        datasets = self.utils.process_datasets(datasets, self.saver.save_sequence_lengths)
-        data = datasets['val']
-
-        if self.cfg.model.get('behrt_embeddings', False):
+        # Optional: Adapt to BEHRT embeddings
+        if self.cfg.model.get('behrt_embedding'):
             logger.info('Adapting features for behrt embeddings')
             data.features = BehrtAdapter().adapt_features(data.features)
 
@@ -168,7 +136,7 @@ class DatasetPreparer:
                 logger.info(f"Removing {feature}")
                 data.features.pop(feature, None)
         self.saver.save_data(data)
-  
+
         return data
     
     def _prepare_mlm_features(self)->Tuple[dict, dict, dict]:   
@@ -182,50 +150,46 @@ class DatasetPreparer:
         """
         data_cfg = self.cfg.data
         model_cfg = self.cfg.model
-        train_features, train_pids, val_features, val_pids, vocabulary = self.loader.load_tokenized_data()
-        self.saver.save_vocab(vocabulary)
-        datasets = {'train': Data(train_features, train_pids, vocabulary=vocabulary, mode='train'),
-                    'val': Data(val_features, val_pids, vocabulary=vocabulary, mode='val')}
+
+        data = self.loader.load_tokenized_data()
         
         # Optional: Remove background tokens
-        if data_cfg.get("remove_background", False):
-            datasets = self.utils.process_datasets(datasets, self.data_modifier.remove_background)
+        if data_cfg.get('remove_background'):
+            data = self.utils.process_data(data, self.data_modifier.remove_background)
 
         # Exclude short sequences
-        datasets = self.utils.process_datasets(datasets, self.patient_filter.exclude_short_sequences)
+        data = self.utils.process_data(data, self.patient_filter.exclude_short_sequences)
 
         # Patient Subset Selection
-        if data_cfg.get('num_train_patients', False) or data_cfg.get('num_val_patients', False):
-            datasets = self.utils.process_datasets(datasets, self.patient_filter.select_random_subset, 
-                                              {'train': {'num_patients':data_cfg.num_train_patients},
-                                               'val': {'num_patients':data_cfg.num_val_patients}})
+        if data_cfg.get('num_patients'):
+            data = self.utils.process_data(data, self.patient_filter.select_random_subset, args_for_func={'num_patients':data_cfg.num_train_patients})
 
-        truncation_len = data_cfg.truncation_len
-        logger.info(f"Truncating data to {truncation_len} tokens")
-        datasets = self.utils.process_datasets(datasets, self.data_modifier.truncate,
-                                               {'train': {'truncation_len': truncation_len},
-                                                'val':{'truncation_len':truncation_len}},)
+        # Truncation
+        logger.info(f"Truncating data to {data_cfg.truncation_len} tokens")
+        data = self.utils.process_data(data, self.data_modifier.truncate, {'truncation_len': data_cfg.truncation_len})
 
-        datasets = self.utils.process_datasets(datasets, self.data_modifier.normalize_segments)
-
-        datasets['train'].check_lengths()
-        datasets['val'].check_lengths()
-        self.saver.save_train_val_pids(datasets['train'].pids, datasets['val'].pids)
-        datasets = self.utils.process_datasets(datasets, self.saver.save_sequence_lengths)
+        # Normalize segments
+        data = self.utils.process_data(data, self.data_modifier.normalize_segments)
       
-        self.utils.check_and_adjust_max_segment(datasets['train'], model_cfg)
-        self.utils.check_and_adjust_max_segment(datasets['val'], model_cfg)
+        # Adjust max segment if needed
+        self.utils.check_and_adjust_max_segment(data, model_cfg)
+
+        # Optional: Adapt to BEHRT embeddings
+        if self.cfg.model.get('behrt_embedding'):
+            logger.info('Adapting features for behrt embeddings')
+            data.features = BehrtAdapter.adapt_features(data.features)
+
+        # Verify and save
+        data.check_lengths()
+        data = self.utils.process_data(data, self.saver.save_sequence_lengths)
+
+        self.saver.save_data(data)
         
-        if model_cfg.get('behrt_embeddings', False):
-            logger.info("Adapting features for BEHRT embeddings")
-            datasets['train'].features = BehrtAdapter().adapt_features(datasets['train'].features)
-            datasets['val'].features = BehrtAdapter().adapt_features(datasets['val'].features)
-        
-        return datasets['train'].features, datasets['val'].features, datasets['train'].vocabulary
+        return data
     
     def prepare_onehot_features(self)->Tuple[np.ndarray, np.ndarray, Dict]:
         """Use ft features and map them onto one hot vectors with binary outcomes"""
-        data = self.loader.load_finetune_data(mode='val')
+        data = self.loader.load_finetune_data()
         token2index, new_vocab = self.utils.get_token_to_index_map(data.vocabulary)
         X, y = OneHotEncoder.encode(data, token2index)
         return X, y, new_vocab
@@ -233,7 +197,7 @@ class DatasetPreparer:
     def _retrieve_and_assign_outcomes(self, data: Data, outcomes: Dict, censor_outcomes: Dict)->Data:
         """Retrieve outcomes and assign them to the data instance"""
         data.outcomes = self.utils.select_and_order_outcomes_for_patients(outcomes, data.pids, self.cfg.outcome.type)
-        if self.cfg.outcome.get('censor_type', None) is not None:
+        if self.cfg.outcome.get('censor_type') is not None:
             data.censor_outcomes = self.utils.select_and_order_outcomes_for_patients(censor_outcomes, data.pids, self.cfg.outcome.censor_type)
         else:
             data.censor_outcomes = [None]*len(outcomes)
@@ -256,7 +220,7 @@ class DatasetPreparer:
 
 class OneHotEncoder:
     @staticmethod
-    def encode(data:Data, token2index: dict)->Tuple[np.ndarray, np.ndarray]:
+    def encode(data:Data, token2index: dict) -> Tuple[np.ndarray, np.ndarray]:
         # ! Potentially map gender onto one index?
         """Encode features to one hot and age at the time of last event"""
         AGE_INDEX = 0
@@ -273,18 +237,21 @@ class OneHotEncoder:
             X[sample, AGE_INDEX] = data.features['age'][sample][-1]   
             OneHotEncoder.encode_concepts(concepts, token2index_map, keys_array, X, sample)
         return X, y
+
     @staticmethod
-    def encode_outcome(outcome: str)->int:
-        return int(not pd.isna(outcome))
+    def encode_outcome(outcome) -> int:
+        return int(pd.notna(outcome))
+
     @staticmethod
     def encode_concepts(concepts: List[int], token2index_map: np.vectorize, 
-                        keys_array: np.ndarray, X:np.ndarray, sample: int)->None:
+                        keys_array: np.ndarray, X:np.ndarray, sample: int) -> None:
         concepts = np.array(concepts)
         unique_concepts = np.unique(concepts)
         valid_concepts_mask = np.isin(unique_concepts, keys_array) # Only keep concepts that are in the token2index map
         filtered_concepts = unique_concepts[valid_concepts_mask]
         concept_indices = token2index_map(filtered_concepts) + 1
         X[sample, concept_indices] = 1
+
     @staticmethod
     def initialize_Xy(num_samples: int, num_features: int)->Tuple[np.ndarray, np.ndarray]:
         X = np.zeros((num_samples, num_features), dtype=np.int16)
@@ -294,53 +261,55 @@ class OneHotEncoder:
 class DataModifier:
     def __init__(self, cfg) -> None:
         self.cfg = cfg
+
     @staticmethod
-    def truncate(data: Data, truncation_len: int)->Data:
+    def truncate(data: Data, truncation_len: int) -> Data:
         truncator = Truncator(max_len=truncation_len, 
                               vocabulary=data.vocabulary)
         data.features = truncator(data.features)
-        return data    
+        return data
+
     @staticmethod
-    def remove_background(data: Data)->Data:
+    def remove_background(data: Data) -> Data:
         """Remove background tokens from features and the first sep token following it"""
         background_indices = Utilities.get_background_indices(data)
-        if len(background_indices)==0:
+        if background_indices:
             return data
+
         first_index = min(background_indices)
         last_index = max(background_indices)
         for k, token_lists in data.features.items():
             new_tokens_lists = []
-            for _, tokens in enumerate(token_lists):
+            for tokens in token_lists:
                 new_tokens = [token for j, token in enumerate(tokens) if (j < first_index) or (j > last_index)]
                 new_tokens_lists.append(new_tokens)
             data.features[k] = new_tokens_lists 
         return data
-    
-    def censor_data(self, data: Data, n_hours: float)->Data:
+
+    def censor_data(self, data: Data, n_hours: float) -> Data:
         """Censors data n_hours after censor_outcome."""
         censorer_cfg = self.cfg.data.get('censorer', {'_target_': 'data_fixes.censor.Censorer'})
-        censorer = instantiate(censorer_cfg, vocabulary= data.vocabulary, n_hours=n_hours)
+        censorer = instantiate(censorer_cfg, vocabulary=data.vocabulary, n_hours=n_hours)
         logger.info(f"Censoring data {n_hours} hours after outcome with {censorer.__class__.__name__}")
         data.features, data.censor_outcomes = censorer(data.features, data.censor_outcomes, exclude=False)
         return data
+
     @staticmethod
-    def normalize_segments(data: Data)->Data:
+    def normalize_segments(data: Data) -> Data:
         """Normalize segments after truncation to start with 1 and increase by 1
         or if position_ids present (org. BEHRT version) then normalize those."""
-        segments_key = 'position_ids' if 'position_ids' in data.features.keys() else 'segment'
-        
-        segments = []
-        for segment in data.features[segments_key]:
-            segments.append(Handler.normalize_segments(segment))
-        
-        data.features[segments_key] = segments
+        segments_key = 'segment' if 'segment' in data.features else 'position_ids'
+
+        for idx, segments in data.features[segments_key]:
+            data.features[segments_key][idx] = Handler.normalize_segments(segments)
+
         return data
 
 def retrieve_outcomes(all_outcomes: Dict, all_censor_outcomes: Dict, cfg: Config)->Union[List, List]:
     """From the configuration, load the outcomes and censor outcomes."""
     pids = all_outcomes[PID_KEY]
     outcomes = all_outcomes.get(cfg.outcome.type, [None]*len(all_outcomes[PID_KEY]))
-    censor_outcomes = all_censor_outcomes.get(cfg.outcome.get('censor_type', None), [None]*len(outcomes))
+    censor_outcomes = all_censor_outcomes.get(cfg.outcome.get('censor_type'), [None]*len(outcomes))
     return outcomes, censor_outcomes, pids
 
 def select_positives(outcomes: List, censor_outcomes: List, pids: List)->Tuple[List, List, List]:

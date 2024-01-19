@@ -13,7 +13,7 @@ class TestUtilities(unittest.TestCase):
         datasets.__setitem__ = Mock()
         func = Mock()
         func.__name__ = "func"
-        Utilities.process_datasets(datasets, func)
+        Utilities.process_data(datasets, func)
         func.assert_called_once_with(data)
 
     def test_log_patient_nums(self):

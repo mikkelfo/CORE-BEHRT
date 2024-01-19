@@ -113,7 +113,7 @@ if __name__ == '__main__':
     cfg.save_to_yaml(join(finetune_folder, 'finetune_config.yaml'))
     
     dataset_preparer = DatasetPreparer(cfg)
-    data = dataset_preparer.prepare_finetune_features()
+    data = dataset_preparer.prepare_finetune_data()
     fold2sets = defaultdict(list)
     test_set_id_counter = Counter()
     val_set_id_counter = Counter()

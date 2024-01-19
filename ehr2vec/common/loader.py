@@ -1,8 +1,8 @@
+import os
+import torch
 import logging
 from os.path import join
 from typing import Dict, List, Tuple, Union
-
-import torch
 from transformers import BertConfig
 
 from ehr2vec.common.config import Config, load_config
@@ -16,8 +16,8 @@ TREE_FILE = 'tree.pt'
 TREE_MATRIX_FILE = 'tree_matrix.pt'
 CHECKPOINT_FOLDER = 'checkpoints'
 VAL_RATIO = 0.2
-# TODO: Add option to load test set only!
-        
+
+
 def load_checkpoint_and_epoch(cfg: Config)->Tuple:
     model_path = cfg.paths.get('model_path', None)
     checkpoint = ModelLoader(cfg).load_checkpoint() if model_path is not None else None
@@ -35,47 +35,18 @@ class FeaturesLoader:
     def __init__(self, cfg):
         self.path_cfg = cfg.paths
         self.cfg = cfg
-    def load_tokenized_data(self)->Tuple[dict, list, dict, list, dict]:
-        tokenized_dir = self.path_cfg.get('tokenized_dir', 'tokenized')
-        logger.info('Loading tokenized data from %s', tokenized_dir)
-        tokenized_data_path = join(self.path_cfg.data_path, tokenized_dir)
-        
-        logger.info("Loading tokenized data pretrain")
-        split = "pretrain"
-        pt_features  = torch.load(join(tokenized_data_path, f'tokenized_{split}.pt'))
-        pt_pids = torch.load(join(tokenized_data_path,  f'pids_{split}.pt'))
-        
-        if self.cfg.paths.get('predefined_splits', None) is not None:
-            predefined_pids_dir = self.cfg.paths.predefined_splits
-            logger.info(f"Loading predefined pids from {predefined_pids_dir}")
-            train_pids = torch.load(join(predefined_pids_dir, 'pids_train.pt'))
-            val_pids = torch.load(join(predefined_pids_dir, 'pids_val.pt'))
-            train_features, train_pids = Utilities.select_and_reorder_feats_and_pids(pt_features, pt_pids, train_pids)
-            val_features, val_pids = Utilities.select_and_reorder_feats_and_pids(pt_features, pt_pids, val_pids)
-        else:
-            logger.info("No validation set found. Split train into train and val.")
-            train_features, train_pids, val_features, val_pids = Utilities.split_train_val(
-                pt_features, pt_pids, val_ratio=self.cfg.data.get('val_ratio', VAL_RATIO))
-        logger.info(f"Train size: {len(train_pids)}, Val size: {len(val_pids)}")
-        logger.info("Loading vocabulary")
-        try:
-            vocabulary = torch.load(join(tokenized_data_path, VOCABULARY_FILE))
-        except:
-            vocabulary = torch.load(join(self.path_cfg.data_path, VOCABULARY_FILE))
-        return train_features, train_pids, val_features, val_pids, vocabulary
 
-    def load_tokenized_finetune_data(self, mode: str)->Data:
+    def load_tokenized_data(self, mode: str=None)->Data:
         """Load features for finetuning"""
         tokenized_dir = self.path_cfg.get('tokenized_dir', 'tokenized')
-        tokenized_files = self.path_cfg.get('tokenized_file', 'tokenized_val.pt')
-        tokenized_pids_files = self.path_cfg.get('tokenized_pids', 'pids_val.pt')
+        tokenized_files = self.path_cfg.get('tokenized_file')
+        tokenized_pids_files = self.path_cfg.get('tokenized_pids')
         
         # Ensure the files are in a list. We might want to load multiple files.
-        if isinstance(tokenized_files, str):
-            tokenized_files = [tokenized_files]
-        if isinstance(tokenized_pids_files, str):
-            tokenized_pids_files = [tokenized_pids_files]
+        tokenized_files = [tokenized_files] if isinstance(tokenized_files, str) else tokenized_files
+        tokenized_pids_files = [tokenized_pids_files] if isinstance(tokenized_pids_files, str) else tokenized_pids_files
         assert len(tokenized_files) == len(tokenized_pids_files), "Number of tokenized files and pids files must be equal."
+
         tokenized_data_path = join(self.path_cfg.data_path, tokenized_dir)
         
         logger.info(f"Loading tokenized data from {tokenized_data_path}")
@@ -86,7 +57,8 @@ class FeaturesLoader:
         
         return Data(features, pids, vocabulary=vocabulary, mode=mode)
     
-    def load_features_and_pids(self, tokenized_data_path:str, tokenized_files:list, tokenized_pids_files:list):
+    @staticmethod
+    def load_features_and_pids(tokenized_data_path: str, tokenized_files: list, tokenized_pids_files: list):
         features = {}
         pids = []
         for tokenized_file, tokenized_pids_file in zip(tokenized_files, tokenized_pids_files):
@@ -94,23 +66,19 @@ class FeaturesLoader:
             pids_temp = torch.load(join(tokenized_data_path, tokenized_pids_file))
             # Concatenate features
             for key in features_temp.keys():
-                if key in features:
-                    features[key].extend(features_temp[key])
-                else:
-                    features[key] = features_temp[key]
+                features.setdefault(key, []).extend(features_temp[key])
             
             # Concatenate pids
             pids.extend(pids_temp)
         
         return features, pids
 
-    def load_vocabulary(self, tokenized_data_path:str):
-        try:
-            vocabulary = torch.load(join(tokenized_data_path, VOCABULARY_FILE))
-        except:
-            vocabulary = torch.load(join(self.path_cfg.data_path, VOCABULARY_FILE))
+    def load_vocabulary(self, tokenized_data_path: str):
+        vocabulary_file_path = join(tokenized_data_path, VOCABULARY_FILE)
+        if not os.path.exists(vocabulary_file_path):
+            vocabulary_file_path = join(self.path_cfg.data_path, VOCABULARY_FILE)
         
-        return vocabulary
+        return torch.load(vocabulary_file_path)
 
     def load_outcomes(self)->Tuple[dict, dict]:
         logger.info(f'Load outcomes from {self.path_cfg.outcome}')
@@ -128,7 +96,7 @@ class FeaturesLoader:
         h_vocabulary = torch.load(join(hierarchical_path, VOCABULARY_FILE))
         return tree, tree_matrix, h_vocabulary 
     
-    def load_finetune_data(self, path: str=None, mode: str='val')->Data:
+    def load_finetune_data(self, path: str=None, mode: str=None)->Data:
         """Load features for finetuning"""
         path = self.path_cfg.finetune_features_path if path is None else path
         features = torch.load(join(path, f'features.pt'))

@@ -1,7 +1,7 @@
 import os
+import torch
 from os.path import abspath, dirname, join, split
 
-import torch
 from ehr2vec.common.azure import save_to_blobstore
 from ehr2vec.common.initialize import Initializer, ModelManager
 from ehr2vec.common.setup import (DirectoryPreparer, copy_data_config,
@@ -109,8 +109,7 @@ if __name__ == '__main__':
     cfg.save_to_yaml(join(finetune_folder, 'finetune_config.yaml'))
     
     dataset_preparer = DatasetPreparer(cfg)
-    data = dataset_preparer.prepare_finetune_features()
-    
+    data = dataset_preparer.prepare_finetune_data()    
     
     if 'predefined_splits' in cfg.paths:
         logger.info('Using predefined splits')

@@ -4,7 +4,7 @@ from data_fixes.adapt import BehrtAdapter
 class TestBehrtAdapter(unittest.TestCase):
 
     def setUp(self):
-        self.adapter = BehrtAdapter()
+        self.adapter = BehrtAdapter
 
     def test_convert_to_int(self):
         ages = [-1, 0, 5, 120, 150]

@@ -22,15 +22,14 @@ ORIGIN_POINT = {'year': 2020, 'month': 1, 'day': 26, 'hour': 0, 'minute': 0, 'se
 
 class Utilities:
     @classmethod
-    def process_datasets(cls, datasets: Dict, func: callable, args_for_func: Dict={})->Dict:
+    def process_data(cls, data: Data, func: callable, log_positive_patients_num: bool = False, args_for_func: Dict={})->Dict:
         """Apply a function to all datasets in a dictionary"""
-        for split, data in datasets.items():
-            # Get mode-specific arguments, or an empty dictionary if they don't exist
-            mode_args = args_for_func.get(split, {})
-            datasets[split] = func(data, **mode_args)
-        cls.log_patient_nums(func.__name__, datasets)
+        data = func(data, **args_for_func)
+        cls.log_patient_nums(func.__name__, data)
+        if log_positive_patients_num:
+            cls.log_pos_patients_num(data)
 
-        return datasets
+        return data
 
     @staticmethod
     def log_patient_nums(operation:str, datasets: Dict)->None:

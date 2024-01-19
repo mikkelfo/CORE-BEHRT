@@ -62,7 +62,7 @@ class DatasetPreparer:
         data_cfg = self.cfg.data
 
         # 1. Loading tokenized data
-        data = self.loader.load_tokenized_finetune_data('val')
+        data = self.loader.load_tokenized_data()
 
         predefined_pids =  'predefined_splits' in self.cfg.paths
         if predefined_pids:
@@ -73,58 +73,52 @@ class DatasetPreparer:
             data = self._load_predefined_pids(data)
             self._load_outcomes_to_data(data)
 
-        datasets = {'val': data}
         if not predefined_pids:
             # 2. Excluding pretrain patients
-            datasets = self.utils.process_datasets(datasets, self.patient_filter.exclude_pretrain_patients) 
+            data = self.utils.process_data(data, self.patient_filter.exclude_pretrain_patients) 
         
-            # 3. Optinally select gender group
-            if data_cfg.get('gender', False):
-                datasets = self.utils.process_datasets(datasets, self.patient_filter.select_by_gender)
-            # 4. Select Patients By Age
-            if data_cfg.get('min_age', False) or data_cfg.get('max_age', False):
-                datasets = self.utils.process_datasets(datasets, self.patient_filter.select_by_age)
+            # Optional: Select gender group
+            if data_cfg.get('gender'):
+                data = self.utils.process_data(data, self.patient_filter.select_by_gender)
+            # Optional: Select Patients By Age
+            if data_cfg.get('min_age') or data_cfg.get('max_age'):
+                data = self.utils.process_data(data, self.patient_filter.select_by_age)
             
-            # 5. Loading and processing outcomes
+            # Optional: Loading and processing outcomes
             outcomes, censor_outcomes = self.loader.load_outcomes()
             logger.info("Assigning outcomes to data")
-            datasets = self.utils.process_datasets(datasets, self._retrieve_and_assign_outcomes, 
-                                            {'val': {'outcomes': outcomes, 'censor_outcomes': censor_outcomes}})
+            data = self.utils.process_data(data, self._retrieve_and_assign_outcomes, 
+                                            args_for_func={'outcomes': outcomes, 'censor_outcomes': censor_outcomes})
 
-            self.utils.log_pos_patients_num(datasets)
-            # 6. Optionally select patients of interest
-            if data_cfg.get("select_censored", False):
-                datasets = self.utils.process_datasets(datasets, self.patient_filter.select_censored)
-                self.utils.log_pos_patients_num(datasets)
+            self.utils.log_pos_patients_num(data)
+            # Optional: select patients of interest
+            if data_cfg.get("select_censored"):
+                data = self.utils.process_data(data, self.patient_filter.select_censored, log_positive_patients_num=True)
 
-            # 7. Filter patients with outcome before censoring
+            # Optional: Filter patients with outcome before censoring
             if self.cfg.outcome.type != self.cfg.outcome.get('censor_type', None):
-                datasets = self.utils.process_datasets(datasets, self.patient_filter.filter_outcome_before_censor) # !Timeframe (earlier instance of outcome)
-                self.utils.log_pos_patients_num(datasets)
+                data = self.utils.process_data(data, self.patient_filter.filter_outcome_before_censor, log_positive_patients_num=True) # !Timeframe (earlier instance of outcome)
 
-            # 8. Filter code types
-            if data_cfg.get('code_types', False):
-                datasets = self.utils.process_datasets(datasets, self.code_type_filter.filter)
-                datasets = self.utils.process_datasets(datasets, self.patient_filter.exclude_short_sequences)
-                self.utils.log_pos_patients_num(datasets)
+            # Optional: Filter code types
+            if data_cfg.get('code_types'):
+                data = self.utils.process_data(data, self.code_type_filter.filter)
+                data = self.utils.process_data(data, self.patient_filter.exclude_short_sequences, log_positive_patients_num=True)
 
-        # 9. Data censoring
-        datasets = self.utils.process_datasets(datasets, self.data_modifier.censor_data,
-                                               {'val': {'n_hours': self.cfg.outcome.n_hours}})
-        self.utils.log_pos_patients_num(datasets)
+        # Data censoring
+        data = self.utils.process_data(data, self.data_modifier.censor_data, log_positive_patients_num=True,
+                                               args_for_func={'n_hours': self.cfg.outcome.n_hours})
         
-        # 10. Exclude patients with less than k concepts
-        datasets = self.utils.process_datasets(datasets, self.patient_filter.exclude_short_sequences)
-        self.utils.log_pos_patients_num(datasets)
-        # 11. Patient selection
-        if data_cfg.get('num_patients', False) and not predefined_pids:
-            datasets = self.utils.process_datasets(datasets, self.patient_filter.select_random_subset, 
-                                              {'val': {'num_patients':data_cfg.num_patients}})
-            self.utils.log_pos_patients_num(datasets)
+        # Exclude patients with less than k concepts
+        data = self.utils.process_data(data, self.patient_filter.exclude_short_sequences, log_positive_patients_num=True)
+
+        # Optional: Patient selection
+        if data_cfg.get('num_patients') and not predefined_pids:
+            data = self.utils.process_data(data, self.patient_filter.select_random_subset, log_positive_patients_num=True,
+                                              args_for_func={'num_patients':data_cfg.num_patients})
         
-        # 12. Optionally Remove Background Tokens
-        if data_cfg.get("remove_background", False):
-            datasets = self.utils.process_datasets(datasets, self.data_modifier.remove_background)
+        # Optional: Remove Background Tokens
+        if data_cfg.get("remove_background"):
+            data = self.utils.process_data(data, self.data_modifier.remove_background)
 
         # Optional: Adapt to BEHRT embeddings
         if self.cfg.model.get('behrt_embedding'):
@@ -135,6 +129,11 @@ class DatasetPreparer:
             for feature in data_cfg.remove_features:
                 logger.info(f"Removing {feature}")
                 data.features.pop(feature, None)
+        
+        # Verify and save
+        data.check_lengths()
+        data = self.utils.process_data(data, self.saver.save_sequence_lengths)
+
         self.saver.save_data(data)
 
         return data
@@ -160,7 +159,7 @@ class DatasetPreparer:
         # Exclude short sequences
         data = self.utils.process_data(data, self.patient_filter.exclude_short_sequences)
 
-        # Patient Subset Selection
+        # Optional: Patient Subset Selection
         if data_cfg.get('num_patients'):
             data = self.utils.process_data(data, self.patient_filter.select_random_subset, args_for_func={'num_patients':data_cfg.num_train_patients})
 

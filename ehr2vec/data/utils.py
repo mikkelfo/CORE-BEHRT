@@ -144,12 +144,11 @@ class Utilities:
         return code.startswith(prefixes)
 
     @staticmethod
-    def log_pos_patients_num(datasets: Dict)->None:
-        for mode, data in datasets.items():
-            num_positive_patiens = len([t for t in data.outcomes if not pd.isna(t)])
-            if num_positive_patiens < MIN_POSITIVES[mode]:
-                raise ValueError(f"Number of positive patients is less than {MIN_POSITIVES[mode]}: {num_positive_patiens}")
-            logger.info(f"Positive {mode} patients: {num_positive_patiens}")
+    def log_pos_patients_num(data: Data)->None:
+        num_positive_patiens = len([t for t in data.outcomes if not pd.isna(t)])
+        if num_positive_patiens < MIN_POSITIVES[data.mode]:
+            raise ValueError(f"Number of positive patients is less than {MIN_POSITIVES[data.mode]}: {num_positive_patiens}")
+        logger.info(f"Positive {data.mode} patients: {num_positive_patiens}")
 
     @staticmethod
     def get_last_checkpoint_epoch(checkpoint_folder: str)->int:

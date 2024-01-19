@@ -1,9 +1,12 @@
 import unittest
 import pandas as pd
+from unittest.mock import patch
 from data.concept_loader import ConceptLoader
 
 class TestConceptLoader(unittest.TestCase):
-    def setUp(self):
+    @patch('data.concept_loader.ConceptLoader._verify_input', return_value=None)
+    @patch('data.concept_loader.ConceptLoader._verify_paths', return_value=None)
+    def setUp(self, *args):
         self.conceptloader = ConceptLoader()
         #self.conceptloaderlarge = ConceptLoaderLarge() # Only need to test ConceptLoader since they share the functions
 

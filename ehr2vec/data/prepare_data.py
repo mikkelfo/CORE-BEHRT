@@ -129,7 +129,7 @@ class DatasetPreparer:
         # Optional: Adapt to BEHRT embeddings
         if self.cfg.model.get('behrt_embedding'):
             logger.info('Adapting features for behrt embeddings')
-            data.features = BehrtAdapter().adapt_features(data.features)
+            data.features = BehrtAdapter.adapt_features(data.features)
 
         if 'remove_features' in data_cfg:
             for feature in data_cfg.remove_features:

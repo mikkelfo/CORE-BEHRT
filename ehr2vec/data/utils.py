@@ -32,10 +32,9 @@ class Utilities:
         return data
 
     @staticmethod
-    def log_patient_nums(operation:str, datasets: Dict)->None:
+    def log_patient_nums(operation:str, data: Data)->None:
         logger.info(f"After applying {operation}:")
-        for split, data in datasets.items():
-            logger.info(f"{split}: {len(data.pids)} patients")
+        logger.info(f"{len(data.pids)} patients")
 
     @staticmethod
     def select_and_order_outcomes_for_patients(all_outcomes: Dict, pids: List, outcome: Union[str, dict]) -> List:

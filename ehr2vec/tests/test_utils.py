@@ -1,19 +1,17 @@
 import unittest
-from datetime import datetime
-from unittest.mock import Mock, patch
-
 import pandas as pd
+from datetime import datetime
+from unittest.mock import Mock, MagicMock, patch
+
 from data.utils import Utilities
 
 class TestUtilities(unittest.TestCase):
     def test_process_datasets(self):
-        datasets = Mock()
-        data = Mock(pids=[1,2,3])
-        datasets.items.return_value = [("pretrain", data), ]
-        datasets.__setitem__ = Mock()
-        func = Mock()
+        data = MagicMock()
+        data.pids = [1, 2, 3]
+        func = Mock(side_effect=lambda x: x)
         func.__name__ = "func"
-        Utilities.process_data(datasets, func)
+        Utilities.process_data(data, func)
         func.assert_called_once_with(data)
 
     def test_log_patient_nums(self):

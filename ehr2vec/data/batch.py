@@ -216,14 +216,13 @@ class BatchTokenize:
             encoded_batch = self.tokenizer(filtered_features)
             self.merge_dicts(encoded, encoded_batch)
             pids.extend(filtered_pids)
-            pids = pids + filtered_pids
 
         # use the order of split.pids to ensure the order of encoded and pids is the same
         assert set(split.pids)==set(pids), f"Split pids ({len(split.pids)}) and pids ({len(pids)}) do not match"
         encoded, pids = Utilities.select_and_reorder_feats_and_pids(encoded, pids, split.pids)
         
         assert len(pids) == len(encoded['concept']), f"Length of pids ({len(pids)}) does not match length of encoded ({len(encoded['concept'])})"
-        
+
         return encoded, pids
     
     @staticmethod

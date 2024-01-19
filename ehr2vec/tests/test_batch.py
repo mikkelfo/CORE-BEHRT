@@ -1,4 +1,3 @@
-import torch
 import unittest
 from unittest.mock import patch, MagicMock, call
 from tests.helpers import ConfigMock
@@ -20,9 +19,9 @@ class TestBatches(unittest.TestCase):
 
     def test_split_batches(self):
         splits = self.batches.split_batches()
-        self.assertEqual(len(splits['pretrain'].pids), 56+10)  # 56 from original pids and 10 assigned
-        self.assertEqual(len(splits['finetune'].pids), 16+10)  # 16 from original pids and 10 assigned
-        self.assertEqual(len(splits['test'].pids), 8)  # 8 from original pids
+        self.assertEqual(len(splits['pretrain'].pids), 70)
+        self.assertEqual(len(splits['finetune'].pids), 20)
+        self.assertEqual(len(splits['test'].pids), 10)
 
     @patch('os.listdir', return_value=['pids_pretrain.pt', 'pids_finetune.pt', 'pids_test.pt'])
     @patch('torch.load', side_effect=[["1", "2", "3"], ["4", "5"], ["6"]])
@@ -59,8 +58,7 @@ class TestBatchTokenize(unittest.TestCase):
     @patch('data.batch.BatchTokenize.load_and_filter_batch', return_value=({
                 'concept': [['BG_GENDER_MALE', 'Diagnosis1', 'Medication1', 'Diagnosis2'], ['BG_GENDER_FEMALE', 'Diagnosis3', 'Medication1']],
                 'segment': [[0, 1, 1, 2], [0, 1, 2]]},
-            ["1", "2"])
-        )
+            ["1", "2"]))
     @patch('torch.save', return_value=None)
     def test_batch_tokenize(self, *args):
         split = Split(mode='pretrain', pids=['1', '2'])
@@ -83,6 +81,7 @@ class TestBatchTokenize(unittest.TestCase):
     def test_tokenize(self, tokenize, save, save_tokenized_data):
         splits = {'pretrain': Split(mode='pretrain', pids=['1']), 'finetune': Split(mode='finetune', pids=["2"]), 'test': Split(mode='test', pids=["3"])}
         self.batch_tokenize.tokenize(splits)
+
         self.assertEqual(len(save_tokenized_data.call_args_list), 3)
         expected_results = ({
             'concept': [[5, 7, 10]],

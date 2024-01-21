@@ -2,7 +2,7 @@ import logging
 
 import pandas as pd
 import torch
-from data.mask import ConceptMasker
+from ehr2vec.data.mask import ConceptMasker
 from torch.utils.data import Dataset
 
 logger = logging.getLogger(__name__)  # Get the logger for this module

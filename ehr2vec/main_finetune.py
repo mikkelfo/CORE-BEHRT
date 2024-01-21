@@ -2,13 +2,13 @@ import os
 from os.path import join
 
 import torch
-from common.azure import save_to_blobstore
-from common.initialize import Initializer, ModelManager
-from common.setup import (DirectoryPreparer, copy_data_config,
+from ehr2vec.common.azure import save_to_blobstore
+from ehr2vec.common.initialize import Initializer, ModelManager
+from ehr2vec.common.setup import (DirectoryPreparer, copy_data_config,
                           copy_pretrain_config, get_args)
-from data.dataset import BinaryOutcomeDataset
-from data.prepare_data import DatasetPreparer
-from trainer.trainer import EHRTrainer
+from ehr2vec.data.dataset import BinaryOutcomeDataset
+from ehr2vec.data.prepare_data import DatasetPreparer
+from ehr2vec.trainer.trainer import EHRTrainer
 
 CONFIG_NAME = 'finetune.yaml'
 BLOBSTORE='PHAIR'

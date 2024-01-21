@@ -3,12 +3,13 @@ from os.path import join, split
 import numpy as np
 import pandas as pd
 import torch
-from common.config import instantiate
-from common.logger import TqdmToLogger
-from dataloader.collate_fn import dynamic_padding
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from trainer.trainer import EHRTrainer
+
+from ehr2vec.common.config import instantiate
+from ehr2vec.common.logger import TqdmToLogger
+from ehr2vec.dataloader.collate_fn import dynamic_padding
+from ehr2vec.trainer.trainer import EHRTrainer
 
 
 class Forwarder(EHRTrainer):

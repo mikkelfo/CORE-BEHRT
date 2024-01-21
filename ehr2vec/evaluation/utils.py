@@ -7,10 +7,11 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 import torch
-from common.config import get_function
-from common.utils import Data
 from sklearn.utils import resample
 from torch.utils.data import WeightedRandomSampler
+
+from ehr2vec.common.config import get_function
+from ehr2vec.common.utils import Data
 
 logger = logging.getLogger(__name__)
 

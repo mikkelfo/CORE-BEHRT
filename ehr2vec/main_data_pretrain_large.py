@@ -12,17 +12,17 @@ import shutil
 from os.path import join
 
 import torch
-from common.azure import AzurePathContext, save_to_blobstore
-from common.config import load_config
-from common.logger import TqdmToLogger
-from common.setup import DirectoryPreparer, get_args
-from common.utils import check_directory_for_features
-from data.batch import Batches, BatchTokenize
-from data.concept_loader import ConceptLoaderLarge
-from data.featuremaker import FeatureMaker
-from data.tokenizer import EHRTokenizer
-from data_fixes.exclude import Excluder
-from data_fixes.handle import Handler
+from ehr2vec.common.azure import AzurePathContext, save_to_blobstore
+from ehr2vec.common.config import load_config
+from ehr2vec.common.logger import TqdmToLogger
+from ehr2vec.common.setup import DirectoryPreparer, get_args
+from ehr2vec.common.utils import check_directory_for_features
+from ehr2vec.data.batch import Batches, BatchTokenize
+from ehr2vec.data.concept_loader import ConceptLoaderLarge
+from ehr2vec.data.featuremaker import FeatureMaker
+from ehr2vec.data.tokenizer import EHRTokenizer
+from ehr2vec.data_fixes.exclude import Excluder
+from ehr2vec.data_fixes.handle import Handler
 from tqdm import tqdm
 
 CONFIG_NAME = 'data_pretrain.yaml'

@@ -8,17 +8,17 @@ import shutil
 from os.path import join
 
 import torch
-from common.azure import AzurePathContext, save_to_blobstore
-from common.config import load_config
-from common.io import PatientHDF5Writer
-from common.loader import ModelLoader
-from common.logger import close_handlers
-from common.setup import DirectoryPreparer, get_args, setup_logger
-from common.utils import ConcatIterableDataset
-from data.prepare_data import create_binary_outcome_datasets
-from evaluation.encodings import Forwarder
-from evaluation.utils import validate_outcomes
-from model.model import BertEHREncoder
+from ehr2vec.common.azure import AzurePathContext, save_to_blobstore
+from ehr2vec.common.config import load_config
+from ehr2vec.common.io import PatientHDF5Writer
+from ehr2vec.common.loader import ModelLoader
+from ehr2vec.common.logger import close_handlers
+from ehr2vec.common.setup import DirectoryPreparer, get_args, setup_logger
+from ehr2vec.common.utils import ConcatIterableDataset
+from ehr2vec.data.prepare_data import create_binary_outcome_datasets
+from ehr2vec.evaluation.encodings import Forwarder
+from ehr2vec.evaluation.utils import validate_outcomes
+from ehr2vec.model.model import BertEHREncoder
 
 BLOBSTORE = 'PHAIR'
 CONFIG_PATH = 'encode_censored.yaml'

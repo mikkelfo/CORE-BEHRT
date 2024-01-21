@@ -7,16 +7,16 @@ import pandas as pd
 from os.path import join
 
 import torch
-from common.azure import AzurePathContext, save_to_blobstore
-from common.config import load_config
-from common.loader import ModelLoader
-from common.setup import get_args, DirectoryPreparer 
-from common.utils import ConcatIterableDataset
-from common.io import ConceptHDF5Writer
-from data.dataset import BaseEHRDataset
-from evaluation.encodings import Forwarder
-from evaluation.utils import validate_outcomes
-from model.model import BertEHREncoder
+from ehr2vec.common.azure import AzurePathContext, save_to_blobstore
+from ehr2vec.common.config import load_config
+from ehr2vec.common.loader import ModelLoader
+from ehr2vec.common.setup import get_args, DirectoryPreparer 
+from ehr2vec.common.utils import ConcatIterableDataset
+from ehr2vec.common.io import ConceptHDF5Writer
+from ehr2vec.data.dataset import BaseEHRDataset
+from ehr2vec.evaluation.encodings import Forwarder
+from ehr2vec.evaluation.utils import validate_outcomes
+from ehr2vec.model.model import BertEHREncoder
 
 BLOBSTORE = 'PHAIR'
 CONFIG_PATH = 'encode_concepts.yaml'

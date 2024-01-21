@@ -3,12 +3,12 @@ import os
 from os.path import join
 
 import torch
-from common.azure import save_to_blobstore, setup_azure
-from common.config import load_config
-from common.setup import DirectoryPreparer, get_args
-from common.utils import check_patient_counts
-from data.concept_loader import ConceptLoader
-from downstream_tasks.outcomes import OutcomeMaker
+from ehr2vec.common.azure import save_to_blobstore, setup_azure
+from ehr2vec.common.config import load_config
+from ehr2vec.common.setup import DirectoryPreparer, get_args
+from ehr2vec.common.utils import check_patient_counts
+from ehr2vec.data.concept_loader import ConceptLoader
+from ehr2vec.downstream_tasks.outcomes import OutcomeMaker
 
 args = get_args('outcomes_test.yaml')
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), args.config_path)

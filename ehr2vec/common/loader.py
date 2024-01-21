@@ -1,12 +1,13 @@
 import logging
 from os.path import join
-from typing import Tuple, List, Dict, Union
+from typing import Dict, List, Tuple, Union
 
 import torch
-from common.config import Config, load_config
-from common.utils import Data
-from data.utils import Utilities
 from transformers import BertConfig
+
+from ehr2vec.common.config import Config, load_config
+from ehr2vec.common.utils import Data
+from ehr2vec.data.utils import Utilities
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
 

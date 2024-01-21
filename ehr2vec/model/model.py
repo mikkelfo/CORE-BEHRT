@@ -1,8 +1,9 @@
 import torch
 import torch.nn as nn
-from embeddings.ehr import BehrtEmbeddings, EhrEmbeddings
-from model.heads import FineTuneHead, HMLMHead, MLMHead
 from transformers import BertModel
+
+from ehr2vec.embeddings.ehr import BehrtEmbeddings, EhrEmbeddings
+from ehr2vec.model.heads import FineTuneHead, HMLMHead, MLMHead
 
 
 class BertEHREncoder(BertModel):

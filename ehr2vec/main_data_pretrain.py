@@ -3,17 +3,17 @@ import os
 from os.path import join
 
 import torch
-from common.azure import AzurePathContext, save_to_blobstore
-from common.config import load_config
-from common.setup import DirectoryPreparer, get_args
-from common.utils import (check_directory_for_features, check_existing_splits,
+from ehr2vec.common.azure import AzurePathContext, save_to_blobstore
+from ehr2vec.common.config import load_config
+from ehr2vec.common.setup import DirectoryPreparer, get_args
+from ehr2vec.common.utils import (check_directory_for_features, check_existing_splits,
                           check_patient_counts)
-from data.concept_loader import ConceptLoader
-from data.featuremaker import FeatureMaker
-from data.split import Splitter
-from data.tokenizer import EHRTokenizer
-from data_fixes.exclude import Excluder
-from data_fixes.handle import Handler
+from ehr2vec.data.concept_loader import ConceptLoader
+from ehr2vec.data.featuremaker import FeatureMaker
+from ehr2vec.data.split import Splitter
+from ehr2vec.data.tokenizer import EHRTokenizer
+from ehr2vec.data_fixes.exclude import Excluder
+from ehr2vec.data_fixes.handle import Handler
 
 BLOBSTORE = 'PHAIR'
 

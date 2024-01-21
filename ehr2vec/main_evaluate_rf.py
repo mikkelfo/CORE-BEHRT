@@ -9,13 +9,13 @@ from shutil import copyfile
 
 import numpy as np
 import pandas as pd
-from common.azure import setup_azure, save_to_blobstore
-from common.config import Config, get_function, load_config
-from common.io import PatientHDF5Reader
-from common.logger import TqdmToLogger
-from common.setup import get_args, setup_logger
-from evaluation.optimize import find_best_params_RF
-from evaluation.utils import Oversampler, get_mean_std, sample, evaluate_predictions
+from ehr2vec.common.azure import setup_azure, save_to_blobstore
+from ehr2vec.common.config import Config, get_function, load_config
+from ehr2vec.common.io import PatientHDF5Reader
+from ehr2vec.common.logger import TqdmToLogger
+from ehr2vec.common.setup import get_args, setup_logger
+from ehr2vec.evaluation.optimize import find_best_params_RF
+from ehr2vec.evaluation.utils import Oversampler, get_mean_std, sample, evaluate_predictions
 from joblib import Parallel, delayed
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import StratifiedKFold, train_test_split

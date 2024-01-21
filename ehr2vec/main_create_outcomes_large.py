@@ -4,13 +4,13 @@ from collections import defaultdict
 from os.path import join
 
 import torch
-from common.azure import AzurePathContext, save_to_blobstore
-from common.config import load_config
-from common.logger import TqdmToLogger
-from common.setup import DirectoryPreparer, get_args
-from common.utils import check_patient_counts
-from data.concept_loader import ConceptLoaderLarge
-from downstream_tasks.outcomes import OutcomeMaker
+from ehr2vec.common.azure import AzurePathContext, save_to_blobstore
+from ehr2vec.common.config import load_config
+from ehr2vec.common.logger import TqdmToLogger
+from ehr2vec.common.setup import DirectoryPreparer, get_args
+from ehr2vec.common.utils import check_patient_counts
+from ehr2vec.data.concept_loader import ConceptLoaderLarge
+from ehr2vec.downstream_tasks.outcomes import OutcomeMaker
 from tqdm import tqdm
 
 BLOBSTORE = 'PHAIR'

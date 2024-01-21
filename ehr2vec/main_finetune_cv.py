@@ -2,18 +2,18 @@ import os
 from os.path import abspath, dirname, join, split
 
 import torch
-from common.azure import save_to_blobstore
-from common.initialize import Initializer, ModelManager
-from common.setup import (DirectoryPreparer, copy_data_config,
+from ehr2vec.common.azure import save_to_blobstore
+from ehr2vec.common.initialize import Initializer, ModelManager
+from ehr2vec.common.setup import (DirectoryPreparer, copy_data_config,
                           copy_pretrain_config, get_args)
-from common.utils import Data
-from data.dataset import BinaryOutcomeDataset
-from data.prepare_data import DatasetPreparer
-from data.split import get_n_splits_cv
-from evaluation.utils import (check_data_for_overlap,
+from ehr2vec.common.utils import Data
+from ehr2vec.data.dataset import BinaryOutcomeDataset
+from ehr2vec.data.prepare_data import DatasetPreparer
+from ehr2vec.data.split import get_n_splits_cv
+from ehr2vec.evaluation.utils import (check_data_for_overlap,
                               compute_and_save_scores_mean_std,
                               split_into_test_and_train_val_and_save_test_set)
-from trainer.trainer import EHRTrainer
+from ehr2vec.trainer.trainer import EHRTrainer
 
 CONFIG_NAME = 'finetune.yaml'
 N_SPLITS = 2  # You can change this to desired value

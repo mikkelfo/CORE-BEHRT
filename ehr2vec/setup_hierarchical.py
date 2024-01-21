@@ -3,10 +3,10 @@ import os
 from os.path import join
 
 import torch
-from common.azure import AzurePathContext, save_to_blobstore
-from common.config import load_config
-from common.setup import DirectoryPreparer, get_args
-from tree.tree import TreeBuilder, get_counts
+from ehr2vec.common.azure import AzurePathContext, save_to_blobstore
+from ehr2vec.common.config import load_config
+from ehr2vec.common.setup import DirectoryPreparer, get_args
+from ehr2vec.tree.tree import TreeBuilder, get_counts
 
 BLOBSTORE = 'PHAIR'
 CONFIG_NAME = 'h_setup.yaml'

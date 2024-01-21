@@ -1,4 +1,4 @@
-from common.utils import iter_patients
+from ehr2vec.common.utils import iter_patients
 
 class Truncator:
     def __init__(self, max_len: int, vocabulary: dict) -> None:

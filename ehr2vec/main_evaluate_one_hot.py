@@ -3,11 +3,11 @@ from os.path import join
 
 import pandas as pd
 import torch
-from common.azure import AzurePathContext, save_to_blobstore
-from common.config import get_function, instantiate, load_config
-from common.setup import get_args, setup_logger
-from data.prepare_data import DatasetPreparer
-from evaluation.utils import evaluate_predictions, get_pos_weight
+from ehr2vec.common.azure import AzurePathContext, save_to_blobstore
+from ehr2vec.common.config import get_function, instantiate, load_config
+from ehr2vec.common.setup import get_args, setup_logger
+from ehr2vec.data.prepare_data import DatasetPreparer
+from ehr2vec.evaluation.utils import evaluate_predictions, get_pos_weight
 from sklearn.model_selection import train_test_split
 
 CONFIG_NAME = 'evaluate_one_hot.yaml'

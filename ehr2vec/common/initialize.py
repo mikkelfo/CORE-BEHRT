@@ -4,18 +4,19 @@ from os.path import join
 from typing import Optional, Tuple
 
 import torch
-from common.azure import AzurePathContext
-from common.config import Config, instantiate, load_config
-from common.loader import ModelLoader, load_model_cfg_from_checkpoint
-from common.setup import DirectoryPreparer
-from common.utils import hook_fn
-from data.utils import Utilities
-from evaluation.utils import get_pos_weight, get_sampler
-from model.model import (BertEHRModel, BertForFineTuning,
-                         HierarchicalBertForPretraining)
 from torch.optim import AdamW
 from torch.utils.data import Sampler
 from transformers import BertConfig
+
+from ehr2vec.common.azure import AzurePathContext
+from ehr2vec.common.config import Config, instantiate, load_config
+from ehr2vec.common.loader import ModelLoader, load_model_cfg_from_checkpoint
+from ehr2vec.common.setup import DirectoryPreparer
+from ehr2vec.common.utils import hook_fn
+from ehr2vec.data.utils import Utilities
+from ehr2vec.evaluation.utils import get_pos_weight, get_sampler
+from ehr2vec.model.model import (BertEHRModel, BertForFineTuning,
+                                 HierarchicalBertForPretraining)
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
 CHECKPOINTS_DIR = "checkpoints"

@@ -1,7 +1,9 @@
 import matplotlib.colors as mcolors
 import numpy as np
-from common.config import instantiate
 from sklearn.manifold import TSNE
+
+from ehr2vec.common.config import instantiate
+
 # from umap import UMAP
 
 

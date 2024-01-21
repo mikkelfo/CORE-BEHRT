@@ -1,8 +1,10 @@
+from typing import Dict, List
+
 import numpy as np
 import pandas as pd
-from typing import List, Dict
-from data.utils import Utilities
-from common.utils import Data
+
+from ehr2vec.common.utils import Data
+from ehr2vec.data.utils import Utilities
 
 
 class PatientStats:

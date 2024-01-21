@@ -1,11 +1,12 @@
 import os
+from typing import Dict, List
 
 import numpy as np
 import pandas as pd
 import torch
-from data.utils import Utilities
 
-from typing import List, Dict
+from ehr2vec.data.utils import Utilities
+
 
 class OutcomeMaker:
     def __init__(self, config: dict, features_cfg: dict):

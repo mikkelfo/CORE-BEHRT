@@ -2,8 +2,8 @@ import random
 from typing import List, Union
 
 import pandas as pd
-from common.utils import iter_patients
-from data_fixes.exclude import Excluder
+from ehr2vec.common.utils import iter_patients
+from ehr2vec.data_fixes.exclude import Excluder
 
 
 class Censorer:

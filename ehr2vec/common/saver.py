@@ -1,8 +1,10 @@
 import os
 from os.path import join
-import torch
+
 import pandas as pd
-from common.utils import Data
+import torch
+
+from ehr2vec.common.utils import Data
 
 VOCABULARY_FILE = 'vocabulary.pt'
 

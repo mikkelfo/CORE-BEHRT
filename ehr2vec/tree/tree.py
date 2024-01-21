@@ -4,9 +4,10 @@ from os.path import join
 
 import pandas as pd
 import torch
-from common.logger import TqdmToLogger
 from tqdm import tqdm
-from tree.node import Node
+
+from ehr2vec.common.logger import TqdmToLogger
+from ehr2vec.tree.node import Node
 
 
 class TreeBuilder:

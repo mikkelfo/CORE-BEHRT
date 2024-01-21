@@ -4,8 +4,8 @@ import re
 from datetime import datetime
 from typing import Dict, List, Tuple, Union
 import pandas as pd
-from common.config import Config
-from common.utils import Data
+from ehr2vec.common.config import Config
+from ehr2vec.common.utils import Data
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
 

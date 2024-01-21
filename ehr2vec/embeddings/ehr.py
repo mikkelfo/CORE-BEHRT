@@ -3,8 +3,9 @@ from typing import Dict
 import numpy as np
 import torch
 import torch.nn as nn
-from embeddings.time2vec import Time2Vec
 from transformers import BertConfig
+
+from ehr2vec.embeddings.time2vec import Time2Vec
 
 TIME2VEC_AGE_MULTIPLIER = 1e-2
 TIME2VEC_ABSPOS_MULTIPLIER = 1e-4

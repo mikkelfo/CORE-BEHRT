@@ -3,15 +3,15 @@ import os
 from os.path import join
 
 import torch
-from common.azure import AzurePathContext, save_to_blobstore
-from common.config import load_config
-from common.initialize import Initializer
-from common.loader import (load_checkpoint_and_epoch,
+from ehr2vec.common.azure import AzurePathContext, save_to_blobstore
+from ehr2vec.common.config import load_config
+from ehr2vec.common.initialize import Initializer
+from ehr2vec.common.loader import (load_checkpoint_and_epoch,
                            load_model_cfg_from_checkpoint)
-from common.setup import DirectoryPreparer, copy_data_config, get_args
-from data.prepare_data import DatasetPreparer
-from model.config import adjust_cfg_for_behrt
-from trainer.trainer import EHRTrainer
+from ehr2vec.common.setup import DirectoryPreparer, copy_data_config, get_args
+from ehr2vec.data.prepare_data import DatasetPreparer
+from ehr2vec.model.config import adjust_cfg_for_behrt
+from ehr2vec.trainer.trainer import EHRTrainer
 
 CONFIG_NAME = 'h_pretrain.yaml'
 BLOBSTORE = 'PHAIR'

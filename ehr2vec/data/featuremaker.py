@@ -1,7 +1,6 @@
 import pandas as pd
-import torch
+from typing import Tuple
 from data.creators import BaseCreator
-from data.utils import Utilities
 
 
 class FeatureMaker:
@@ -20,7 +19,7 @@ class FeatureMaker:
         self.pipeline = self.create_pipeline()
         
 
-    def __call__(self, concepts: pd.DataFrame, patients_info: pd.DataFrame)->tuple[dict, list]:
+    def __call__(self, concepts: pd.DataFrame, patients_info: pd.DataFrame) -> Tuple[dict, list]:
         for creator in self.pipeline:
             concepts = creator(concepts, patients_info)
             concepts['CONCEPT'] = concepts['CONCEPT'].astype(str)
@@ -28,7 +27,7 @@ class FeatureMaker:
 
         return features, pids
     
-    def create_pipeline(self)->list:
+    def create_pipeline(self) -> list:
         """Create the pipeline of feature creators."""
         # Pipeline creation
         pipeline = []
@@ -49,7 +48,7 @@ class FeatureMaker:
 
         return pipeline
 
-    def create_features(self, concepts: pd.DataFrame) -> tuple[dict, list]:
+    def create_features(self, concepts: pd.DataFrame) -> Tuple[dict, list]:
         # Add standard info
         pids = []
         for pid, patient in concepts.groupby('PID', sort=False):

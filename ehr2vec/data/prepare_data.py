@@ -36,24 +36,29 @@ class DatasetPreparer:
         self.code_type_filter = CodeTypeFilter(cfg)
         self.data_modifier = DataModifier(cfg)
 
-    def prepare_mlm_dataset(self):
+    def prepare_mlm_dataset(self, val_ratio=0.2):
         """Load data, truncate, adapt features, create dataset"""
-        train_features, val_features, vocabulary = self._prepare_mlm_features()
+        data = self._prepare_mlm_features()
 
-        train_dataset = MLMDataset(train_features, vocabulary, **self.cfg.data.dataset)
-        val_dataset = MLMDataset(val_features, vocabulary, **self.cfg.data.dataset)
+        train_data, val_data = data.split(val_ratio)
+        self.saver.save_train_val_pids(train_data.pids, val_data.pids)
+
+        train_dataset = MLMDataset(train_data.features, train_data.vocabulary, **self.cfg.data.dataset)
+        val_dataset = MLMDataset(val_data.features, train_data.vocabulary, **self.cfg.data.dataset)
+
         
         return train_dataset, val_dataset
 
-    def prepare_hmlm_dataset(self):
-        train_features, val_features, vocabulary = self._prepare_mlm_features()
+    def prepare_hmlm_dataset(self, val_ratio=0.2):
+        data = self._prepare_mlm_features()
+        train_data, val_data = data.split(val_ratio)
         tree, tree_matrix, h_vocabulary = self.loader.load_tree()
         
         self.saver.save_vocab(h_vocabulary, HIERARCHICAL_VOCABULARY_FILE)
-        train_dataset = HierarchicalMLMDataset(train_features, vocabulary, 
+        train_dataset = HierarchicalMLMDataset(train_data.train_features, train_data.vocabulary, 
                                             h_vocabulary, tree, tree_matrix, 
                                             **self.cfg.data.dataset)
-        val_dataset = HierarchicalMLMDataset(val_features, vocabulary, 
+        val_dataset = HierarchicalMLMDataset(val_data.val_features, train_data.vocabulary, 
                                             h_vocabulary, tree, tree_matrix, 
                                             **self.cfg.data.dataset)
         return train_dataset, val_dataset
@@ -77,54 +82,61 @@ class DatasetPreparer:
             # 2. Excluding pretrain patients
             data = self.utils.process_data(data, self.patient_filter.exclude_pretrain_patients) 
         
-            # Optional: Select gender group
+            # 3. Optional: Select gender group
             if data_cfg.get('gender'):
                 data = self.utils.process_data(data, self.patient_filter.select_by_gender)
-            # Optional: Select Patients By Age
+            # 4. Optional: Select Patients By Age
             if data_cfg.get('min_age') or data_cfg.get('max_age'):
                 data = self.utils.process_data(data, self.patient_filter.select_by_age)
             
-            # Optional: Loading and processing outcomes
+            # 5. Loading and processing outcomes
             outcomes, censor_outcomes = self.loader.load_outcomes()
             logger.info("Assigning outcomes to data")
-            data = self.utils.process_data(data, self._retrieve_and_assign_outcomes, 
+            data = self.utils.process_data(data, self._retrieve_and_assign_outcomes, log_positive_patients_num=True,
                                             args_for_func={'outcomes': outcomes, 'censor_outcomes': censor_outcomes})
 
-            self.utils.log_pos_patients_num(data)
-            # Optional: select patients of interest
+            # 6. Optional: select patients of interest
             if data_cfg.get("select_censored"):
                 data = self.utils.process_data(data, self.patient_filter.select_censored, log_positive_patients_num=True)
 
-            # Optional: Filter patients with outcome before censoring
+            # 7. Optional: Filter patients with outcome before censoring
             if self.cfg.outcome.type != self.cfg.outcome.get('censor_type', None):
                 data = self.utils.process_data(data, self.patient_filter.filter_outcome_before_censor, log_positive_patients_num=True) # !Timeframe (earlier instance of outcome)
 
-            # Optional: Filter code types
+            # 8. Optional: Filter code types
             if data_cfg.get('code_types'):
                 data = self.utils.process_data(data, self.code_type_filter.filter)
                 data = self.utils.process_data(data, self.patient_filter.exclude_short_sequences, log_positive_patients_num=True)
 
-        # Data censoring
+        # 9. Data censoring
         data = self.utils.process_data(data, self.data_modifier.censor_data, log_positive_patients_num=True,
                                                args_for_func={'n_hours': self.cfg.outcome.n_hours})
         
-        # Exclude patients with less than k concepts
+        # 10. Exclude patients with less than k concepts
         data = self.utils.process_data(data, self.patient_filter.exclude_short_sequences, log_positive_patients_num=True)
 
-        # Optional: Patient selection
+        # 11. Optional: Patient selection
         if data_cfg.get('num_patients') and not predefined_pids:
             data = self.utils.process_data(data, self.patient_filter.select_random_subset, log_positive_patients_num=True,
                                               args_for_func={'num_patients':data_cfg.num_patients})
         
-        # Optional: Remove Background Tokens
+        # 12. Optional: Remove Background Tokens
         if data_cfg.get("remove_background"):
             data = self.utils.process_data(data, self.data_modifier.remove_background)
 
-        # Optional: Adapt to BEHRT embeddings
-        if self.cfg.model.get('behrt_embedding'):
+        # 13. Truncation
+        logger.info(f"Truncating data to {data_cfg.truncation_len} tokens")
+        data = self.utils.process_data(data, self.data_modifier.truncate, args_for_func={'truncation_len': data_cfg.truncation_len})
+
+        # 14. Normalize segments
+        data = self.utils.process_data(data, self.data_modifier.normalize_segments)
+
+        # 15. Optional: Adapt to BEHRT embeddings
+        if self.cfg.model.get('behrt_embeddings'):
             logger.info('Adapting features for behrt embeddings')
             data.features = BehrtAdapter.adapt_features(data.features)
 
+        # 16. Optional: Remove any unwanted features
         if 'remove_features' in data_cfg:
             for feature in data_cfg.remove_features:
                 logger.info(f"Removing {feature}")
@@ -138,7 +150,7 @@ class DatasetPreparer:
 
         return data
     
-    def _prepare_mlm_features(self)->Tuple[dict, dict, dict]:   
+    def _prepare_mlm_features(self) -> Data:   
         """
         1. Load tokenized data
         2. Optional: Remove background tokens
@@ -150,31 +162,32 @@ class DatasetPreparer:
         data_cfg = self.cfg.data
         model_cfg = self.cfg.model
 
+        # 1. Load tokenized data
         data = self.loader.load_tokenized_data()
         
-        # Optional: Remove background tokens
+        # 2. Optional: Remove background tokens
         if data_cfg.get('remove_background'):
             data = self.utils.process_data(data, self.data_modifier.remove_background)
 
-        # Exclude short sequences
+        # 3. Exclude short sequences
         data = self.utils.process_data(data, self.patient_filter.exclude_short_sequences)
 
-        # Optional: Patient Subset Selection
+        # 4. Optional: Patient Subset Selection
         if data_cfg.get('num_patients'):
             data = self.utils.process_data(data, self.patient_filter.select_random_subset, args_for_func={'num_patients':data_cfg.num_train_patients})
 
-        # Truncation
+        # 5. Truncation
         logger.info(f"Truncating data to {data_cfg.truncation_len} tokens")
-        data = self.utils.process_data(data, self.data_modifier.truncate, {'truncation_len': data_cfg.truncation_len})
+        data = self.utils.process_data(data, self.data_modifier.truncate, args_for_func={'truncation_len': data_cfg.truncation_len})
 
-        # Normalize segments
+        # 6. Normalize segments
         data = self.utils.process_data(data, self.data_modifier.normalize_segments)
       
         # Adjust max segment if needed
         self.utils.check_and_adjust_max_segment(data, model_cfg)
 
-        # Optional: Adapt to BEHRT embeddings
-        if self.cfg.model.get('behrt_embedding'):
+        # 7. Optional: Adapt to BEHRT embeddings
+        if self.cfg.model.get('behrt_embeddings'):
             logger.info('Adapting features for behrt embeddings')
             data.features = BehrtAdapter.adapt_features(data.features)
 
@@ -299,7 +312,7 @@ class DataModifier:
         or if position_ids present (org. BEHRT version) then normalize those."""
         segments_key = 'segment' if 'segment' in data.features else 'position_ids'
 
-        for idx, segments in data.features[segments_key]:
+        for idx, segments in enumerate(data.features[segments_key]):
             data.features[segments_key][idx] = Handler.normalize_segments(segments)
 
         return data

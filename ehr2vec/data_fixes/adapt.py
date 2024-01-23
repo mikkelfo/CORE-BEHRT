@@ -14,7 +14,7 @@ class BehrtAdapter:
         return features
 
     @staticmethod
-    def convert_to_int(ages: list, min_age=0, max_age=119) -> list:
+    def convert_to_int(ages: list, min_age=-1, max_age=120) -> list:
         """Convert ages to int and replace negative values with 0 and values over 119 with 119"""
         converted_ages = []
         for age in ages:

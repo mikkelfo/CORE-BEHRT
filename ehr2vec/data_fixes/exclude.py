@@ -27,14 +27,14 @@ class Excluder:
         tokenized_features = self._is_tokenized(features['concept'])
         
         if tokenized_features:
-            special_tokens = set([idx for key, idx in self.vocabulary.items() if key.startswith('[')])
+            special_tokens = set([idx for key, idx in self.vocabulary.items() if key.startswith(('[', 'BG_'))])
             is_special = lambda x: x in special_tokens
         else:
-            is_special = lambda x: x.startswith('[')
+            is_special = lambda x: x.startswith(('[', 'BG_'))
         
         for i, concepts in enumerate(features['concept']):
-            unique_codes = set([code for code in concepts if not is_special(code)])
-            if len(unique_codes) >= self.min_len:
+            codes = [code for code in concepts if not is_special(code)]
+            if len(codes) >= self.min_len:
                 kept_indices.append(i)
 
         return kept_indices

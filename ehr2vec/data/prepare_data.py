@@ -78,65 +78,62 @@ class DatasetPreparer:
             data = self._load_predefined_pids(data)
             self._load_outcomes_to_data(data)
 
-        if not predefined_pids:
-            # 2. Excluding pretrain patients
-            data = self.utils.process_data(data, self.patient_filter.exclude_pretrain_patients) 
-        
-            # 3. Optional: Select gender group
+        if not predefined_pids:        
+            # 2. Optional: Select gender group
             if data_cfg.get('gender'):
                 data = self.utils.process_data(data, self.patient_filter.select_by_gender)
-            # 4. Optional: Select Patients By Age
+            # 3. Optional: Select Patients By Age
             if data_cfg.get('min_age') or data_cfg.get('max_age'):
                 data = self.utils.process_data(data, self.patient_filter.select_by_age)
             
-            # 5. Loading and processing outcomes
+            # 4. Loading and processing outcomes
             outcomes, censor_outcomes = self.loader.load_outcomes()
             logger.info("Assigning outcomes to data")
             data = self.utils.process_data(data, self._retrieve_and_assign_outcomes, log_positive_patients_num=True,
                                             args_for_func={'outcomes': outcomes, 'censor_outcomes': censor_outcomes})
 
-            # 6. Optional: select patients of interest
+            # 5. Optional: select patients of interest
             if data_cfg.get("select_censored"):
                 data = self.utils.process_data(data, self.patient_filter.select_censored, log_positive_patients_num=True)
 
-            # 7. Optional: Filter patients with outcome before censoring
+            # 6. Optional: Filter patients with outcome before censoring
             if self.cfg.outcome.type != self.cfg.outcome.get('censor_type', None):
                 data = self.utils.process_data(data, self.patient_filter.filter_outcome_before_censor, log_positive_patients_num=True) # !Timeframe (earlier instance of outcome)
 
-            # 8. Optional: Filter code types
+            # 7. Optional: Filter code types
             if data_cfg.get('code_types'):
                 data = self.utils.process_data(data, self.code_type_filter.filter)
                 data = self.utils.process_data(data, self.patient_filter.exclude_short_sequences, log_positive_patients_num=True)
 
-        # 9. Data censoring
+        # 8. Data censoring
         data = self.utils.process_data(data, self.data_modifier.censor_data, log_positive_patients_num=True,
                                                args_for_func={'n_hours': self.cfg.outcome.n_hours})
         
-        # 10. Exclude patients with less than k concepts
+        # 9. Exclude patients with less than k concepts
         data = self.utils.process_data(data, self.patient_filter.exclude_short_sequences, log_positive_patients_num=True)
 
-        # 11. Optional: Patient selection
+        # 10. Optional: Patient selection
         if data_cfg.get('num_patients') and not predefined_pids:
             data = self.utils.process_data(data, self.patient_filter.select_random_subset, log_positive_patients_num=True,
                                               args_for_func={'num_patients':data_cfg.num_patients})
         
-        # 12. Optional: Remove Background Tokens
+        # 11. Optional: Remove Background Tokens
         if data_cfg.get("remove_background"):
             data = self.utils.process_data(data, self.data_modifier.remove_background)
 
-        # 13. Truncation
+        # 12. Truncation
         logger.info(f"Truncating data to {data_cfg.truncation_len} tokens")
         data = self.utils.process_data(data, self.data_modifier.truncate, args_for_func={'truncation_len': data_cfg.truncation_len})
 
-        # 14. Normalize segments
+        # 13. Normalize segments
         data = self.utils.process_data(data, self.data_modifier.normalize_segments)
 
-        # 15. Optional: Adapt to BEHRT embeddings
+        # 14. Optional: Adapt to BEHRT embeddings
         if self.cfg.model.get('behrt_embeddings'):
             logger.info('Adapting features for behrt embeddings')
             data.features = BehrtAdapter.adapt_features(data.features)
 
-        # 16. Optional: Remove any unwanted features
+        # 15. Optional: Remove any unwanted features
         if 'remove_features' in data_cfg:
             for feature in data_cfg.remove_features:
                 logger.info(f"Removing {feature}")

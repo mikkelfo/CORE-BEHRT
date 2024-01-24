@@ -27,7 +27,7 @@ def main_finetune():
     copy_pretrain_config(cfg, run_folder)
     cfg.save_to_yaml(join(run_folder, 'finetune_config.yaml'))
     dataset_preparer = DatasetPreparer(cfg)
-    data = dataset_preparer.prepare_finetune_features()
+    data = dataset_preparer.prepare_finetune_data()
     
     train_data, val_data = data.split(cfg.data.get('val_split', 0.2))
     torch.save(train_data.pids, join(run_folder, 'train_pids.pt'))

@@ -3,7 +3,6 @@ outcomes_name: "AE_0"
 features_dir: ../outputs/data_icd10
 loader:
   data_dir: ../data/formatted/synthea500_icd10 
-  patients_info: patients_info.csv
   concepts: [
     diagnose
   ]

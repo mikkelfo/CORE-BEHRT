@@ -7,7 +7,6 @@ paths:
 loader:
   # can provide formatted data or features
   data_dir:  ../outputs/features_test #../data/formatted/synthea500_icd10 # ../outputs/features_test # ../data/formatted/synthea500_icd10 #../outputs/data_icd10
-  patients_info: patients_info.csv
   concepts: [
     diagnose
   ]
@@ -16,8 +15,7 @@ loader:
 
 features:
   age: 
-    round: 
-      decimal: 2
+    round: 2
   abspos:
     year: 2020
     month: 1
@@ -42,9 +40,8 @@ split_ratios:
   finetune: 0.18 # 20% of 90%
   test: 0.1
 handler:
-  concept_fill: "[UNK]"    
-  num_fill: -100
-  drop: true
+  min_age: -1
+  max_age: 120
 
 # can be a list
 exclude_pids: outputs/pretraining/behrt_test/finetune_TEST_OUTCOME_censored_4_days_post_TEST_OUTCOME_test/test_pids.pt

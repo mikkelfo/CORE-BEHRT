@@ -1,6 +1,7 @@
 import pandas as pd
 
-class Inferrer():
+""" Currently unused - Inferring is doing during formatting """
+class Inferrer:
     def __init__(self, functions: list = ['SEGMENT', 'TIMESTAMP']):
         function_dict = {
             'SEGMENT': self.infer_admission_id,

@@ -1,17 +1,16 @@
-import logging
-import math
 import os
-from dataclasses import dataclass
+import torch
+import random
+import logging
+from tqdm import tqdm
 from os.path import join
+from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
-import numpy as np
-import torch
+from data.utils import Utilities
 from common.loader import load_assigned_pids, load_exclude_pids
 from common.logger import TqdmToLogger
 from common.utils import check_directory_for_features
-from data.utils import Utilities
-from tqdm import tqdm
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
 PRETRAIN = 'pretrain'
@@ -29,7 +28,6 @@ class Batches:
         """Initializes the class and splits the batches into pretrain, finetune and test sets
         pids should contain all the pids in the dataset, including assigned pids.
         Assigned pids should be a dictionary with the key being the split name and the value being a list of pids"""
-        self.cfg = cfg
 
         self.predefined_splits_dir = cfg.get('predefined_splits_dir', None)
         self.flattened_pids = self.flatten(pids)
@@ -49,7 +47,7 @@ class Batches:
             self.assigned_pids = assigned_pids
 
             self.split_ratios = cfg['split_ratios']
-            assert math.isclose(sum(self.split_ratios.values()), 1, abs_tol=1e-6), f"Sum of split ratios must be 1. Current sum: {sum(self.split_ratios.values())}"
+            assert round(sum(self.split_ratios.values()), 5) == 1, f"Sum of split ratios must be 1. Current sum: {sum(self.split_ratios.values())}"
 
     def split_batches(self)-> Dict[str, Split]:
         """Splits the batches into pretrain, finetune and test sets. """
@@ -74,7 +72,7 @@ class Batches:
     
     def get_predefined_splits(self)-> Dict[str, Split]:
         """Loads predefined splits from predefined_splits_dir if in config."""
-        split_files = {file.split('_')[1].split('.')[0 ]:file for file in os.listdir(self.predefined_splits_dir) if file.startswith('pids_')}
+        split_files = {file.split('_')[1].split('.')[0]: file for file in os.listdir(self.predefined_splits_dir) if file.startswith('pids_')}
         assert len(split_files)>0, f"No predefined splits found in {self.predefined_splits_dir}"
         logger.info(f"Loading splits {split_files.keys()}")
         splits = {}
@@ -85,6 +83,7 @@ class Batches:
             all_predefined_pids_set.update(set(pids))
             splits[mode] = Split(pids=pids, mode=mode)
         assert all_predefined_pids_set.issubset(set(self.flattened_pids)), f"Predefined pids are not a subset of all pids."
+
         return splits
     
     def update_split_ratios(self, total_length: int) -> None:
@@ -112,12 +111,12 @@ class Batches:
             target_ratio = ratio * total_length - allocated_counts.get(split, 0)
             remaining_ratios[split] = target_ratio / remaining_length if remaining_length > 0 else 0
         self.split_ratios = remaining_ratios
-        assert math.isclose(sum(self.split_ratios.values()), 1, abs_tol=1e-5), f"Sum of split ratios must be 1. Current sum: {sum(self.split_ratios.values())}"
+        assert round(sum(self.split_ratios.values()), 5) == 1, f"Sum of split ratios must be 1. Current sum: {sum(self.split_ratios.values())}"
 
     def shuffle_pids(self):
         """Shuffles the flattened pids."""
-        np.random.seed(42)
-        np.random.shuffle(self.flattened_pids)
+        random.seed(42)
+        random.shuffle(self.flattened_pids)
 
     @staticmethod
     def create_split_dict(splits: Dict[str, Split])-> Dict[str, Split]:
@@ -186,9 +185,8 @@ class BatchTokenize:
         self.tokenizer.freeze_vocabulary()
         self.save_vocabulary()
         self.batch_tokenize(splits[FINETUNE])
-        if TEST in splits:
-            if len(splits[TEST].pids) > 0:
-                self.batch_tokenize(splits[TEST])
+        if TEST in splits and len(splits[TEST].pids) > 0:
+            self.batch_tokenize(splits[TEST])
     
     def save_vocabulary(self)->None:
         """Saves the tokenizer's vocabulary."""
@@ -199,6 +197,7 @@ class BatchTokenize:
         features_dir = self.get_features_directory()
         encoded, pids = self.tokenize_split(split, features_dir)
         self.save_tokenized_data(encoded, pids, split.mode, save_dir=save_dir)
+        return encoded, pids
         
     def tokenize_split(self, split: Split, features_dir: str)->None:    
         """
@@ -216,14 +215,14 @@ class BatchTokenize:
             filtered_features, filtered_pids = self.load_and_filter_batch(file_id, selected_pids_in_file, features_dir)
             encoded_batch = self.tokenizer(filtered_features)
             self.merge_dicts(encoded, encoded_batch)
-            pids = pids + filtered_pids
+            pids.extend(filtered_pids)
 
         # use the order of split.pids to ensure the order of encoded and pids is the same
         assert set(split.pids)==set(pids), f"Split pids ({len(split.pids)}) and pids ({len(pids)}) do not match"
         encoded, pids = Utilities.select_and_reorder_feats_and_pids(encoded, pids, split.pids)
         
         assert len(pids) == len(encoded['concept']), f"Length of pids ({len(pids)}) does not match length of encoded ({len(encoded['concept'])})"
-        
+
         return encoded, pids
     
     @staticmethod
@@ -251,8 +250,9 @@ class BatchTokenize:
     @staticmethod
     def merge_dicts(dict1:dict, dict2:dict)->None:
         """Merges two dictionaries in place (dict1)"""
-        for key, finetuneue in dict2.items():
-            dict1.setdefault(key, []).extend(finetuneue)
+        for key, finetune in dict2.items():
+            dict1.setdefault(key, []).extend(finetune)
+
     @staticmethod    
     def invert_dictionary(original_dict: Dict[str, str])->Dict[str, List[str]]:
         """Inverts a dictionary, stores values as keys and keys as values. New values are stored in lists."""

@@ -1,8 +1,7 @@
 """Create tokenized features from formatted data. config template: data.yaml"""
 import os
-from tqdm import tqdm
-from os.path import join
 from collections import defaultdict
+from os.path import join
 
 import torch
 from ehr2vec.common.azure import AzurePathContext, save_to_blobstore
@@ -12,6 +11,7 @@ from ehr2vec.common.setup import DirectoryPreparer, get_args
 from ehr2vec.common.utils import check_patient_counts
 from ehr2vec.data.concept_loader import ConceptLoaderLarge
 from ehr2vec.downstream_tasks.outcomes import OutcomeMaker
+from tqdm import tqdm
 
 BLOBSTORE = 'PHAIR'
 CONFIG_NAME = 'outcomes_test.yaml'

@@ -107,14 +107,10 @@ class BehrtEmbeddings(BaseEmbeddings):
 
     def initialize_embeddings(self, config: BertConfig)->None:
         self.word_embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
-        # !tempory solution for compatibility with old models
-        cfg = config.to_dict()
-        max_segment = cfg.get('max_segment_embeddings', None)
-        self.segment_embeddings = nn.Embedding(max_segment if max_segment is not None else cfg.get('type_vocab_size', None) , 
-                                               config.hidden_size)
+        self.segment_embeddings = nn.Embedding(config.max_segment_embeddings, config.hidden_size)
         self.age_embeddings = nn.Embedding(config.age_vocab_size, config.hidden_size)
-        self.posi_embeddings = nn.Embedding(config.max_position_embeddings, config.hidden_size). \
-            from_pretrained(embeddings=self._init_posi_embedding(config.max_position_embeddings, config.hidden_size))
+        self.posi_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size). \
+            from_pretrained(embeddings=self._init_posi_embedding(config.type_vocab_size, config.hidden_size))
 
     def forward(self, input_ids:torch.Tensor, 
                 token_type_ids:torch.Tensor=None, 

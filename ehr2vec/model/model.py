@@ -1,9 +1,10 @@
 import torch
 import torch.nn as nn
-from transformers import BertModel
+from transformers import BertModel, RoFormerModel
 
 from ehr2vec.embeddings.ehr import BehrtEmbeddings, EhrEmbeddings
 from ehr2vec.model.heads import FineTuneHead, HMLMHead, MLMHead
+from ehr2vec.model.activations import SwiGLU
 
 
 class BertEHREncoder(BertModel):
@@ -15,6 +16,17 @@ class BertEHREncoder(BertModel):
             self.embeddings = BehrtEmbeddings(config)
         else:
             raise ValueError(f"Unknown embedding type: {config.embedding}")
+
+        # Activate transformer++ recipe
+        if config.to_dict().get('plusplus'):
+            config.embedding_size = config.hidden_size
+            config.rotary_value = False
+            self.encoder = RoFormerModel(config).encoder
+
+            for layer in self.encoder.layer:
+                layer.intermediate.intermediate_act_fn = SwiGLU(config)
+                # layer.output.LayerNorm = RMSNorm(config.hidden_size, eps=config.layer_norm_eps) # We dont use RMSNorm (only speedup, no performance gain)
+
     def forward(
         self,
         batch: dict,

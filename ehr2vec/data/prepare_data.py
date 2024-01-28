@@ -68,7 +68,7 @@ class DatasetPreparer:
         data_cfg = self.cfg.data
 
         # 1. Loading tokenized data
-        data = self.loader.load_tokenized_data()
+        data = self.loader.load_tokenized_data(mode='finetune')
 
         predefined_pids =  'predefined_splits' in self.cfg.paths
         if predefined_pids:
@@ -161,7 +161,7 @@ class DatasetPreparer:
         model_cfg = self.cfg.model
 
         # 1. Load tokenized data
-        data = self.loader.load_tokenized_data()
+        data = self.loader.load_tokenized_data(mode='pretrain')
         
         # 2. Optional: Remove background tokens
         if data_cfg.get('remove_background'):

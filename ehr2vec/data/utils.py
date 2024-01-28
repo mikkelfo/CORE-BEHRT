@@ -15,7 +15,7 @@ BG_GENDER_KEYS = {
     'male': ['M', 'Mand',  'male', 'Male', 'man', 'MAN', '1'],
     'female': ['W', 'Kvinde', 'F', 'female', 'Female', 'woman', 'WOMAN', '0']
 }
-MIN_POSITIVES = {'train': 10, 'val': 5, None: 1}
+MIN_POSITIVES = {'finetune': 1, None: 1}
 CHECKPOINT_FOLDER = 'checkpoints'
 ORIGIN_POINT = {'year': 2020, 'month': 1, 'day': 26, 'hour': 0, 'minute': 0, 'second': 0}
 

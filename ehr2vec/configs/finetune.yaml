@@ -16,6 +16,8 @@ model:
   behrt_embeddings: true
   extend_head: 
     hidden_size: null
+  cls:
+    _target_: ehr2vec.model.heads.ClassifierGRU
 
 data:
   num_patients: 300 #300

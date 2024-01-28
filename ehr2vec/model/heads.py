@@ -71,3 +71,31 @@ class HMLMHead(MLMHead):
         self.decoder = torch.nn.Linear(config.hidden_size, config.leaf_size, bias=False)
         self.bias = torch.nn.Parameter(torch.zeros(config.leaf_size))
         self.decoder.bias = self.bias
+
+class ClassifierGRU(torch.nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.rnn = torch.nn.GRU(config.hidden_size, config.hidden_size, batch_first=True)
+        self.classifier = torch.nn.Linear(config.hidden_size, 1)
+
+    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+        # Pass the hidden states through the RNN
+        output, _ = self.rnn(hidden_states)
+        # Use the last output of the RNN as input to the classifier
+        x = output[:, -1, :]
+        x = self.classifier(x)
+        return x
+    
+class ClassifierLSTM(torch.nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.rnn = torch.nn.LSTM(config.hidden_size, config.hidden_size, batch_first=True)
+        self.classifier = torch.nn.Linear(config.hidden_size, 1)
+
+    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+        # Pass the hidden states through the RNN
+        output, _ = self.rnn(hidden_states)
+        # Use the last output of the RNN as input to the classifier
+        x = output[:, -1, :]
+        x = self.classifier(x)
+        return x

@@ -1,12 +1,14 @@
+import logging
+
 import torch
 import torch.nn as nn
 from transformers import BertModel, RoFormerModel
 
+from ehr2vec.common.config import instantiate
 from ehr2vec.embeddings.ehr import BehrtEmbeddings, EhrEmbeddings
-from ehr2vec.model.heads import FineTuneHead, HMLMHead, MLMHead
 from ehr2vec.model.activations import SwiGLU
+from ehr2vec.model.heads import FineTuneHead, HMLMHead, MLMHead
 
-import logging
 logger = logging.getLogger(__name__)
 class BertEHREncoder(BertModel):
     def __init__(self, config):
@@ -79,8 +81,9 @@ class BertForFineTuning(BertEHRModel):
             pos_weight = None
 
         self.loss_fct = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-        self.cls = FineTuneHead(config)
-
+        self.cls = instantiate(config.cls, config=config) if 'cls' in config.to_dict() else FineTuneHead(config)
+        logger.info(f"Using {self.cls.__class__.__name__} as classifier.")
+        
     def get_loss(self, hidden_states, labels, labels_mask=None):    
         return self.loss_fct(hidden_states.view(-1), labels.view(-1))
 

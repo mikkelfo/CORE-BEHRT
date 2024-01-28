@@ -6,14 +6,16 @@ paths:
   outcome: "../outputs/data_icd10/outcomes/TEST_OUTCOME/TEST_OUTCOME.pt"
   #output_path: "outputs/finetuning"
   run_name: "test"
-  #tokenized_dir: "tokenized"
+  #tokenized_dir:"tokenized"
   tokenized_file: "tokenized_finetune.pt" # can also be a list
   tokenized_pids: "pids_finetune.pt" # can also be a list
-  #predefined_splits: outputs\pretraining\behrt_test\finetune_TEST_OUTCOME_censored_10_hours_pre_TEST_OUTCOME_test
+  #predefined_splits: outputs\pretraining\behrt_test\finetune_TEST_OUTCOME_censored_4_days_post_TEST_OUTCOME_test
 
 model:
   pool_type: "cls"
   behrt_embeddings: true
+  extend_head: 
+    hidden_size: null
 
 data:
   num_patients: 300 #300

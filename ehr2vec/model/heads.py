@@ -29,7 +29,15 @@ class FineTuneHead(torch.nn.Module):
     def __init__(self, config):
         super().__init__()
         self.classifier = torch.nn.Linear(config.hidden_size, 1)
-
+        if 'extend_head' in config.to_dict():
+            if config.extend_head.get('hidden_size', None) is not None:
+                intermediate_size = config.extend_head.hidden_size
+            else:
+                intermediate_size = config.hidden_size//3 *2
+            self.activation = torch.nn.GELU()
+            self.hidden_layer = torch.nn.Linear(config.hidden_size, intermediate_size)
+            self.cls_layer = torch.nn.Linear(intermediate_size, 1)
+            self.classifier = torch.nn.Sequential(self.hidden_layer, self.activation, self.cls_layer)
         pool_type = config.pool_type
         if pool_type == 'cls':
             self.pool = self.pool_cls

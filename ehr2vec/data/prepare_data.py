@@ -217,9 +217,8 @@ class DatasetPreparer:
         """ Validate predefined splits as subset of data."""
         predefined_pids = torch.load(join(self.cfg.paths.predefined_splits, 'pids.pt'))
         if not set(predefined_pids).issubset(set(data.pids)):
-            difference = len(set(predefined_pids).difference(set(data.pids)))
-            raise ValueError(f"Pids in the predefined splits must be a subset of data.pids. There are {difference} pids in the data that are not in the predefined splits")
-        data = data.select_data_subset_by_pids(predefined_pids)
+            raise ValueError(f"Pids in the predefined splits must be a subset of data.pids. There are {len(set(predefined_pids).difference(set(data.pids)))} pids in the data that are not in the predefined splits")
+        data = data.select_data_subset_by_pids(predefined_pids, mode=data.mode)
         return data
     
     def _load_outcomes_to_data(self, data: Data)->None:

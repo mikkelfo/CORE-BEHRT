@@ -1,3 +1,4 @@
+
 import torch
 import logging
 import numpy as np
@@ -5,16 +6,16 @@ import pandas as pd
 from os.path import join
 from typing import Dict, List, Tuple, Union
 
-from common.config import Config, instantiate, load_config
-from common.loader import FeaturesLoader
-from common.saver import Saver
-from common.utils import Data
-from data.dataset import (HierarchicalMLMDataset, MLMDataset)
-from data.filter import CodeTypeFilter, PatientFilter
-from data.utils import Utilities
-from data_fixes.adapt import BehrtAdapter
-from data_fixes.handle import Handler
-from data_fixes.truncate import Truncator
+from ehr2vec.common.config import Config, instantiate, load_config
+from ehr2vec.common.loader import FeaturesLoader
+from ehr2vec.common.saver import Saver
+from ehr2vec.common.utils import Data
+from ehr2vec.data.dataset import (HierarchicalMLMDataset, MLMDataset)
+from ehr2vec.data.filter import CodeTypeFilter, PatientFilter
+from ehr2vec.data.utils import Utilities
+from ehr2vec.data_fixes.adapt import BehrtAdapter
+from ehr2vec.data_fixes.handle import Handler
+from ehr2vec.data_fixes.truncate import Truncator
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
 

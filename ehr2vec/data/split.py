@@ -3,7 +3,7 @@ import numpy as np
 from itertools import combinations
 from typing import Iterator, Tuple, List
 
-from common.utils import Data
+from ehr2vec.common.utils import Data
 from sklearn.model_selection import KFold
 
 logger = logging.getLogger(__name__)       

@@ -1,6 +1,6 @@
 import pandas as pd
 from typing import Tuple
-from data.creators import BaseCreator
+from ehr2vec.data.creators import BaseCreator
 
 
 class FeatureMaker:

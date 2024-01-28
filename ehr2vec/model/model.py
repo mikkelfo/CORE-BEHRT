@@ -6,19 +6,23 @@ from ehr2vec.embeddings.ehr import BehrtEmbeddings, EhrEmbeddings
 from ehr2vec.model.heads import FineTuneHead, HMLMHead, MLMHead
 from ehr2vec.model.activations import SwiGLU
 
-
+import logging
+logger = logging.getLogger(__name__)
 class BertEHREncoder(BertModel):
     def __init__(self, config):
         super().__init__(config)
         if not config.to_dict().get('embedding', None):
+            logger.info("No embedding type specified. Using default EHR embedding.")
             self.embeddings = EhrEmbeddings(config)
         elif config.embedding == 'original_behrt':
+            logger.info("Using original Behrt embedding.")
             self.embeddings = BehrtEmbeddings(config)
         else:
             raise ValueError(f"Unknown embedding type: {config.embedding}")
 
         # Activate transformer++ recipe
         if config.to_dict().get('plusplus'):
+            logger.info("Using Transformer++ recipe.")
             config.embedding_size = config.hidden_size
             config.rotary_value = False
             self.encoder = RoFormerModel(config).encoder

@@ -1,8 +1,8 @@
 import torch
 from transformers import BatchEncoding
 
-from data_fixes.handle import Handler
-from common.utils import iter_patients
+from ehr2vec.data_fixes.handle import Handler
+from ehr2vec.common.utils import iter_patients
 
 class EHRTokenizer:
     def __init__(self, config, vocabulary=None):

@@ -1,6 +1,6 @@
 import itertools
 import pandas as pd
-from data.utils import Utilities
+from ehr2vec.data.utils import Utilities
 
 
 class BaseCreator:

@@ -5,9 +5,9 @@ import pandas as pd
 from os.path import join
 from typing import List, Tuple
 
-from data.utils import Utilities
-from data_fixes.exclude import Excluder
-from common.utils import Data, iter_patients
+from ehr2vec.data.utils import Utilities
+from ehr2vec.data_fixes.exclude import Excluder
+from ehr2vec.common.utils import Data, iter_patients
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
 

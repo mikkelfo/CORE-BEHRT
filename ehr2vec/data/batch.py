@@ -7,10 +7,10 @@ from os.path import join
 from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
-from data.utils import Utilities
-from common.loader import load_assigned_pids, load_exclude_pids
-from common.logger import TqdmToLogger
-from common.utils import check_directory_for_features
+from ehr2vec.data.utils import Utilities
+from ehr2vec.common.loader import load_assigned_pids, load_exclude_pids
+from ehr2vec.common.logger import TqdmToLogger
+from ehr2vec.common.utils import check_directory_for_features
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
 PRETRAIN = 'pretrain'

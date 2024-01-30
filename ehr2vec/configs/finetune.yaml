@@ -35,6 +35,7 @@ data:
   censorer:
    _target_: data_fixes.censor.EQ_Censorer
   remove_features: ['age']
+  number_of_train_patients: 10
 
 outcome: 
   type: TEST_OUTCOME
@@ -53,7 +54,7 @@ trainer_args:
   sample_weight_multiplier: 1 # adjust the sampling weight of the positive class (1 is balanced)
   pos_weight: null # weight for positive class in the loss
   batch_size: 8
-  val_batch_size: 32
+  val_batch_size: 16
   effective_batch_size: 16
   epochs: 3
   info: true

@@ -70,13 +70,23 @@ def finetune_fold(cfg, train_data:Data, val_data:Data,
         last_epoch=epoch
     )
     trainer.train()
-    
+
+def limit_train_patients(indices_or_pids: list)->list:
+    if 'number_of_train_patients' in cfg.data:
+        if len(indices_or_pids) > cfg.data.number_of_train_patients:
+            indices_or_pids = indices_or_pids[:cfg.data.number_of_train_patients]
+            logger.info(f"Number of train patients is limited to {cfg.data.number_of_train_patients}")
+        else:
+            raise ValueError(f"Number of train patients is {len(indices_or_pids)}, but should be at least {cfg.data.number_of_train_patients}")
+    return indices_or_pids
+
 def cv_loop(data: Data, train_val_indices: list, test_data: Data)->None:
     """Loop over cross validation folds."""
     for fold, (train_indices, val_indices) in enumerate(get_n_splits_cv(data, N_SPLITS, train_val_indices)):
         fold += 1
         logger.info(f"Training fold {fold}/{N_SPLITS}")
         logger.info("Splitting data")
+        train_indices = limit_train_patients(train_indices)
         train_data = data.select_data_subset_by_indices(train_indices, mode='train')
         val_data = data.select_data_subset_by_indices(val_indices, mode='val')
         check_data_for_overlap(train_data, val_data, test_data)
@@ -92,6 +102,7 @@ def cv_loop_predefined_splits(data: Data, predefined_splits_dir: str, test_data:
         logger.info(f"Training fold {fold}/{len(fold_dirs)}")
         logger.info("Load and select pids")
         train_pids = torch.load(join(fold_dir, 'train_pids.pt'))
+        train_pids = limit_train_patients(train_pids)
         val_pids = torch.load(join(fold_dir, 'val_pids.pt'))
         train_data = data.select_data_subset_by_pids(train_pids, mode='train')
         val_data = data.select_data_subset_by_pids(val_pids, mode='val')

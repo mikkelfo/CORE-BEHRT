@@ -1,23 +1,25 @@
 import os
-import torch
 from os.path import abspath, dirname, join, split
+
+import torch
 
 from ehr2vec.common.azure import save_to_blobstore
 from ehr2vec.common.initialize import Initializer, ModelManager
 from ehr2vec.common.setup import (DirectoryPreparer, copy_data_config,
-                          copy_pretrain_config, get_args)
+                                  copy_pretrain_config, get_args)
 from ehr2vec.common.utils import Data
 from ehr2vec.data.dataset import BinaryOutcomeDataset
 from ehr2vec.data.prepare_data import DatasetPreparer
 from ehr2vec.data.split import get_n_splits_cv
-from ehr2vec.evaluation.utils import (check_data_for_overlap,
-                              compute_and_save_scores_mean_std,
-                              split_into_test_and_train_val_and_save_test_set)
+from ehr2vec.evaluation.utils import (
+    check_data_for_overlap, compute_and_save_scores_mean_std, save_data,
+    split_into_test_data_and_train_val_indices)
 from ehr2vec.trainer.trainer import EHRTrainer
 
 CONFIG_NAME = 'finetune.yaml'
 N_SPLITS = 2  # You can change this to desired value
 BLOBSTORE='PHAIR'
+DEAFAULT_VAL_SPLIT = 0.2
 
 args = get_args(CONFIG_NAME)
 config_path = join(dirname(abspath(__file__)), args.config_path)
@@ -45,7 +47,7 @@ def finetune_fold(cfg, train_data:Data, val_data:Data,
     test_dataset = BinaryOutcomeDataset(test_data.features, test_data.outcomes) if len(test_data) > 0 else None
     modelmanager = ModelManager(cfg, fold)
     checkpoint = modelmanager.load_checkpoint() 
-    modelmanager.load_model_config() # check whether cfg is changed after that.
+    modelmanager.load_model_config() 
     model = modelmanager.initialize_finetune_model(checkpoint, train_dataset)
     
     optimizer, sampler, scheduler, cfg = modelmanager.initialize_training_components(model, train_dataset)
@@ -57,7 +59,7 @@ def finetune_fold(cfg, train_data:Data, val_data:Data,
         optimizer=optimizer,
         train_dataset=train_dataset, 
         val_dataset=val_dataset, 
-        test_dataset=test_dataset,
+        test_dataset=None, # test only after training
         args=cfg.trainer_args,
         metrics=cfg.metrics,
         sampler=sampler,
@@ -71,6 +73,15 @@ def finetune_fold(cfg, train_data:Data, val_data:Data,
     )
     trainer.train()
 
+    logger.info('Load best finetuned model to compute test scores')
+    modelmanager_trained = ModelManager(cfg, model_path=fold_folder)
+    checkpoint = modelmanager_trained.load_checkpoint()
+    modelmanager.load_model_config() 
+    model = modelmanager_trained.initialize_finetune_model(checkpoint, train_dataset)
+    trainer.model = model
+    trainer.test_dataset = test_dataset
+    trainer._evaluate(checkpoint['epoch'], mode='test')
+
 def limit_train_patients(indices_or_pids: list)->list:
     if 'number_of_train_patients' in cfg.data:
         if len(indices_or_pids) > cfg.data.number_of_train_patients:
@@ -80,6 +91,12 @@ def limit_train_patients(indices_or_pids: list)->list:
             raise ValueError(f"Number of train patients is {len(indices_or_pids)}, but should be at least {cfg.data.number_of_train_patients}")
     return indices_or_pids
 
+def split_and_finetune(data: Data, train_indices: list, val_indices: list, fold: int, test_data: Data=None):
+    train_data = data.select_data_subset_by_indices(train_indices, mode='train')
+    val_data = data.select_data_subset_by_indices(val_indices, mode='val')
+    check_data_for_overlap(train_data, val_data, test_data)
+    finetune_fold(cfg, train_data, val_data, fold, test_data)
+
 def cv_loop(data: Data, train_val_indices: list, test_data: Data)->None:
     """Loop over cross validation folds."""
     for fold, (train_indices, val_indices) in enumerate(get_n_splits_cv(data, N_SPLITS, train_val_indices)):
@@ -87,10 +104,14 @@ def cv_loop(data: Data, train_val_indices: list, test_data: Data)->None:
         logger.info(f"Training fold {fold}/{N_SPLITS}")
         logger.info("Splitting data")
         train_indices = limit_train_patients(train_indices)
-        train_data = data.select_data_subset_by_indices(train_indices, mode='train')
-        val_data = data.select_data_subset_by_indices(val_indices, mode='val')
-        check_data_for_overlap(train_data, val_data, test_data)
-        finetune_fold(cfg, train_data, val_data, fold, test_data)
+        split_and_finetune(data, train_indices, val_indices, fold, test_data)
+
+def finetune_without_cv(data: Data, train_val_indices:list, test_data: Data=None)->None:
+    val_split = cfg.data.get('val_split', DEAFAULT_VAL_SPLIT)
+    logger.info(f"Splitting train_val of length {len(train_val_indices)} into train and val with val_split={val_split}")
+    train_indices = train_val_indices[:int(len(train_val_indices)*(1-val_split))]
+    val_indices = train_val_indices[int(len(train_val_indices)*(1-val_split)):]
+    split_and_finetune(data, train_indices, val_indices, 1, test_data)
 
 def cv_loop_predefined_splits(data: Data, predefined_splits_dir: str, test_data: Data)->int:
     """Loop over predefined splits"""
@@ -126,15 +147,18 @@ if __name__ == '__main__':
         logger.info('Using predefined splits')
         test_pids = torch.load(join(cfg.paths.predefined_splits, 'test_pids.pt')) if os.path.exists(join(cfg.paths.predefined_splits, 'test_pids.pt')) else []
         test_data = data.select_data_subset_by_pids(test_pids, mode='test')
-        if len(test_data) > 0:
-            torch.save(test_data.pids, join(finetune_folder, 'test_pids.pt'))
+        save_data(test_data, finetune_folder)
         N_SPLITS = cv_loop_predefined_splits(data, cfg.paths.predefined_splits, test_data)
 
     else:
         logger.info('Splitting data')
-        test_data, train_val_indices = split_into_test_and_train_val_and_save_test_set(cfg, data, finetune_folder)
-        cv_loop(data, train_val_indices, test_data)
-    
+        test_data, train_val_indices = split_into_test_data_and_train_val_indices(cfg, data)
+        save_data(test_data, finetune_folder)
+        if N_SPLITS > 1:
+            cv_loop(data, train_val_indices, test_data)
+        else:
+            finetune_without_cv(data, train_val_indices, test_data)
+
     compute_and_save_scores_mean_std(N_SPLITS, finetune_folder, mode='val')
     if len(test_data) > 0:
         compute_and_save_scores_mean_std(N_SPLITS, finetune_folder, mode='test')    

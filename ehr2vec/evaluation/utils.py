@@ -168,16 +168,26 @@ def split_test_set(indices:list, test_split:float)->Tuple[list, list]:
     train_val_indices = [i for i in indices if i not in test_indices_set]
     return test_indices, train_val_indices
 
-def split_into_test_and_train_val_and_save_test_set(cfg, data:Data, finetune_folder:str)->Tuple[Data, list]:
+def split_into_test_data_and_train_val_indices(cfg, data:Data)->Tuple[Data, list]:
     """Split data into test and train_val indices. And save test set."""
     indices = list(range(len(data.pids)))
     test_split = cfg.data.get('test_split', None)
     if test_split is not None:
         test_indices, train_val_indices = split_test_set(indices, test_split)
-        test_pids = [data.pids[i] for i in test_indices]
-        torch.save(test_pids, join(finetune_folder, 'test_pids.pt'))
     else:
         test_indices = []
         train_val_indices = indices
     test_data = Data() if len(test_indices) == 0 else data.select_data_subset_by_indices(test_indices, mode='test')
     return test_data, train_val_indices
+
+def save_data(data: Data, folder:str)->None:
+    """Unpacks data and saves it to folder"""
+    if len(data)>0:
+        torch.save(data.pids, join(folder, f'{data.mode}_pids.pt'))
+        torch.save(data.features, join(folder, f'{data.mode}_features.pt'))
+        if data.outcomes is not None:
+            torch.save(data.outcomes, join(folder, f'{data.mode}_outcomes.pt'))
+        if data.censor_outcomes is not None:
+            torch.save(data.censor_outcomes, join(folder, f'{data.mode}_censor_outcomes.pt'))
+    else:
+        logger.warning(f"No data to save in {data.mode}")

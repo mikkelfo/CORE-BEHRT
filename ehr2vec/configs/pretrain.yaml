@@ -42,7 +42,7 @@ model:
   num_attention_heads: 3
   intermediate_size: 64
   type_vocab_size: 40
-  behrt_embeddings: false
+  behrt_embeddings: true
 
 optimizer:
   lr: 5e-4

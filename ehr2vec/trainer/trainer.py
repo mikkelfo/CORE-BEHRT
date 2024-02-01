@@ -13,6 +13,8 @@ from ehr2vec.trainer.utils import (compute_avg_metrics, get_nvidia_smi_output,
 
 yaml.add_representer(Config, lambda dumper, data: data.yaml_repr(dumper))
 
+BEST_MODEL_ID = 999 # For backwards compatibility
+DEFAULT_CHECKPOINT_FREQUENCY = 100
 class EHRTrainer:
     def __init__(self, 
         model: torch.nn.Module,
@@ -176,21 +178,17 @@ class EHRTrainer:
     def validate_and_log(self, epoch: int, epoch_loss: float, train_loop: DataLoader)-> None:
         val_loss, val_metrics = self._evaluate(epoch, mode='val')
         _, test_metrics = self._evaluate(epoch, mode='test')
-        if epoch==1:
-            self._save_checkpoint(epoch, train_loss=epoch_loss, val_loss=val_loss, val_metrics=val_metrics, test_metrics=test_metrics, final_step_loss=epoch_loss[-1])
+        if epoch==0: # for testing purposes/if first epoch is best
+            self._save_checkpoint(BEST_MODEL_ID, train_loss=epoch_loss, val_loss=val_loss, val_metrics=val_metrics, test_metrics=test_metrics, final_step_loss=epoch_loss[-1])
         if self._should_stop_early(val_loss, epoch, epoch_loss, val_metrics, test_metrics):
             return 
-        # self._save_checkpoint_conditionally(epoch, epoch_loss, val_loss, metrics)
+        self._save_checkpoint_conditionally(val_loss, epoch, epoch_loss, val_metrics, test_metrics)
         self._self_log_results(epoch, val_loss, val_metrics, epoch_loss, len(train_loop))
 
-    def _save_checkpoint_conditionally(self, epoch: int, epoch_loss: float, val_loss: float, metrics: dict) -> None:
-        should_save = (
-            (epoch % self.args.get('checkpoint_frequency', 1) == 0) or 
-            (epoch == self.args['epochs'] - 1)
-        )
-        should_save = should_save and (not self.early_stopping)
+    def _save_checkpoint_conditionally(self, epoch: int, epoch_loss: float, val_loss: float, val_metrics,  test_metrics: dict) -> None:
+        should_save = epoch % self.args.get('checkpoint_frequency', DEFAULT_CHECKPOINT_FREQUENCY) == 0
         if should_save:
-            self._save_checkpoint(epoch, train_loss=epoch_loss, val_loss=val_loss, metrics=metrics, final_step_loss=epoch_loss[-1])
+            self._save_checkpoint(epoch, train_loss=epoch_loss, val_loss=val_loss, val_metrics=val_metrics, test_metrics=test_metrics, final_step_loss=epoch_loss[-1])
 
     def _self_log_results(self, epoch: int, val_loss: float, val_metrics: dict, epoch_loss: float, len_train_loop: int)->None:
         for k, v in val_metrics.items():
@@ -209,7 +207,7 @@ class EHRTrainer:
         if self._is_improvement(current_metric_value):
             self.best_metric_value = current_metric_value
             self.early_stopping_counter = 0
-            self._save_checkpoint(epoch, train_loss=epoch_loss, val_loss=val_loss, val_metrics=val_metrics, test_metrics=test_metrics, final_step_loss=epoch_loss[-1])
+            self._save_checkpoint(BEST_MODEL_ID, train_loss=epoch_loss, val_loss=val_loss, val_metrics=val_metrics, test_metrics=test_metrics, final_step_loss=epoch_loss[-1])
             return False
         else:
             self.early_stopping_counter += 1
@@ -302,6 +300,8 @@ class EHRTrainer:
             metrics[name] = v
         save_curves(self.run_folder, logits, targets, epoch, mode)
         save_metrics_to_csv(self.run_folder, metrics, epoch, mode)
+        save_curves(self.run_folder, logits, targets, BEST_MODEL_ID, mode)
+        save_metrics_to_csv(self.run_folder, metrics, BEST_MODEL_ID, mode) # For compatibility / best model
         return metrics
 
     def get_val_dataloader(self):

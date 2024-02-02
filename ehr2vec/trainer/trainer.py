@@ -9,7 +9,8 @@ from torch.utils.data import DataLoader, Dataset
 from ehr2vec.common.config import Config, get_function, instantiate
 from ehr2vec.dataloader.collate_fn import dynamic_padding
 from ehr2vec.trainer.utils import (compute_avg_metrics, get_nvidia_smi_output,
-                                   get_tqdm, save_curves, save_metrics_to_csv)
+                                   get_tqdm, save_curves, save_metrics_to_csv,
+                                   save_predictions)
 
 yaml.add_representer(Config, lambda dumper, data: data.yaml_repr(dumper))
 
@@ -178,9 +179,9 @@ class EHRTrainer:
     def validate_and_log(self, epoch: int, epoch_loss: float, train_loop: DataLoader)-> None:
         val_loss, val_metrics = self._evaluate(epoch, mode='val')
         _, test_metrics = self._evaluate(epoch, mode='test')
-        if epoch==0: # for testing purposes/if first epoch is best
+        if epoch==1: # for testing purposes/if first epoch is best
             self._save_checkpoint(BEST_MODEL_ID, train_loss=epoch_loss, val_loss=val_loss, val_metrics=val_metrics, test_metrics=test_metrics, final_step_loss=epoch_loss[-1])
-        if self._should_stop_early(val_loss, epoch, epoch_loss, val_metrics, test_metrics):
+        if self._should_stop_early(val_loss, epoch_loss, val_metrics, test_metrics):
             return 
         self._save_checkpoint_conditionally(val_loss, epoch, epoch_loss, val_metrics, test_metrics)
         self._self_log_results(epoch, val_loss, val_metrics, epoch_loss, len(train_loop))
@@ -198,7 +199,7 @@ class EHRTrainer:
         self.log(f'Epoch {epoch} val loss: {val_loss}')
         self.log(f'Epoch {epoch} metrics: {val_metrics}\n')
 
-    def _should_stop_early(self, val_loss: float, epoch: int, epoch_loss: float, val_metrics: dict, test_metrics:dict={}) -> bool:
+    def _should_stop_early(self, val_loss: float, epoch_loss: float, val_metrics: dict, test_metrics:dict={}) -> bool:
         if not self.early_stopping:
             return False
         # Get the current value of the metric
@@ -302,13 +303,14 @@ class EHRTrainer:
         save_metrics_to_csv(self.run_folder, metrics, epoch, mode)
         save_curves(self.run_folder, logits, targets, BEST_MODEL_ID, mode)
         save_metrics_to_csv(self.run_folder, metrics, BEST_MODEL_ID, mode) # For compatibility / best model
+        save_predictions(self.run_folder, logits, targets, BEST_MODEL_ID, mode)
         return metrics
 
     def get_val_dataloader(self):
         return DataLoader(
             self.val_dataset, 
             batch_size=self.args.get('val_batch_size', self.args['batch_size']), 
-            shuffle=self.args.get('shuffle', True), 
+            shuffle=False, 
             collate_fn=self.args['collate_fn']
         )
     def get_test_dataloader(self):

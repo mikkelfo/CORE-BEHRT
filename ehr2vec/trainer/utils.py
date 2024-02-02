@@ -32,6 +32,14 @@ def save_curves(run_folder:str, logits:torch.Tensor, targets:torch.Tensor, epoch
     np.savez_compressed(roc_name, fpr=fpr, tpr=tpr, threshold=threshold_roc)
     np.savez_compressed(prc_name, precision=precision, recall=recall, threshold=np.append(threshold_pr, 1))
 
+def save_predictions(run_folder:str, logits:torch.Tensor, targets:torch.Tensor, epoch:int, mode='val')->None:
+    """Saves the predictions to npz files in the run folder"""
+    probas_name = os.path.join(run_folder, 'checkpoints', f'probas_{mode}_{epoch}.npz')
+    targets_name = os.path.join(run_folder, 'checkpoints', f'targets_{mode}_{epoch}.npz')
+    probas = torch.sigmoid(logits).cpu().numpy()
+    np.savez_compressed(probas_name, probas=probas)
+    np.savez_compressed(targets_name, targets=targets)
+
 def save_metrics_to_csv(run_folder:str, metrics: dict, epoch: int, mode='val')->None:
     """Saves the metrics to a csv file"""
     metrics_name = os.path.join(run_folder, 'checkpoints', f'{mode}_scores_{epoch}.csv')

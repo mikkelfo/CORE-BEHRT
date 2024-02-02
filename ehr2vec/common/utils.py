@@ -4,14 +4,14 @@ import os
 import random
 from dataclasses import dataclass, field
 from os.path import join
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Generator
 
 import torch
 from torch.utils.data import IterableDataset
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
 
-def iter_patients(features: dict) -> dict:
+def iter_patients(features: dict) -> Generator[dict, None, None]:
     """Iterate over patients in a features dict."""
     for i in range(len(features["concept"])):
         yield {key: values[i] for key, values in features.items()}
@@ -106,9 +106,10 @@ class Data:
         pid2index = {pid: index for index, pid in enumerate(self.pids)}
         if not set(pids).issubset(set(self.pids)):
             difference = len(set(pids).difference(set(self.pids)))
-            raise ValueError(f"Selection pids for split {mode} must be a subset of the pids in the data. There are {difference} pids in the data that are not in the selection pids.")
-
-        indices = [pid2index[pid] for pid in pids]
+            logger.warning("Selection pids for split {} is not a subset of the pids in the data. There are {} selection pids that are not in data pids.".format(mode, difference))
+        logger.info(f"{len(pid2index)} pids in data")
+        indices = [pid2index[pid] for pid in pids if pid in pid2index]
+        logger.info(f"Selected {len(indices)} pids for split {mode}")
         return self.select_data_subset_by_indices(indices, mode)
 
     def _get_train_val_splits(self, split: float)->Tuple[list, list]:

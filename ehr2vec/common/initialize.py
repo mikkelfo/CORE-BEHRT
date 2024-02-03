@@ -51,7 +51,7 @@ class Initializer:
             logger.info('Loading model from checkpoint')
             add_config = {**self.cfg.model}
             add_config.update({'pos_weight':get_pos_weight(self.cfg, train_dataset.outcomes),
-                            'embedding':'original_behrt' if self.cfg.model.get('behrt_embeddings', False) else None,
+                            'embedding':Initializer.get_embedding(self.cfg),
                             'pool_type':self.cfg.model.get('pool_type', 'mean')
             })
             model = self.loader.load_model(
@@ -70,7 +70,15 @@ class Initializer:
                     pos_weight=get_pos_weight(self.cfg, train_dataset.outcomes),
                     embedding='original_behrt' if self.cfg.model.get('behrt_embeddings', False) else None,
                     pool_type=self.cfg.model.get('pool_type', 'mean')),)
-        
+    
+    @staticmethod
+    def get_embedding(cfg):
+        if cfg.model.get('behrt_embeddings', False):
+            return 'original_behrt'
+        elif cfg.model.get('discrete_abspos_embeddings', False):
+            return 'discrete_abspos'
+        return None
+
     def initialize_hierachical_pretrain_model(self, train_dataset):
         if self.checkpoint:
             logger.info('Loading model from checkpoint')

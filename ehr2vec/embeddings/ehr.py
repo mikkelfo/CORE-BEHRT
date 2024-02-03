@@ -155,6 +155,40 @@ class BehrtEmbeddings(BaseEmbeddings):
                 lookup_table[pos, idx] = odd_code(pos, idx)
 
         return torch.tensor(lookup_table)
+    
+class DiscreteAbsposEmbeddings(BaseEmbeddings):
+    """
+    Construct the embeddings from word, segment, age and abspos
+    """
+    def __init__(self, config: BertConfig):
+        super().__init__(config)
+        self.initialize_embeddings(config)
+        self.initialize_linear_params(config)
 
+    def initialize_embeddings(self, config: BertConfig)->None:
+        self.word_embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
+        self.segment_embeddings = nn.Embedding(config.max_segment_embeddings, config.hidden_size)
+        self.age_embeddings = nn.Embedding(config.age_vocab_size, config.hidden_size)
+        self.abspos_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size)
 
+    def forward(self, input_ids:torch.Tensor, 
+                token_type_ids:torch.Tensor=None, 
+                position_ids:Dict[str, torch.Tensor]=None, 
+                inputs_embeds:torch.Tensor = None, **kwargs)->torch.Tensor:
+        if inputs_embeds is not None:
+            return inputs_embeds
+        embeddings = self.a * self.word_embeddings(input_ids)
+        if position_ids is not None:
+            if 'age' in position_ids:
+                age_embed = self.age_embeddings(position_ids['age'])
+                embeddings += self.c * age_embed
+            if 'abspos' in position_ids:
+                abspos_embed = self.abspos_embeddings(position_ids['abspos'])
+                embeddings += self.d * abspos_embed
+        segment_embed = self.b * self.segment_embeddings(token_type_ids)
+        embeddings += segment_embed
+                
+        embeddings = self.LayerNorm(embeddings)
+        embeddings = self.dropout(embeddings)
+        return embeddings
 

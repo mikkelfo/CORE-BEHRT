@@ -9,7 +9,7 @@ from ehr2vec.common.loader import (load_checkpoint_and_epoch,
                            load_model_cfg_from_checkpoint)
 from ehr2vec.common.setup import DirectoryPreparer, copy_data_config, get_args
 from ehr2vec.data.prepare_data import DatasetPreparer
-from ehr2vec.model.config import adjust_cfg_for_behrt
+from ehr2vec.model.config import adjust_cfg_for_behrt, adjust_cfg_for_discrete_abspos
 from ehr2vec.trainer.trainer import EHRTrainer
 
 CONFIG_NAME = 'pretrain.yaml'
@@ -29,10 +29,11 @@ def main_train(config_path):
     
     load_model_cfg_from_checkpoint(cfg, 'pretrain_config.yaml') # if we are training from checkpoint, we need to load the old config
     train_dataset, val_dataset = DatasetPreparer(cfg).prepare_mlm_dataset()
-    if cfg.model.get('behrt_embeddings', False):
-        if cfg.paths.get('model_path', None) is None: # only if we are not training from checkpoint
+    if cfg.paths.get('model_path', None) is None: # only if we are not training from checkpoint
+        if cfg.model.get('behrt_embeddings', False):
             cfg = adjust_cfg_for_behrt(cfg)
-
+        elif cfg.model.get('discrete_abspos_embeddings', False):
+            cfg = adjust_cfg_for_discrete_abspos(cfg)
     checkpoint, epoch = load_checkpoint_and_epoch(cfg)
     initializer = Initializer(cfg, checkpoint=checkpoint)
     model = initializer.initialize_pretrain_model(train_dataset)

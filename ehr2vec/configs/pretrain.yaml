@@ -41,8 +41,9 @@ model:
   num_hidden_layers: 3
   num_attention_heads: 3
   intermediate_size: 64
-  type_vocab_size: 40
+  type_vocab_size: 240 #  if discrete_abspos_embeddings: true, give the range of abspos in months
   behrt_embeddings: true
+  discrete_abspos_embeddings: false
 
 optimizer:
   lr: 5e-4

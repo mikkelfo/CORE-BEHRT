@@ -5,7 +5,7 @@ import torch.nn as nn
 from transformers import BertModel, RoFormerModel
 
 from ehr2vec.common.config import instantiate
-from ehr2vec.embeddings.ehr import BehrtEmbeddings, EhrEmbeddings
+from ehr2vec.embeddings.ehr import BehrtEmbeddings, EhrEmbeddings, DiscreteAbsposEmbeddings
 from ehr2vec.model.activations import SwiGLU
 from ehr2vec.model.heads import FineTuneHead, HMLMHead, MLMHead
 
@@ -19,6 +19,9 @@ class BertEHREncoder(BertModel):
         elif config.embedding == 'original_behrt':
             logger.info("Using original Behrt embedding.")
             self.embeddings = BehrtEmbeddings(config)
+        elif config.embedding == 'discrete_abspos':
+            logger.info("Using discrete absolute position embedding.")
+            self.embeddings = DiscreteAbsposEmbeddings(config)
         else:
             raise ValueError(f"Unknown embedding type: {config.embedding}")
 

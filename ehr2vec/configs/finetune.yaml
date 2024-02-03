@@ -14,10 +14,11 @@ paths:
 model:
   pool_type: "cls"
   behrt_embeddings: true
-  extend_head: 
-    hidden_size: null
-  cls:
-    _target_: ehr2vec.model.heads.ClassifierGRU
+  discrete_abspos_embeddings: false
+  #extend_head: 
+  # hidden_size: null
+  #cls:
+   # _target_: ehr2vec.model.heads.ClassifierGRU
 
 data:
   num_patients: 300 #300
@@ -34,7 +35,7 @@ data:
   min_len: 2
   censorer:
    _target_: data_fixes.censor.EQ_Censorer
-  remove_features: ['age']
+  remove_features: ['abspos']
   number_of_train_patients: 10
 
 outcome: 

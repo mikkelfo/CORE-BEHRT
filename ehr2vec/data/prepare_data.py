@@ -13,7 +13,7 @@ from ehr2vec.common.utils import Data
 from ehr2vec.data.dataset import (HierarchicalMLMDataset, MLMDataset)
 from ehr2vec.data.filter import CodeTypeFilter, PatientFilter
 from ehr2vec.data.utils import Utilities
-from ehr2vec.data_fixes.adapt import BehrtAdapter
+from ehr2vec.data_fixes.adapt import BehrtAdapter, DiscreteAbsposAdapter
 from ehr2vec.data_fixes.handle import Handler
 from ehr2vec.data_fixes.truncate import Truncator
 
@@ -134,6 +134,11 @@ class DatasetPreparer:
             logger.info('Adapting features for behrt embeddings')
             data.features = BehrtAdapter.adapt_features(data.features)
 
+        if self.cfg.model.get('discrete_abspos_embeddings'):
+            if self.cfg.model.get('behrt_embeddings'):
+                raise ValueError("Discrete abspos embeddings and behrt embeddings are not compatible.")
+            logger.info('Adapting features for discrete abspos embeddings')
+            data.features = DiscreteAbsposAdapter.adapt_features(data.features)
         # 15. Optional: Remove any unwanted features
         if 'remove_features' in data_cfg:
             for feature in data_cfg.remove_features:
@@ -188,6 +193,12 @@ class DatasetPreparer:
         if self.cfg.model.get('behrt_embeddings'):
             logger.info('Adapting features for behrt embeddings')
             data.features = BehrtAdapter.adapt_features(data.features)
+
+        if self.cfg.model.get('discrete_abspos_embeddings'):
+            if self.cfg.model.get('behrt_embeddings'):
+                raise ValueError("Discrete abspos embeddings and behrt embeddings are not compatible.")
+            logger.info('Adapting features for discrete abspos embeddings')
+            data.features = DiscreteAbsposAdapter.adapt_features(data.features)
 
         # Verify and save
         data.check_lengths()

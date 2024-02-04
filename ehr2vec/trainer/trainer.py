@@ -180,16 +180,16 @@ class EHRTrainer:
         val_loss, val_metrics = self._evaluate(epoch, mode='val')
         _, test_metrics = self._evaluate(epoch, mode='test')
         if epoch==1: # for testing purposes/if first epoch is best
-            self._save_checkpoint(BEST_MODEL_ID, train_loss=epoch_loss, val_loss=val_loss, val_metrics=val_metrics, test_metrics=test_metrics, final_step_loss=epoch_loss[-1])
-        if self._should_stop_early(val_loss, epoch_loss, val_metrics, test_metrics):
+            self._save_checkpoint(epoch, train_loss=epoch_loss, val_loss=val_loss, val_metrics=val_metrics, test_metrics=test_metrics, final_step_loss=epoch_loss[-1], best_model=True)
+        if self._should_stop_early(epoch, val_loss, epoch_loss, val_metrics, test_metrics):
             return 
-        self._save_checkpoint_conditionally(val_loss, epoch, epoch_loss, val_metrics, test_metrics)
+        self._save_checkpoint_conditionally(epoch, epoch_loss, val_loss, val_metrics, test_metrics)
         self._self_log_results(epoch, val_loss, val_metrics, epoch_loss, len(train_loop))
 
     def _save_checkpoint_conditionally(self, epoch: int, epoch_loss: float, val_loss: float, val_metrics,  test_metrics: dict) -> None:
         should_save = epoch % self.args.get('checkpoint_frequency', DEFAULT_CHECKPOINT_FREQUENCY) == 0
         if should_save:
-            self._save_checkpoint(epoch, train_loss=epoch_loss, val_loss=val_loss, val_metrics=val_metrics, test_metrics=test_metrics, final_step_loss=epoch_loss[-1])
+            self._save_checkpoint(epoch, train_loss=epoch_loss, val_loss=val_loss, val_metrics=val_metrics, test_metrics=test_metrics, final_step_loss=epoch_loss[-1], best_model=True)
 
     def _self_log_results(self, epoch: int, val_loss: float, val_metrics: dict, epoch_loss: float, len_train_loop: int)->None:
         for k, v in val_metrics.items():
@@ -199,7 +199,7 @@ class EHRTrainer:
         self.log(f'Epoch {epoch} val loss: {val_loss}')
         self.log(f'Epoch {epoch} metrics: {val_metrics}\n')
 
-    def _should_stop_early(self, val_loss: float, epoch_loss: float, val_metrics: dict, test_metrics:dict={}) -> bool:
+    def _should_stop_early(self, epoch, val_loss: float, epoch_loss: float, val_metrics: dict, test_metrics:dict={}) -> bool:
         if not self.early_stopping:
             return False
         # Get the current value of the metric
@@ -208,7 +208,7 @@ class EHRTrainer:
         if self._is_improvement(current_metric_value):
             self.best_metric_value = current_metric_value
             self.early_stopping_counter = 0
-            self._save_checkpoint(BEST_MODEL_ID, train_loss=epoch_loss, val_loss=val_loss, val_metrics=val_metrics, test_metrics=test_metrics, final_step_loss=epoch_loss[-1])
+            self._save_checkpoint(epoch, train_loss=epoch_loss, val_loss=val_loss, val_metrics=val_metrics, test_metrics=test_metrics, final_step_loss=epoch_loss[-1], best_model=True)
             return False
         else:
             self.early_stopping_counter += 1
@@ -355,12 +355,12 @@ class EHRTrainer:
             yaml.dump(self.cfg.to_dict(), file)
         self.log(f'Saved config to {self.run_folder}')  
 
-    def _save_checkpoint(self, epoch:int, **kwargs)->None:
+    def _save_checkpoint(self, epoch:int, best_model=False, **kwargs)->None:
         """Saves a checkpoint. Model with optimizer and scheduler if available."""
         # Model/training specific
-        id=f'epoch{epoch}_end'
+        id = epoch if not best_model else BEST_MODEL_ID
         os.makedirs(os.path.join(self.run_folder, 'checkpoints'), exist_ok=True)
-        checkpoint_name = os.path.join(self.run_folder, 'checkpoints', f'checkpoint_{id}.pt')
+        checkpoint_name = os.path.join(self.run_folder, 'checkpoints', f'checkpoint_epoch{id}_end.pt')
         torch.save({
             'epoch': epoch,
             'model_state_dict': self.model.state_dict(),

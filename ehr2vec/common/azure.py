@@ -50,7 +50,7 @@ def get_max_retry_folder(folders):
     else:
         return None
     
-def save_to_blobstore(local_path: str, remote_path: str):
+def save_to_blobstore(local_path: str, remote_path: str, overwrite: bool = False):
     """
     Saves a file to the blobstore. 
     local_path: The path to the file to be saved (inside outputs or the last retry folder)
@@ -63,7 +63,7 @@ def save_to_blobstore(local_path: str, remote_path: str):
         src_dir = join(output_path, local_path)
         logger.info(f"Try copying {src_dir} to {remote_path}")
         file_dataset_save(local_path=src_dir, datastore_name = "workspaceblobstore",
-                    remote_path = remote_path)
+                    remote_path = remote_path, overwrite=overwrite)
         logger.info('Saved model to blob')
     except Exception as e:
         logger.warning(f'Could not save to blob. Exception: {e}')

@@ -27,7 +27,7 @@ def main_train(config_path):
     logger, run_folder = DirectoryPreparer.setup_run_folder(cfg)
     copy_data_config(cfg, run_folder)
     
-    load_model_cfg_from_checkpoint(cfg, 'pretrain_config.yaml') # if we are training from checkpoint, we need to load the old config
+    loaded_from_checkpoint = load_model_cfg_from_checkpoint(cfg, 'pretrain_config.yaml') # if we are training from checkpoint, we need to load the old config
     train_dataset, val_dataset = DatasetPreparer(cfg).prepare_mlm_dataset()
     if cfg.paths.get('model_path', None) is None: # only if we are not training from checkpoint
         if cfg.model.get('behrt_embeddings', False):
@@ -35,9 +35,9 @@ def main_train(config_path):
         elif cfg.model.get('discrete_abspos_embeddings', False):
             cfg = adjust_cfg_for_discrete_abspos(cfg)
     checkpoint, epoch = load_checkpoint_and_epoch(cfg)
+    logger.info(f'Continue training from epoch {epoch}')    
     initializer = Initializer(cfg, checkpoint=checkpoint)
     model = initializer.initialize_pretrain_model(train_dataset)
-
     logger.info('Initializing optimizer')
     optimizer = initializer.initialize_optimizer(model)
     scheduler = initializer.initialize_scheduler(optimizer)
@@ -60,7 +60,8 @@ def main_train(config_path):
     trainer.train()
     if cfg.env == 'azure':
         save_to_blobstore(cfg.paths.run_name,
-                          join(BLOBSTORE, 'models', cfg.paths.type, cfg.paths.run_name))
+                          join(BLOBSTORE, 'models', cfg.paths.type, cfg.paths.run_name),
+                          overwrite=loaded_from_checkpoint)
         mount_context.stop()
     logger.info("Done")
 

@@ -21,15 +21,20 @@ VAL_RATIO = 0.2
 def load_checkpoint_and_epoch(cfg: Config)->Tuple:
     model_path = cfg.paths.get('model_path', None)
     checkpoint = ModelLoader(cfg).load_checkpoint() if model_path is not None else None
-    epoch = Utilities.get_last_checkpoint_epoch(join(model_path, CHECKPOINT_FOLDER)) if model_path is not None else None
+    if checkpoint is not None:
+        epoch = checkpoint['epoch']
+    else:
+        epoch = Utilities.get_last_checkpoint_epoch(join(model_path, CHECKPOINT_FOLDER)) if model_path is not None else None
     return checkpoint, epoch
 
-def load_model_cfg_from_checkpoint(cfg: Config, config_name: str)->None:
+def load_model_cfg_from_checkpoint(cfg: Config, config_name: str)->bool:
     """If training from checkpoint, we need to get the old config"""
     model_path = cfg.paths.get('model_path', None)
     if model_path is not None: # if we are training from checkpoint, we need to load the old config
         old_cfg = load_config(join(cfg.paths.model_path, config_name))
         cfg.model = old_cfg.model
+        return True
+    return False
 
 class FeaturesLoader:
     def __init__(self, cfg):

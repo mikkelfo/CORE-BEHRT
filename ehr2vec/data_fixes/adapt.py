@@ -2,6 +2,7 @@ from math import ceil, floor
 from typing import List
 
 MIN_ABSPOS_MONTHS = -120 # 10 years into the past
+MAX_ABSPOS_MONTHS = 37 # 3 years into the future
 HOURS_IN_MONTH = 730.001 # 30.42 days
 
 
@@ -64,10 +65,10 @@ class DiscreteAbsposAdapter(BaseAdapter):
         New segment is created from old segment."""
         features = BaseAdapter.adapt_features(features)
         if 'abspos' in features:
-            max_abpos = DiscreteAbsposAdapter.get_maximum(features['abspos'])
-            max_abspos_months = DiscreteAbsposAdapter.hours2months(max_abpos) 
+            # max_abpos = DiscreteAbsposAdapter.get_maximum(features['abspos'])
+            # max_abspos_months = DiscreteAbsposAdapter.hours2months(max_abpos) 
             features['abspos'] = [DiscreteAbsposAdapter.convert_abspos(
-                 abspos, min_abspos=MIN_ABSPOS_MONTHS, max_abspos=max_abspos_months) \
+                 abspos, min_abspos=MIN_ABSPOS_MONTHS, max_abspos=MAX_ABSPOS_MONTHS) \
                     for abspos in features['abspos']]
         return features
 

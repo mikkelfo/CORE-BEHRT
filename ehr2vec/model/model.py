@@ -2,12 +2,14 @@ import logging
 
 import torch
 import torch.nn as nn
-from transformers import BertModel, RoFormerModel
+from transformers import BertModel
+from transformers.models.roformer.modeling_roformer import RoFormerEncoder
 
 from ehr2vec.common.config import instantiate
 from ehr2vec.embeddings.ehr import BehrtEmbeddings, EhrEmbeddings, DiscreteAbsposEmbeddings
 from ehr2vec.model.activations import SwiGLU
 from ehr2vec.model.heads import FineTuneHead, HMLMHead, MLMHead
+
 
 logger = logging.getLogger(__name__)
 class BertEHREncoder(BertModel):
@@ -28,9 +30,8 @@ class BertEHREncoder(BertModel):
         # Activate transformer++ recipe
         if config.to_dict().get('plusplus'):
             logger.info("Using Transformer++ recipe.")
-            config.embedding_size = config.hidden_size
             config.rotary_value = False
-            self.encoder = RoFormerModel(config).encoder
+            self.encoder = RoFormerEncoder(config)
 
             for layer in self.encoder.layer:
                 layer.intermediate.intermediate_act_fn = SwiGLU(config)

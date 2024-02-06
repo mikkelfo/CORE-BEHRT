@@ -7,10 +7,10 @@ from transformers import BertConfig
 
 from ehr2vec.embeddings.time2vec import Time2Vec
 
-TIME2VEC_AGE_MULTIPLIER = 1e-2
 TIME2VEC_ABSPOS_MULTIPLIER = 1e-4
 TIME2VEC_MIN_CLIP = -100
 TIME2VEC_MAX_CLIP = 100
+AGE_VOCAB_SIZE = 120
 
 class BaseEmbeddings(nn.Module):
     """Base Embeddings class with shared methods"""
@@ -59,8 +59,7 @@ class EhrEmbeddings(BaseEmbeddings):
 
     def initialize_embeddings(self, config: BertConfig)->None:
         self.concept_embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
-        self.age_embeddings = Time2Vec(1, config.hidden_size, init_scale=TIME2VEC_AGE_MULTIPLIER,
-                                       clip_min=TIME2VEC_MIN_CLIP, clip_max=TIME2VEC_MAX_CLIP)
+        self.age_embeddings = nn.Embedding(AGE_VOCAB_SIZE, config.hidden_size)
         self.abspos_embeddings = Time2Vec(1, config.hidden_size, init_scale=TIME2VEC_ABSPOS_MULTIPLIER,
                                           clip_min=TIME2VEC_MIN_CLIP, clip_max=TIME2VEC_MAX_CLIP)
         self.segment_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size)

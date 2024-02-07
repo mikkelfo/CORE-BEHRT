@@ -116,6 +116,7 @@ class Data:
         """Randomly split a list of items into two lists of lengths determined by split"""
         assert split < 1 and split > 0, "Split must be between 0 and 1"
         indices = list(range(len(self.pids)))
+        random.seed(42)
         random.shuffle(indices)
         split_index = int(len(indices)*(1-split))
         return indices[:split_index], indices[split_index:]

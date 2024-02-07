@@ -1,5 +1,6 @@
 
 import logging
+import os
 from os.path import join
 from typing import Dict, List, Tuple, Union
 
@@ -8,7 +9,8 @@ import pandas as pd
 import torch
 
 from ehr2vec.common.config import Config, instantiate, load_config
-from ehr2vec.common.loader import FeaturesLoader
+from ehr2vec.common.loader import (FeaturesLoader, get_pids_file,
+                                   load_and_select_splits)
 from ehr2vec.common.saver import Saver
 from ehr2vec.common.utils import Data
 from ehr2vec.data.dataset import HierarchicalMLMDataset, MLMDataset
@@ -42,8 +44,10 @@ class DatasetPreparer:
     def prepare_mlm_dataset(self, val_ratio=0.2):
         """Load data, truncate, adapt features, create dataset"""
         data = self._prepare_mlm_features()
-
-        train_data, val_data = data.split(val_ratio)
+        if 'predefined_splits' in self.cfg.paths:
+            train_data, val_data = load_and_select_splits(self.cfg.paths.predefined_splits, data)
+        else:
+            train_data, val_data = data.split(val_ratio)
         self.saver.save_train_val_pids(train_data.pids, val_data.pids)
 
         train_dataset = MLMDataset(train_data.features, train_data.vocabulary, **self.cfg.data.dataset)
@@ -78,7 +82,7 @@ class DatasetPreparer:
             logger.warning("Use original censoring time. Overwrite n_hours parameter.")
             original_config = load_config(join(self.cfg.paths.predefined_splits, 'finetune_config.yaml'))
             self.cfg.outcome.n_hours = original_config.outcome.n_hours
-            data = self._load_predefined_pids(data)
+            data = self._select_predefined_pids(data)
             self._load_outcomes_to_data(data)
 
         if not predefined_pids:        
@@ -174,16 +178,21 @@ class DatasetPreparer:
         # 1. Load tokenized data
         data = self.loader.load_tokenized_data(mode='pretrain')
         
+        predefined_pids =  'predefined_splits' in self.cfg.paths
+        if predefined_pids:
+            logger.warning("Using predefined splits. Ignoring test_split parameter")
+            data = self._select_predefined_pids(data)
+
         # 2. Optional: Remove background tokens
         if data_cfg.get('remove_background'):
             data = self.utils.process_data(data, self.data_modifier.remove_background)
 
         # 3. Exclude short sequences
         data = self.utils.process_data(data, self.patient_filter.exclude_short_sequences)
-
-        # 4. Optional: Patient Subset Selection
-        if data_cfg.get('num_patients'):
-            data = self.utils.process_data(data, self.patient_filter.select_random_subset, args_for_func={'num_patients':data_cfg.num_train_patients})
+        if not predefined_pids:
+            # 4. Optional: Patient Subset Selection
+            if data_cfg.get('num_patients'):
+                data = self.utils.process_data(data, self.patient_filter.select_random_subset, args_for_func={'num_patients':data_cfg.num_train_patients})
 
         # 5. Truncation
         logger.info(f"Truncating data to {data_cfg.truncation_len} tokens")
@@ -231,10 +240,20 @@ class DatasetPreparer:
         else:
             data.censor_outcomes = [None]*len(outcomes)
         return data
-    
-    def _load_predefined_pids(self, data: Data):
+    @staticmethod
+    def _get_predefined_pids(predefined_splits_path)->List:
+        """Return pids from predefined splits"""
+        if os.path.exists(join(predefined_splits_path, 'pids.pt')):
+            return torch.load(join(predefined_splits_path, 'pids.pt'))
+        else:
+            train_pids = torch.load(get_pids_file(predefined_splits_path, 'train'))
+            val_pids = torch.load(get_pids_file(predefined_splits_path, 'val'))
+            return train_pids + val_pids
+
+    def _select_predefined_pids(self, data: Data):
         """ Validate predefined splits as subset of data."""
-        predefined_pids = torch.load(join(self.cfg.paths.predefined_splits, 'pids.pt'))
+        predefined_splits_path = self.cfg.paths.predefined_splits
+        predefined_pids = self._get_predefined_pids(predefined_splits_path)
         if not set(predefined_pids).issubset(set(data.pids)):
             raise ValueError(f"Pids in the predefined splits must be a subset of data.pids. There are {len(set(predefined_pids).difference(set(data.pids)))} pids in the data that are not in the predefined splits")
         data = data.select_data_subset_by_pids(predefined_pids, mode=data.mode)

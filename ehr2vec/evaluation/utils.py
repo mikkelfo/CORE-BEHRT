@@ -143,14 +143,15 @@ def compute_and_save_scores_mean_std(n_splits:int, finetune_folder: str, mode='v
     date = datetime.now().strftime("%Y%m%d-%H%M")
     scores_mean_std.to_csv(join(finetune_folder, f'{mode}_scores_mean_std_{date}.csv'))
 
-def check_data_for_overlap(train_data: Data, val_data: Data, test_data: Data)->None:
+def check_data_for_overlap(train_data: Data, val_data: Data, test_data: Data=None)->None:
     """Check that there is no overlap between train, val and test data"""
     train_pids = set(train_data.pids)
     val_pids = set(val_data.pids)
-    test_pids = set(test_data.pids) if len(test_data) > 0 else set()
     assert len(train_pids.intersection(val_pids)) == 0, "Train and val data overlap"
-    assert len(train_pids.intersection(test_pids)) == 0, "Train and test data overlap"
-    assert len(val_pids.intersection(test_pids)) == 0, "Val and test data overlap"
+    if test_data is not None:
+        test_pids = set(test_data.pids) if len(test_data) > 0 else set()
+        assert len(train_pids.intersection(test_pids)) == 0, "Train and test data overlap"
+        assert len(val_pids.intersection(test_pids)) == 0, "Val and test data overlap"
 
 def check_predefined_pids(data :Data, cfg)->None:
     if 'predefined_splits' in cfg.paths:

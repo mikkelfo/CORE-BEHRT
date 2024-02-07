@@ -1,8 +1,9 @@
-import os
-import torch
 import logging
+import os
 from os.path import join
 from typing import Dict, List, Tuple, Union
+
+import torch
 from transformers import BertConfig
 
 from ehr2vec.common.config import Config, load_config
@@ -178,9 +179,29 @@ def load_assigned_pids(cfg)->Dict:
     return assigned_pids
 
 def _load_pids(files: Union[List, str])->List:
+    """Loads pids from multiple files or one file. Doesn't preserve order."""
     if isinstance(files, str):
         return set(torch.load(files))    
     pids = set()
     for file in files:
         pids.update(set(torch.load(file)))
     return pids
+
+def get_pids_file(split_dir: str, mode: str)->str:
+    """Get pids file from predefined splits. 
+    The file can be named pids_{mode}.pt or {mode}_pids.pt."""
+    if os.path.exists(join(split_dir, f'{mode}_pids.pt')):
+        return join(split_dir, f'{mode}_pids.pt')
+    elif os.path.exists(join(split_dir, f'pids_{mode}.pt')):
+        return join(split_dir, f'pids_{mode}.pt')
+    else:
+        raise ValueError(f'No pids file found for mode {mode} in {split_dir}')
+
+def load_and_select_splits(split_dir: str, data: Data)->Tuple[Data, Data]:
+    """Load and select pids from predefined splits"""
+    logger.info("Load and select pids")
+    train_pids = torch.load(get_pids_file(split_dir, 'train'))
+    val_pids = torch.load(get_pids_file(split_dir, 'val'))
+    train_data = data.select_data_subset_by_pids(train_pids, mode='train')
+    val_data = data.select_data_subset_by_pids(val_pids, mode='val')
+    return train_data, val_data

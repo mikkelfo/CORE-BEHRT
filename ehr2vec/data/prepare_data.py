@@ -160,7 +160,7 @@ class DatasetPreparer:
         data = self.utils.process_data(data, self.saver.save_sequence_lengths)
 
         self.saver.save_data(data)
-
+        self._log_features(data)
         return data
     
     def _prepare_mlm_features(self) -> Data:   
@@ -222,7 +222,7 @@ class DatasetPreparer:
         data = self.utils.process_data(data, self.saver.save_sequence_lengths)
 
         self.saver.save_data(data)
-        
+        self._log_features(data)
         return data
     
     def prepare_onehot_features(self)->Tuple[np.ndarray, np.ndarray, Dict]:
@@ -264,6 +264,11 @@ class DatasetPreparer:
         for outcome_type in ['outcomes', 'censor_outcomes']:
             setattr(data, outcome_type, torch.load(join(self.cfg.paths.predefined_splits, f'{outcome_type}.pt')))
 
+    def _log_features(self, data:Data)->None:
+        logger.info(f"Final features: {data.features.keys()}")
+        logger.info("Example features: ")
+        for k, v in data.features.items():
+            logger.info(f"{k}: {v[0]}")
 
 class OneHotEncoder:
     @staticmethod

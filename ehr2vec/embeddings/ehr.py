@@ -1,3 +1,4 @@
+import logging
 from typing import Dict
 
 import numpy as np
@@ -6,6 +7,8 @@ import torch.nn as nn
 from transformers import BertConfig
 
 from ehr2vec.embeddings.time2vec import Time2Vec
+
+logger = logging.getLogger(__name__)  # Get the logger for this module
 
 TIME2VEC_ABSPOS_MULTIPLIER = 1e-4
 TIME2VEC_MIN_CLIP = -100
@@ -58,10 +61,14 @@ class EhrEmbeddings(BaseEmbeddings):
         self.initialize_linear_params(config)
 
     def initialize_embeddings(self, config: BertConfig)->None:
+        logger.info("Initialize Concept/Segment/Age embeddings.")
         self.concept_embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
         self.age_embeddings = nn.Embedding(AGE_VOCAB_SIZE, config.hidden_size)
-        self.abspos_embeddings = Time2Vec(1, config.hidden_size, init_scale=TIME2VEC_ABSPOS_MULTIPLIER,
-                                          clip_min=TIME2VEC_MIN_CLIP, clip_max=TIME2VEC_MAX_CLIP)
+        if config.to_dict().get('abspos_embeddings', True):
+            logger.info("Initialize time2vec(abspos) embeddings.")
+            self.abspos_embeddings = Time2Vec(1, config.hidden_size, init_scale=TIME2VEC_ABSPOS_MULTIPLIER, clip_min=TIME2VEC_MIN_CLIP, clip_max=TIME2VEC_MAX_CLIP)
+        else:
+            self.abspos_embeddings = None
         self.segment_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size)
         
     def forward(
@@ -86,9 +93,10 @@ class EhrEmbeddings(BaseEmbeddings):
                 ages_embedded = self.age_embeddings(position_ids['age'])
                 embeddings += self.c * ages_embedded
             if 'abspos' in position_ids:
-                abspos_embedded = self.abspos_embeddings(position_ids['abspos'])
-                embeddings += self.d * abspos_embedded
-        
+                if self.abspos_embeddings is not None:
+                    abspos_embedded = self.abspos_embeddings(position_ids['abspos'])
+                    embeddings += self.d * abspos_embedded
+                
         embeddings = self.LayerNorm(embeddings)
         embeddings = self.dropout(embeddings)
 
@@ -105,6 +113,7 @@ class BehrtEmbeddings(BaseEmbeddings):
         self.initialize_linear_params(config)
 
     def initialize_embeddings(self, config: BertConfig)->None:
+        logger.info("Initialize Concept/Segment/Age/Posi embeddings.")
         self.word_embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
         self.segment_embeddings = nn.Embedding(config.max_segment_embeddings, config.hidden_size)
         self.age_embeddings = nn.Embedding(config.age_vocab_size, config.hidden_size)
@@ -165,6 +174,7 @@ class DiscreteAbsposEmbeddings(BaseEmbeddings):
         self.initialize_linear_params(config)
 
     def initialize_embeddings(self, config: BertConfig)->None:
+        logger.info("Initialize Concept/Segment/Age/Abspos embeddings.")
         self.word_embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
         self.segment_embeddings = nn.Embedding(config.max_segment_embeddings, config.hidden_size)
         self.age_embeddings = nn.Embedding(config.age_vocab_size, config.hidden_size)

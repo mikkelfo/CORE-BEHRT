@@ -26,7 +26,7 @@ class BaseCreator:
 class AgeCreator(BaseCreator):
     feature = id = 'age'
     def create(self, concepts: pd.DataFrame, patients_info: pd.DataFrame)-> pd.DataFrame:
-        self._rename_birthdate_column(patients_info)
+        patients_info = self._rename_birthdate_column(patients_info)
         birthdates = pd.Series(patients_info['BIRTHDATE'].values, index=patients_info['PID']).to_dict()
         # Calculate approximate age
         ages = (concepts['TIMESTAMP'] - concepts['PID'].map(birthdates)).dt.days / 365.25

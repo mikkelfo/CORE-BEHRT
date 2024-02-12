@@ -62,9 +62,14 @@ class OutcomeMaker:
         mask = np.bitwise_and.reduce(col_booleans)
         if "negation" in attrs:
             mask = ~mask
+        if attrs.get("use_last", False):
+            return self.select_last_event(concepts_plus, mask)
         return self.select_first_event(concepts_plus, mask)
-        
-    def select_first_event(self, concepts_plus:pd.DataFrame, mask:pd.Series):
+    @staticmethod
+    def select_last_event(concepts_plus:pd.DataFrame, mask:pd.Series):
+        return concepts_plus[mask].groupby("PID").TIMESTAMP.max()
+    @staticmethod
+    def select_first_event(concepts_plus:pd.DataFrame, mask:pd.Series):
         return concepts_plus[mask].groupby("PID").TIMESTAMP.min()
     
     @staticmethod

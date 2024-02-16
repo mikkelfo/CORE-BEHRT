@@ -8,6 +8,7 @@ class BaseCreator:
         self.config = config
 
     def __call__(self, concepts: pd.DataFrame, patients_info: pd.DataFrame)-> pd.DataFrame:
+        patients_info = self._rename_birthdate_column(patients_info)
         return self.create(concepts, patients_info)
     
     def create(self, concepts: pd.DataFrame, patients_info: pd.DataFrame)-> pd.DataFrame:

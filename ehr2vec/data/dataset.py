@@ -42,7 +42,8 @@ class MLMDataset(BaseEHRDataset):
         masked_concepts, target = self.masker.mask_patient_concepts(patient)
         patient["concept"] = masked_concepts
         patient["target"] = target
-
+        if 'PLOS' in patient:
+            patient["PLOS"] = float(patient["PLOS"])
         return patient
 
     

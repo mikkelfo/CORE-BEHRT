@@ -101,7 +101,61 @@ class EhrEmbeddings(BaseEmbeddings):
         embeddings = self.dropout(embeddings)
 
         return embeddings
-    
+
+class MedbertEmbeddings(BaseEmbeddings):
+    """
+        EHR Embeddings
+
+        Forward inputs:
+            input_ids: torch.LongTensor             - (batch_size, sequence_length)
+            token_type_ids: torch.LongTensor        - (batch_size, sequence_length)
+            position_ids: dict(str, torch.Tensor)   - (batch_size, sequence_length)
+
+        Config:
+            vocab_size: int                         - size of the vocabulary
+            hidden_size: int                        - size of the hidden layer
+            type_vocab_size: int                    - size of max segments
+            layer_norm_eps: float                   - epsilon for layer normalization
+            hidden_dropout_prob: float              - dropout probability
+            linear: bool                            - whether to linearly scale embeddings (a: concept, b: age, c: abspos, d: segment)
+    """
+    def __init__(self, config: BertConfig):
+        super().__init__(config)
+        self.initialize_embeddings(config)
+        self.initialize_linear_params(config)
+
+    def initialize_embeddings(self, config: BertConfig)->None:
+        logger.info("Initialize Concept/Segment/Posi embeddings.")
+        self.concept_embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
+        self.posi_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size)
+        self.segment_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size)
+        
+    def forward(
+        self,
+        input_ids: torch.LongTensor,                  # concepts
+        token_type_ids: torch.LongTensor = None,      # segments
+        position_ids: Dict[str, torch.Tensor] = None, # age and abspos
+        inputs_embeds: torch.Tensor = None,
+        **kwargs
+    )->torch.Tensor:
+        if inputs_embeds is not None:
+            return inputs_embeds
+
+        embeddings = self.a * self.concept_embeddings(input_ids)
+        
+        if token_type_ids is not None:
+            segments_embedded = self.segment_embeddings(token_type_ids)
+            embeddings += self.b * segments_embedded
+
+        if position_ids is not None:
+             if 'position_ids' in position_ids:
+                posi_embed = self.posi_embeddings(position_ids['position_ids'])
+                embeddings += self.c * posi_embed
+                
+        embeddings = self.LayerNorm(embeddings)
+        embeddings = self.dropout(embeddings)
+
+        return embeddings
 
 class BehrtEmbeddings(BaseEmbeddings):
     """

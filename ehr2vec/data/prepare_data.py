@@ -16,7 +16,7 @@ from ehr2vec.common.utils import Data
 from ehr2vec.data.dataset import HierarchicalMLMDataset, MLMDataset
 from ehr2vec.data.filter import CodeTypeFilter, PatientFilter
 from ehr2vec.data.utils import Utilities
-from ehr2vec.data_fixes.adapt import (BaseAdapter, BehrtAdapter,
+from ehr2vec.data_fixes.adapt import (BaseAdapter, BehrtAdapter, MedbertAdapter,
                                       DiscreteAbsposAdapter)
 from ehr2vec.data_fixes.handle import Handler
 from ehr2vec.data_fixes.truncate import Truncator
@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)  # Get the logger for this module
 PID_KEY = 'PID'
 VOCABULARY_FILE = 'vocabulary.pt'
 HIERARCHICAL_VOCABULARY_FILE = 'h_vocabulary.pt'
+DEFAULT_PROLONGED_LENGTH_OF_STAY = 7 # in days
 
 # TODO: Add option to load test set only!
 class DatasetPreparer:
@@ -203,12 +204,16 @@ class DatasetPreparer:
       
         # Adjust max segment if needed
         self.utils.check_and_adjust_max_segment(data, model_cfg)
-
         # 7. Optional: Adapt to BEHRT embeddings
         if self.cfg.model.get('behrt_embeddings'):
             logger.info('Adapting features for behrt embeddings')
             data.features = BehrtAdapter.adapt_features(data.features)
 
+        if self.cfg.model.get('medbert'):
+            logger.info('Adapting features for medbert')
+            threshold_in_days = self.cfg.data.get('prolonged_length_of_stay', DEFAULT_PROLONGED_LENGTH_OF_STAY)
+            data.features = MedbertAdapter(threshold_in_days).adapt_features(data.features)
+            
         if self.cfg.model.get('discrete_abspos_embeddings'):
             if self.cfg.model.get('behrt_embeddings'):
                 raise ValueError("Discrete abspos embeddings and behrt embeddings are not compatible.")
@@ -217,6 +222,7 @@ class DatasetPreparer:
 
         if 'age' in data.features: # we don't apply time2vec to age anymore
             data.features['age'] = [BaseAdapter.convert_ages_to_int(ages) for ages in data.features['age']] 
+        
         # Verify and save
         data.check_lengths()
         data = self.utils.process_data(data, self.saver.save_sequence_lengths)
@@ -224,7 +230,7 @@ class DatasetPreparer:
         self.saver.save_data(data)
         self._log_features(data)
         return data
-    
+
     def prepare_onehot_features(self)->Tuple[np.ndarray, np.ndarray, Dict]:
         """Use ft features and map them onto one hot vectors with binary outcomes"""
         data = self.loader.load_finetune_data()

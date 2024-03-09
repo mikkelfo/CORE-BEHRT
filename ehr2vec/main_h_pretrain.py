@@ -36,6 +36,9 @@ def main_train(config_path):
     if cfg.model.get('behrt_embeddings', False):
         if cfg.paths.get('model_path', None) is None: # only if we are not training from checkpoint
             cfg = adjust_cfg_for_behrt(cfg)
+    if cfg.model.get('medbert', False):
+        if cfg.paths.get('model_path', None) is None:
+            cfg.model.embedding = 'medbert'
     checkpoint, epoch = load_checkpoint_and_epoch(cfg)
 
     initializer = Initializer(cfg, checkpoint=checkpoint)

@@ -34,6 +34,8 @@ def main_train(config_path):
             cfg = adjust_cfg_for_behrt(cfg)
         elif cfg.model.get('discrete_abspos_embeddings', False):
             cfg = adjust_cfg_for_discrete_abspos(cfg)
+        if cfg.model.get('medbert', False):
+            cfg.model.embedding = 'medbert'
     checkpoint, epoch = load_checkpoint_and_epoch(cfg)
     logger.info(f'Continue training from epoch {epoch}')    
     initializer = Initializer(cfg, checkpoint=checkpoint)

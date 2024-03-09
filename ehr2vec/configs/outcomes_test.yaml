@@ -2,7 +2,7 @@ env: local
 paths:
   run_name: test
 outcomes_name: "TEST_OUTCOME"
-features_dir: ../outputs/data_icd10
+features_dir: ../outputs/features_test
 loader:
   data_dir: ../data/formatted/synthea500_icd10 
   concepts: [

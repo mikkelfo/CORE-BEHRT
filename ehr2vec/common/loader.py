@@ -135,7 +135,7 @@ class ModelLoader:
     def load_state_dict_into_model(self, model: torch.nn.Module, checkpoint: dict)->torch.nn.Module:
         load_result = model.load_state_dict(checkpoint['model_state_dict'], strict=False)
         missing_keys = load_result.missing_keys
-
+        logger.warning("missing state dict keys: %s", missing_keys)
         if len([k for k in missing_keys if k.startswith('embeddings')])>0:
             pretrained_model_embeddings = model.embeddings.__class__.__name__
             raise ValueError(f"Embeddings not loaded. Ensure that model.behrt_embeddings is compatible with pretrained model embeddings {pretrained_model_embeddings}.")

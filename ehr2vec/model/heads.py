@@ -124,3 +124,14 @@ class ClassifierLSTM(torch.nn.Module):
         x = output[:, -1, :]
         x = self.classifier(x)
         return x
+
+class CombinedHead(torch.nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        self.mlm = MLMHead(config)
+        self.cls = FineTuneHead(config)
+
+    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+        mlm_output = self.mlm(hidden_states)
+        cls_output = self.cls(hidden_states)
+        return mlm_output, cls_output

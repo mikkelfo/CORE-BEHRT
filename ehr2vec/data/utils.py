@@ -1,9 +1,11 @@
+import logging
 import os
 import re
-import logging
-import pandas as pd
 from datetime import datetime
 from typing import Dict, List, Tuple, Union
+
+import numpy as np
+import pandas as pd
 
 from ehr2vec.common.config import Config
 from ehr2vec.common.utils import Data
@@ -241,3 +243,25 @@ class Utilities:
         for key, value in feats.items():
             selected_feats[key] = [value[idx] for idx in indices_to_keep]
         return selected_feats, select_pids
+    
+    @staticmethod
+    def get_segments_one_hot(segments):
+        """
+        One-hot encode the segments.
+        Example: 
+        segments = [1, 2, 3, 1, 2, 3]
+        one_hot_matrix = [[1, 0, 0, 1, 0, 0],
+                          [0, 1, 0, 0, 1, 0],
+                          [0, 0, 1, 0, 0, 1]]
+        """
+        # Identify unique segments and create a mapping from segment to row index
+        unique_segments, inverse_indices = np.unique(segments, return_inverse=True)
+        # Create a zero matrix
+        one_hot_matrix = np.zeros((len(unique_segments), len(segments)), dtype=int)
+        # Row indices for one-hot encoding, using the mapping
+        row_indices = inverse_indices
+        # Column indices for one-hot encoding
+        col_indices = np.arange(len(segments))
+        # Use advanced indexing to set the appropriate elements to 1
+        one_hot_matrix[row_indices, col_indices] = 1
+        return one_hot_matrix

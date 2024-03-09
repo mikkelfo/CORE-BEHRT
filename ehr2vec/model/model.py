@@ -6,10 +6,10 @@ from transformers import BertModel
 from transformers.models.roformer.modeling_roformer import RoFormerEncoder
 
 from ehr2vec.common.config import instantiate
-from ehr2vec.embeddings.ehr import BehrtEmbeddings, EhrEmbeddings, DiscreteAbsposEmbeddings
+from ehr2vec.embeddings.ehr import (BehrtEmbeddings, DiscreteAbsposEmbeddings,
+                                    EhrEmbeddings, MedbertEmbeddings)
 from ehr2vec.model.activations import SwiGLU
 from ehr2vec.model.heads import FineTuneHead, HMLMHead, MLMHead
-
 
 logger = logging.getLogger(__name__)
 class BertEHREncoder(BertModel):
@@ -24,6 +24,9 @@ class BertEHREncoder(BertModel):
         elif config.embedding == 'discrete_abspos':
             logger.info("Using discrete absolute position embedding.")
             self.embeddings = DiscreteAbsposEmbeddings(config)
+        elif config.embedding == 'medbert':
+            logger.info("Using medbert embedding")
+            self.embeddings = MedbertEmbeddings(config)
         else:
             raise ValueError(f"Unknown embedding type: {config.embedding}")
 
@@ -75,6 +78,41 @@ class BertEHRModel(BertEHREncoder):
 
     def get_loss(self, logits, labels):
         return self.loss_fct(logits.view(-1, self.config.vocab_size), labels.view(-1))
+
+class Medbert(BertEHREncoder):
+    def __init__(self, config):
+        super().__init__(config)
+        # Initialize MLM and FineTuning heads
+        self.mlm_head = MLMHead(config)
+        self.plos_head = FineTuneHead(config)
+        self.plos_fct = nn.BCEWithLogitsLoss(pos_weight=config.to_dict().get('pos_weight', None))
+        self.mlm_fct = nn.CrossEntropyLoss()
+
+    def forward(self, batch: dict):
+        outputs = super().forward(batch)
+        sequence_output = outputs[0]  # Last hidden state
+
+        # Check for MLM task
+        if 'target' in batch:
+            mlm_logits = self.mlm_head(sequence_output)
+            outputs.logits = mlm_logits
+            outputs.loss = self.get_mlm_loss(mlm_logits, batch['target'])
+            outputs.mlm_loss = outputs.loss.detach().item()
+        # Check for classification task
+        if 'PLOS' in batch:
+            pooled_output = self.plos_head.pool(sequence_output)
+            classification_logits = self.plos_head.classifier(pooled_output)
+            outputs.plos_logits = classification_logits
+            plos_loss = self.get_classification_loss(classification_logits, batch['PLOS'])
+            outputs.loss += plos_loss
+            outputs.plos_loss = plos_loss.detach().item()
+        return outputs
+
+    def get_mlm_loss(self, logits, labels):
+        return self.mlm_fct(logits.view(-1, self.config.vocab_size), labels.view(-1))
+
+    def get_classification_loss(self, logits, labels):
+        return self.plos_fct(logits.view(-1), labels.view(-1))
 
 class BertForFineTuning(BertEHRModel):
     def __init__(self, config):

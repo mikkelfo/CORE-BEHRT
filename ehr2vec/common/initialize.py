@@ -15,7 +15,7 @@ from ehr2vec.common.setup import DirectoryPreparer
 from ehr2vec.common.utils import hook_fn
 from ehr2vec.data.utils import Utilities
 from ehr2vec.evaluation.utils import get_pos_weight, get_sampler
-from ehr2vec.model.model import (BertEHRModel, BertForFineTuning,
+from ehr2vec.model.model import (BertEHRModel, BertForFineTuning, Medbert,
                                  HierarchicalBertForPretraining)
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
@@ -34,12 +34,12 @@ class Initializer:
         """Initialize model from checkpoint or from scratch."""
         if self.checkpoint:
             logger.info('Loading model from checkpoint')
-            model = self.loader.load_model(BertEHRModel, checkpoint=self.checkpoint)
+            model = self.loader.load_model(Medbert, checkpoint=self.checkpoint)
             model.to(self.device)
         else:
             logger.info('Initializing new model')
             vocab_size = len(train_dataset.vocabulary)
-            model = BertEHRModel(BertConfig( **self.cfg.model, vocab_size=vocab_size,))
+            model = Medbert(BertConfig( **self.cfg.model, vocab_size=vocab_size,))
         # ! Uncomment if instabilities occur.
         #for layer in model.modules():
          #   layer.register_forward_hook(hook_fn)
@@ -75,8 +75,10 @@ class Initializer:
     def get_embedding(cfg):
         if cfg.model.get('behrt_embeddings', False):
             return 'original_behrt'
-        elif cfg.model.get('discrete_abspos_embeddings', False):
+        if cfg.model.get('discrete_abspos_embeddings', False):
             return 'discrete_abspos'
+        if cfg.model.get('medbert_embeddings', False):
+            return 'medbert'
         return None
 
     def initialize_hierachical_pretrain_model(self, train_dataset):

@@ -14,7 +14,7 @@ def dynamic_padding(data: list)->dict:
     for patient in data:
         difference = max_len - len(patient["concept"])
         for key, values in patient.items():
-            if key == "target":
+            if key in ["target", "PLOS"]:
                 if isinstance(values, float):  # 0D: For finetuning
                     patient[key] = torch.tensor(values)
                     continue

@@ -3,7 +3,7 @@ paths:
   pretrain_model_path: "outputs/pretraining/behrt_test"
   # model_path: "outputs/pretraining/behrt_test/finetune_TEST_OUTCOME_censored_10_hours_pre_TEST_OUTCOME_test"
   #checkpoint_epoch: 1
-  outcome: "../outputs/data_icd10/outcomes/TEST_OUTCOME/TEST_OUTCOME.pt"
+  outcome: "../outputs/features_test/outcomes/TEST_OUTCOME/TEST_OUTCOME.pt"
   #output_path: "outputs/finetuning"
   run_name: "test"
   #tokenized_dir:"tokenized"
@@ -13,8 +13,9 @@ paths:
 
 model:
   pool_type: "cls"
-  behrt_embeddings: true
+  behrt_embeddings: false
   discrete_abspos_embeddings: false
+  medbert_embeddings: true
   #extend_head: 
   # hidden_size: null
   #cls:

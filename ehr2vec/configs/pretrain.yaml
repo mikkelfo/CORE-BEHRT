@@ -5,7 +5,7 @@ paths:
   output_path: outputs/pretraining
   type: med_diag
   run_name: behrt_test
-  tokenized_dir: tokenized
+  tokenized_dir: tokenized_02
   #predefined_splits: outputs/pretraining/behrt_base
   
 data:
@@ -42,8 +42,11 @@ model:
   num_attention_heads: 3
   intermediate_size: 64
   type_vocab_size: 240 #  if discrete_abspos_embeddings: true, give the range of abspos in months
-  behrt_embeddings: true
+  behrt_embeddings: false
+  medbert: true
   discrete_abspos_embeddings: false
+  pool_type: sum
+  medbert_embeddings: true
 
 optimizer:
   lr: 5e-4
@@ -62,3 +65,9 @@ metrics:
   top10:
     _target_: evaluation.metrics.PrecisionAtK
     topk: 10
+  plos_loss:
+    _target_: evaluation.metrics.LossAccessor
+    loss_name: plos_loss
+  mlm_loss:
+    _target_: evaluation.metrics.LossAccessor
+    loss_name: mlm_loss

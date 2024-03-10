@@ -67,12 +67,17 @@ class BehrtAdapter(BaseAdapter):
     
 
 class MedbertAdapter:
-    def __init__(self, threshold_in_days: int):
-        self.threshold_in_hours = threshold_in_days*24
+    def __init__(self, add_plos: bool, threshold_in_days: int=None, visit_threshold_in_days: int = None):
+        self.add_plos = add_plos
+        if add_plos and not threshold_in_days:
+            raise ValueError('If add_plos is True, threshold_in_days should be not None')
+        self.threshold_in_hours = threshold_in_days*24 if threshold_in_days else None
+        self.visit_threshold_in_hours = visit_threshold_in_days*24 if visit_threshold_in_days else None
     def adapt_features(self,features: dict)->dict:
         """Adapt features to behrt embeddings format. Continuous age is converted to integer and segment is stored as position_ids. 
         New segment is created from old segment."""
-        features = self.get_prolonged_length_of_stay(features)
+        if self.add_plos:
+            features = self.get_prolonged_length_of_stay(features)
         del features['abspos']
         del features['age']
         features = self.remove_cls_token(features)
@@ -94,7 +99,15 @@ class MedbertAdapter:
         """Calculate whether any hospital stay, which was longer than N days occured"""
         
         prolonged_lengths_of_stay = []
+        # i = 0
+        logger.info("Examples of plos calculation")
         for patient in iter_patients(features):
+            # patient['segment'] = self.calculate_segments(patient)
+            # if i<3:
+            #     logger.info(f"abspos in days {[int(a/24) for a in patient['abspos']][:10]}")
+            #     logger.info(f"old segment {patient['segment'][:10]}")
+            #     logger.info(f"new segment {patient['segment'][:10]}")
+            # i+=1
             prolonged_lengths_of_stay.append(
                 self.get_prolonged_length_of_stay_for_patient(patient))
         logger.info(f'Prevalence of prolonged length of stay: {sum(prolonged_lengths_of_stay)/len(prolonged_lengths_of_stay)}')
@@ -114,6 +127,17 @@ class MedbertAdapter:
         if np.any(diff > self.threshold_in_hours):
             prolonged_length_of_stay = 1
         return prolonged_length_of_stay
+    
+    def calculate_segments(self, patient):
+        """Calculate segments from time_differences and visit_threshold_in_days. If using it visit_threshold_in_days should be not None"""
+        if self.visit_threshold_in_hours is None:
+            raise ValueError('visit_threshold_in_days should be not None')
+        # Calculate differences between consecutive timestamps
+        diffs = np.diff(patient['abspos'])
+        # Identify where new segments start (difference greater than stay_days)
+        new_segment_starts = np.insert(diffs > self.visit_threshold_in_hours, 0, 0)  # Insert a 0 at the beginning to keep the array size consistent
+        # Assign segment IDs
+        return np.cumsum(new_segment_starts)
     
 class DiscreteAbsposAdapter(BaseAdapter):
     @staticmethod

@@ -12,10 +12,11 @@ paths:
   #predefined_splits: outputs\pretraining\behrt_test\finetune_TEST_OUTCOME_censored_4_days_post_TEST_OUTCOME_test
 
 model:
-  pool_type: "cls"
+  pool_type: "sum"
   behrt_embeddings: false
   discrete_abspos_embeddings: false
   medbert_embeddings: true
+  medbert: true
   #extend_head: 
   # hidden_size: null
   #cls:

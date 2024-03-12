@@ -58,7 +58,14 @@ class Config(dict):
     def save_to_yaml(config, file_name):
         with open(file_name, 'w') as file:
             yaml.dump(config.to_dict(), file)
-
+        
+    def update(self, config: 'Config'):
+        """Updates the config with a different config."""
+        for key, value in config.items():
+            if isinstance(value, dict):
+                value = Config(value)
+            setattr(self, key, value)
+            self[key] = value
 
 def instantiate(instantiate_config, **extra_kwargs):
     """Instantiates a class from a config object."""

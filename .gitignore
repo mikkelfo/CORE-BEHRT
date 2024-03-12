@@ -14,3 +14,4 @@ data/formatted/synthea10k/concept.diagnose.csv
 /results/initial_pt_experiments
 /results/GraphicalAbstract
 requirements.txt
+ehr2vec/notebooks/*.png

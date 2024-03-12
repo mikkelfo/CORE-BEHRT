@@ -1,16 +1,19 @@
+import os
+from collections import namedtuple
 from os.path import join, split
 
 import numpy as np
 import pandas as pd
 import torch
-from torch.utils.data import DataLoader
+from sklearn.metrics import precision_recall_curve, roc_curve
+from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-from ehr2vec.common.config import instantiate
+from ehr2vec.common.config import get_function, instantiate
 from ehr2vec.common.logger import TqdmToLogger
 from ehr2vec.dataloader.collate_fn import dynamic_padding
 from ehr2vec.trainer.trainer import EHRTrainer
-
+from ehr2vec.trainer.utils import compute_avg_metrics, get_tqdm
 
 class Forwarder(EHRTrainer):
     def __init__(self, model, dataset, batch_size=64, writer=None, pooler=None, logger=None, run=None):
@@ -194,3 +197,149 @@ class Forwarder(EHRTrainer):
     def get_relevant_ids(self, cfg, vocabulary:dict)->torch.tensor:
         return torch.tensor([v for k,v in vocabulary.items() if any(k.startswith(char) for char in cfg.filter_concepts)], dtype=int)
 
+class EHRTester:
+    def __init__(self, 
+        model: torch.nn.Module,
+        test_dataset: Dataset = None,
+        metrics: dict = {},
+        args: dict = {},
+        cfg = None,
+        logger = None,
+        run = None,
+        accumulate_logits: bool = False,
+        test_folder: str = None,
+        mode='test'
+    ):
+        
+        self._initialize_basic_attributes(model, test_dataset, metrics,  cfg, run, accumulate_logits, mode)
+        self._set_default_args(args)
+        self.logger = logger
+        self.test_folder = test_folder
+        self._log_basic_info()
+        
+        self.log("Initialize metrics")
+        self.metrics = {k: instantiate(v) for k, v in metrics.items()} if metrics else {}
+        
+    def _initialize_basic_attributes(self, model, test_dataset, metrics, cfg, run, accumulate_logits, mode):
+        self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+        self.model = model.to(self.device)
+        self.test_dataset = test_dataset
+        self.metrics = {k: instantiate(v) for k, v in metrics.items()} if metrics else {}
+        self.cfg = cfg
+        self.run = run
+        self.accumulate_logits = accumulate_logits
+        self.mode = mode
+
+    def _log_basic_info(self):
+        self.log(f"Run on {self.device}")
+        self.log(f"Run folder: {self.test_folder}")
+        self.log("Send model to device")
+        self.log("Initialize metrics")
+        if torch.cuda.is_available():
+            self.log(f"Memory on GPU: {torch.cuda.get_device_properties(0).total_memory/1e9} GB")
+        self.log(f"PyTorch version: {torch.__version__}")
+        self.log(f"CUDA version: {torch.version.cuda}")
+    
+    def _set_default_args(self, args):
+        collate_fn = get_function(args['collate_fn']) if 'collate_fn' in args else dynamic_padding
+        default_args = {
+            'save_every_k_steps': float('inf'),
+            'collate_fn': collate_fn}
+        self.args = {**default_args, **args}
+        if not (self.args['effective_batch_size'] % self.args['batch_size'] == 0):
+            raise ValueError('effective_batch_size must be a multiple of batch_size')
+
+    def evaluate(self, epoch: int, mode='test')->tuple:
+        """Returns the validation/test loss and metrics"""
+        dataloader = self.get_test_dataloader()
+        
+        self.model.eval()
+        loop = get_tqdm(dataloader)
+        loop.set_description(mode)
+        loss = 0
+        
+        metric_values = {name: [] for name in self.metrics}
+        logits_list = [] if self.accumulate_logits else None
+        targets_list = [] if self.accumulate_logits else None
+
+        with torch.no_grad():
+            for batch in loop:
+                self.batch_to_device(batch)
+                outputs = self.model(batch)
+                loss += outputs.loss.item()
+
+                if self.accumulate_logits:
+                    logits_list.append(outputs.logits.cpu())
+                    targets_list.append(batch['target'].cpu())
+                else:
+                    for name, func in self.metrics.items():
+                        metric_values[name].append(func(outputs, batch))
+
+        if self.accumulate_logits:
+            metric_values = self.process_binary_classification_results(logits_list, targets_list, epoch, mode=mode)
+        else:
+            metric_values = compute_avg_metrics(metric_values)
+        
+        return loss / len(loop), metric_values
+
+    def process_binary_classification_results(self, logits:list, targets:list, epoch:int, mode='val')->dict:
+        """Process results specifically for binary classification."""
+        targets = torch.cat(targets)
+        logits = torch.cat(logits)
+        batch = {'target': targets}
+        outputs = namedtuple('Outputs', ['logits'])(logits)
+        metrics = {}
+        for name, func in self.metrics.items():
+            v = func(outputs, batch)
+            self.log(f"{name}: {v}")
+            metrics[name] = v
+        self.save_curves(logits, targets)
+        self.save_metrics_to_csv(metrics)
+        self.save_predictions(logits, targets)
+        return metrics
+
+    def get_test_dataloader(self):
+        return DataLoader(
+            self.test_dataset, 
+            batch_size=self.args.get('test_batch_size', self.args['batch_size']), 
+            shuffle=self.args.get('shuffle', False), 
+            collate_fn=self.args['collate_fn']
+        )
+
+    def batch_to_device(self, batch: dict) -> None:
+        """Moves a batch to the device in-place"""
+        for key, value in batch.items():
+            batch[key] = value.to(self.device)
+
+    def log(self, message: str) -> None:
+        """Logs a message to the logger and stdout"""
+        if self.logger:
+            self.logger.info(message)
+        else:
+            print(message)
+    
+    def save_curves(self, logits:torch.Tensor, targets:torch.Tensor)->None:
+        """Saves the ROC and PRC curves to a csv file in the run folder"""
+        roc_name = os.path.join(self.test_folder, f'roc_curve_{self.mode}.npz')
+        prc_name = os.path.join(self.test_folder, f'prc_curve_{self.mode}.npz')
+        probas = torch.sigmoid(logits).cpu().numpy()
+        fpr, tpr, threshold_roc = roc_curve(targets, probas)
+        precision, recall, threshold_pr = precision_recall_curve(targets, probas)
+        np.savez_compressed(roc_name, fpr=fpr, tpr=tpr, threshold=threshold_roc)
+        np.savez_compressed(prc_name, precision=precision, recall=recall, threshold=np.append(threshold_pr, 1))
+    
+    def save_predictions(self, logits:torch.Tensor, targets:torch.Tensor)->None:
+        """Saves the predictions to npz files in the run folder"""
+        probas_name = os.path.join(self.test_folder, f'probas_{self.mode}.npz')
+        targets_name = os.path.join(self.test_folder, f'targets_{self.mode}.npz')
+        probas = torch.sigmoid(logits).cpu().numpy()
+        np.savez_compressed(probas_name, probas=probas)
+        np.savez_compressed(targets_name, targets=targets)
+
+    def save_metrics_to_csv(self, metrics: dict)->None:
+        """Saves the metrics to a csv file"""
+        metrics_name = os.path.join(self.test_folder, f'{self.mode}_scores.csv')
+        with open(metrics_name, 'w') as file:
+            file.write('metric,value\n')
+            for key, value in metrics.items():
+                file.write(f'{key},{value}\n')

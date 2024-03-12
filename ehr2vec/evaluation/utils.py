@@ -110,7 +110,7 @@ def inverse_sqrt(x):
     return 1/np.sqrt(x)
 
 def get_pos_weight(cfg, outcomes):
-    if cfg.trainer_args['pos_weight']:
+    if cfg.trainer_args.get('pos_weight', False):
         return sum(pd.isna(outcomes)) / sum(pd.notna(outcomes))
     else:
         return None

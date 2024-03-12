@@ -113,7 +113,7 @@ class AzurePathContext:
         """Azure setup for finetuning. Prepend mount folder."""
         if self.azure_env:
             for entry in self.cfg.paths:
-                if entry not in ['output_path', 'run_name', 'save_folder_path', 'tokenized_file', 'tokenized_pids']:
+                if entry not in ['output_path', 'run_name', 'save_folder_path', 'tokenized_file', 'tokenized_pids', 'tokenized_dir']:
                     self.cfg.paths[entry] = self._prepend_mount_point(self.cfg.paths[entry])
             self.cfg.paths.output_path = OUTPUTS_DIR
         return self.cfg, self.run, self.mount_context

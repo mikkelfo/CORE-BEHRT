@@ -146,6 +146,7 @@ if __name__ == '__main__':
     if 'predefined_splits' in cfg.paths:
         logger.info('Using predefined splits')
         test_pids = torch.load(join(cfg.paths.predefined_splits, 'test_pids.pt')) if os.path.exists(join(cfg.paths.predefined_splits, 'test_pids.pt')) else []
+        test_pids = list(set(test_pids))
         test_data = data.select_data_subset_by_pids(test_pids, mode='test')
         save_data(test_data, finetune_folder)
         N_SPLITS = cv_loop_predefined_splits(data, cfg.paths.predefined_splits, test_data)

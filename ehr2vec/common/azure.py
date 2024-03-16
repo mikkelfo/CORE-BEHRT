@@ -11,6 +11,15 @@ logger = logging.getLogger(__name__)  # Get the logger for this module
 
 OUTPUTS_DIR = "outputs"
 
+def get_run_info():
+    from azureml.core import Run
+    """Get experiment name and run_id of the current run."""
+    # Get the current run context
+    run_context = Run.get_context()
+    run_id = run_context.id
+    experiment_name = run_context.experiment.name
+    return experiment_name, run_id
+
 def get_workspace():
     from azureml.core import Workspace
     """Initializes workspase and gets datastore and dump_path"""

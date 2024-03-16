@@ -137,6 +137,7 @@ def main():
     logger.info(f"Update config with pretrain and ft information.")
     cfg = update_config(cfg, finetune_folder)
     cfg = fix_cfg_for_azure(cfg, azure_context)
+    cfg.save_to_yaml(join(cfg.paths.output_path, 'evaluate_config.yaml'))
     logger.info(f"Config Paths after fix: {cfg.paths}")
     date = datetime.now().strftime("%Y%m%d-%H%M")
     test_folder = join(cfg.paths.output_path, f'test_{date}')
@@ -161,7 +162,7 @@ def main():
     compute_and_save_scores_mean_std(n_splits, test_folder, mode='test', logger=logger)    
     
     if cfg.env=='azure':
-        save_to_blobstore(local_path=cfg.paths.run_name, 
+        save_to_blobstore(local_path='', # uses everything in 'outputs' 
                           remote_path=join(BLOBSTORE, remove_tmp_prefixes(cfg.paths.model_path)))
         mount_context.stop()
     logger.info('Done')

@@ -1,0 +1,24 @@
+env: local
+
+paths:
+  model_path: "outputs/pretraining/behrt_test/finetune_TEST_OUTCOME_censored_4_days_post_TEST_OUTCOME_test"
+  run_name: "test"
+
+metrics:
+  accuracy:
+    _target_: evaluation.metrics.Accuracy
+    threshold: 0.6
+  balanced_accuracy:
+    _target_: evaluation.metrics.Balanced_Accuracy
+  precision:
+    _target_: evaluation.metrics.Precision
+  recall:
+    _target_: evaluation.metrics.Recall
+  roc_auc:
+    _target_: evaluation.metrics.ROC_AUC
+  pr_auc:
+    _target_: evaluation.metrics.PR_AUC
+
+data:
+  min_len: 1
+ 

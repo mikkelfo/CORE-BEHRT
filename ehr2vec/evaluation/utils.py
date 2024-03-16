@@ -110,7 +110,7 @@ def inverse_sqrt(x):
     return 1/np.sqrt(x)
 
 def get_pos_weight(cfg, outcomes):
-    if cfg.trainer_args['pos_weight']:
+    if cfg.trainer_args.get('pos_weight', False):
         return sum(pd.isna(outcomes)) / sum(pd.notna(outcomes))
     else:
         return None
@@ -164,7 +164,7 @@ def check_predefined_pids(data :Data, cfg)->None:
 def split_test_set(indices:list, test_split:float)->Tuple[list, list]:
     """Split intro test and train_val indices"""
     np.random.seed(42)
-    test_indices = np.random.choice(indices, size=int(len(indices)*test_split))
+    test_indices = np.random.choice(indices, size=int(len(indices)*test_split), replace=False)
     test_indices_set = set(test_indices)
     train_val_indices = [i for i in indices if i not in test_indices_set]
     return test_indices, train_val_indices

@@ -11,6 +11,15 @@ logger = logging.getLogger(__name__)  # Get the logger for this module
 
 OUTPUTS_DIR = "outputs"
 
+def get_run_info():
+    from azureml.core import Run
+    """Get experiment name and run_id of the current run."""
+    # Get the current run context
+    run_context = Run.get_context()
+    run_id = run_context.id
+    experiment_name = run_context.experiment.name
+    return experiment_name, run_id
+
 def get_workspace():
     from azureml.core import Workspace
     """Initializes workspase and gets datastore and dump_path"""
@@ -23,8 +32,8 @@ def get_workspace():
 
 def setup_azure(run_name, datastore_name='workspaceblobstore', dataset_name='PHAIR'):
     """Sets up azure run and mounts data on PHAIR blobstore"""
-    from azure_run import datastore
-    from azure_run.run import Run
+    from ehr2vec.azure_run import datastore
+    from ehr2vec.azure_run.run import Run
     from azureml.core import Dataset
     
     run = Run
@@ -57,7 +66,7 @@ def save_to_blobstore(local_path: str, remote_path: str, overwrite: bool = False
     remote_path: The path inside workspaceblobstore to save the files to
     """
     try:
-        from azure_run import file_dataset_save
+        from ehr2vec.azure_run import file_dataset_save
         retry_folder = get_max_retry_folder(os.listdir('outputs'))
         output_path = 'outputs' if retry_folder is None else join('outputs', retry_folder)
         src_dir = join(output_path, local_path)
@@ -113,7 +122,7 @@ class AzurePathContext:
         """Azure setup for finetuning. Prepend mount folder."""
         if self.azure_env:
             for entry in self.cfg.paths:
-                if entry not in ['output_path', 'run_name', 'save_folder_path', 'tokenized_file', 'tokenized_pids']:
+                if entry not in ['output_path', 'run_name', 'save_folder_path', 'tokenized_file', 'tokenized_pids', 'tokenized_dir']:
                     self.cfg.paths[entry] = self._prepend_mount_point(self.cfg.paths[entry])
             self.cfg.paths.output_path = OUTPUTS_DIR
         return self.cfg, self.run, self.mount_context

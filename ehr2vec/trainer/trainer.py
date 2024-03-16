@@ -107,6 +107,7 @@ class EHRTrainer:
         dataloader = self.setup_training()
         self.log(f'Test validation before starting training')
         self._evaluate(epoch=0, mode='val')
+        self.validate_and_log(0, [0], dataloader)
         for epoch in range(self.continue_epoch, self.args['epochs']):
             self._train_epoch(epoch, dataloader)
             if self.stop_training:
@@ -229,10 +230,6 @@ class EHRTrainer:
         if not hasattr(self, 'best_metric_value'):
             self.best_metric_value = current_metric_value
     
-    def _initialize_best_metric_value(self, current_metric_value: float) -> None:
-        if not hasattr(self, 'best_metric_value'):
-            self.best_metric_value = current_metric_value
-
     def setup_training(self) -> DataLoader:
         """Sets up the training dataloader and returns it"""
         self.log(get_nvidia_smi_output())
@@ -375,3 +372,5 @@ class EHRTrainer:
                 self.args = {**self.args, **value}
             else:
                 setattr(self, key, value)
+
+

@@ -32,8 +32,8 @@ def get_workspace():
 
 def setup_azure(run_name, datastore_name='workspaceblobstore', dataset_name='PHAIR'):
     """Sets up azure run and mounts data on PHAIR blobstore"""
-    from azure_run import datastore
-    from azure_run.run import Run
+    from ehr2vec.azure_run import datastore
+    from ehr2vec.azure_run.run import Run
     from azureml.core import Dataset
     
     run = Run
@@ -66,7 +66,7 @@ def save_to_blobstore(local_path: str, remote_path: str, overwrite: bool = False
     remote_path: The path inside workspaceblobstore to save the files to
     """
     try:
-        from azure_run import file_dataset_save
+        from ehr2vec.azure_run import file_dataset_save
         retry_folder = get_max_retry_folder(os.listdir('outputs'))
         output_path = 'outputs' if retry_folder is None else join('outputs', retry_folder)
         src_dir = join(output_path, local_path)

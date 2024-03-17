@@ -130,19 +130,21 @@ def log_config(cfg, logger):
 
 def main():
     cfg, run, mount_context, azure_context = initialize_configuration_finetune(config_path, dataset_name=BLOBSTORE)
-    
+
+    # create test folder
+    date = datetime.now().strftime("%Y%m%d-%H%M")
+    test_folder = join(cfg.paths.output_path, f'test_{date}')
+    os.makedirs(test_folder, exist_ok=True)
+
     finetune_folder = cfg.paths.get("model_path")
-    logger = setup_logger(cfg.paths.output_path, 'test_info.log')
+    logger = setup_logger(test_folder, 'test_info.log')
     logger.info(f"Config Paths: {cfg.paths}")
     logger.info(f"Update config with pretrain and ft information.")
     cfg = update_config(cfg, finetune_folder)
     cfg = fix_cfg_for_azure(cfg, azure_context)
-    cfg.save_to_yaml(join(cfg.paths.output_path, 'evaluate_config.yaml'))
+    cfg.save_to_yaml(join(test_folder, 'evaluate_config.yaml'))
     logger.info(f"Config Paths after fix: {cfg.paths}")
-    date = datetime.now().strftime("%Y%m%d-%H%M")
-    test_folder = join(cfg.paths.output_path, f'test_{date}')
-    logger.info(f"Test folder: {test_folder}")
-    os.makedirs(test_folder, exist_ok=True)
+    
     
     fold_dirs = [fold_folder for fold_folder in os.listdir(finetune_folder) if fold_folder.startswith('fold_')]
     n_splits = len(fold_dirs)

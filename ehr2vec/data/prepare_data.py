@@ -89,9 +89,6 @@ class DatasetPreparer:
             # 2. Optional: Select gender group
             if data_cfg.get('gender'):
                 data = self.utils.process_data(data, self.patient_filter.select_by_gender)
-            # 3. Optional: Select Patients By Age
-            if data_cfg.get('min_age') or data_cfg.get('max_age'):
-                data = self.utils.process_data(data, self.patient_filter.select_by_age)
             
             # 4. Loading and processing outcomes
             outcomes, censor_outcomes = self.loader.load_outcomes()
@@ -115,6 +112,10 @@ class DatasetPreparer:
         # 8. Data censoring
         data = self.utils.process_data(data, self.data_modifier.censor_data, log_positive_patients_num=True,
                                                args_for_func={'n_hours': self.cfg.outcome.n_hours})
+        if not predefined_pids:
+            # 3. Optional: Select Patients By Age
+            if data_cfg.get('min_age') or data_cfg.get('max_age'):
+                data = self.utils.process_data(data, self.patient_filter.select_by_age)
         
         # 9. Exclude patients with less than k concepts
         data = self.utils.process_data(data, self.patient_filter.exclude_short_sequences, log_positive_patients_num=True)

@@ -94,16 +94,18 @@ class PatientFilter:
 
     def select_by_age(self, data: Data) -> Data:
         """
-        Assuming that age is given in days. 
-        We retrieve the last age of each patient and check whether it's within the range.
+        We retrieve the age of each patient at censor date and check whether it's within the range.
         """
         kept_indices = []
         min_age = self.cfg.data.get('min_age', 0)
         max_age = self.cfg.data.get('max_age', 120)
-        kept_indices = [i for i, ages in enumerate(data.features['age']) 
-                if min_age <= ages[-1] <= max_age]
+
+        # Calculate ages at censor date for all patients
+        ages_at_censor_date = self.utils.calculate_ages_at_censor_date(data)
+        kept_indices = [i for i, age in enumerate(ages_at_censor_date) 
+                if min_age <= age <= max_age]
         return self.select_entries(data, kept_indices)
-    
+
     def select_by_gender(self, data: Data) -> Data:
         """Select only patients of a certain gender"""
         gender_token = self.utils.get_gender_token(data.vocabulary, self.cfg.data.gender)

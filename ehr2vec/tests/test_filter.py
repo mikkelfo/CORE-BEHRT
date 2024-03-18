@@ -1,8 +1,8 @@
 import random
 import unittest
 from unittest.mock import Mock, patch
-from tests.helpers import ConfigMock
-from data.filter import CodeTypeFilter, PatientFilter
+from ehr2vec.tests.helpers import ConfigMock
+from ehr2vec.data.filter import CodeTypeFilter, PatientFilter
 
 
 class TestCodeTypeFilter(unittest.TestCase):
@@ -52,7 +52,8 @@ class TestPatientFilter(unittest.TestCase):
 
         self.data = Mock()
         self.data.features = {'concept': [[0, 2, 3], [1, 5, 6], [7, 8]], 
-                              'age': [[10, 20, 30], [40, 50, 130], [-10, -10]]}
+                              'age': [[10, 20, 30], [40, 50, 130], [120, 130, 140]],
+                              'abspos':[[-1, 49.5, 51], [-1, 1, 2], [41.5, 51.0, 52]]}
         self.data.outcomes = [None, 100, 200]
         self.data.censor_outcomes = [50, None, 50]
         self.data.pids = ['pid1', 'pid2', 'pid3']
@@ -81,8 +82,13 @@ class TestPatientFilter(unittest.TestCase):
         self.assertEqual(result.pids, ['pid1', 'pid2'])
 
     def test_select_by_age(self):
-        result = self.filter.select_by_age(self.data)
-        self.assertEqual(result.pids, ['pid1'])
+         result = self.filter.select_by_age(self.data)
+         self.assertEqual(result.pids, ['pid1'])
+        
+    def test_calculate_ages_at_censor_date(self):
+        ages_at_censor_date = self.filter.utils.calculate_ages_at_censor_date(self.data)
+        ages_at_censor_date = [int(age) for age in ages_at_censor_date]
+        self.assertEqual(ages_at_censor_date, [20, 130, 120])
 
     def test_select_by_gender(self):
         result = self.filter.select_by_gender(self.data)

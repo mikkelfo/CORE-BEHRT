@@ -1,9 +1,10 @@
 import os
 import re
+import numpy as np
 import logging
 import pandas as pd
 from datetime import datetime
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple, Union, Generator
 
 from ehr2vec.common.config import Config
 from ehr2vec.common.utils import Data
@@ -203,7 +204,7 @@ class Utilities:
         return ordered_outcomes
 
     @staticmethod
-    def iter_patients(data) -> tuple:
+    def iter_patients(data) -> Generator[dict, dict, dict]:
         """Iterate over patients in a features dict."""
         for i in range(len(data.features["concept"])):
             yield {key: values[i] for key, values in data.features.items()}, {key: values[i] for key, values in data.outcomes.items()}
@@ -241,3 +242,23 @@ class Utilities:
         for key, value in feats.items():
             selected_feats[key] = [value[idx] for idx in indices_to_keep]
         return selected_feats, select_pids
+    
+    @staticmethod
+    def calculate_ages_at_censor_date(data: Data) -> List[int]:
+        """
+        Calculates the age of patients at their respective censor dates.
+        """
+        ages_at_censor_date = []
+        
+        for abspos, age, censor_date in zip(data.features['abspos'], data.features['age'], data.censor_outcomes):
+            if censor_date is None:
+                ages_at_censor_date.append(age[-1]) # if no censoring, we take the last age
+                continue
+            # Calculate age differences and find the closest abspos index to the censor date
+            time_differences_h = np.array([censor_date - ap for ap in abspos])
+            # compute closest index (with regards to abspos) on the left to censor date
+            closest_abspos_index = np.argmin(
+                np.where(time_differences_h < 0, np.inf, time_differences_h)) 
+            age_at_censor = age[closest_abspos_index] + time_differences_h[closest_abspos_index] / 24 / 365.25
+            ages_at_censor_date.append(age_at_censor)
+        return ages_at_censor_date

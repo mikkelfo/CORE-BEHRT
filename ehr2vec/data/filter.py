@@ -136,4 +136,14 @@ class PatientFilter:
         if data.censor_outcomes is not None:
             data.censor_outcomes = [data.censor_outcomes[i] for i in indices]
         return data
+    
+    @staticmethod
+    def exclude_pids(data: Data, exclude_pids: List[str]) -> Data:
+        """Exclude pids from data."""
+        logger.info(f"Excluding {len(exclude_pids)} pids")
+        logger.info(f"Pids before exclusion: {len(data.pids)}")
+        current_pids = data.pids
+        data = data.select_data_subset_by_pids(list(set(current_pids).difference(set(exclude_pids))), mode=data.mode)
+        logger.info(f"Pids after exclusion: {len(data.pids)}")
+        return data
 

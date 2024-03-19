@@ -10,7 +10,7 @@ import torch
 
 from ehr2vec.common.config import Config, instantiate, load_config
 from ehr2vec.common.loader import (FeaturesLoader, get_pids_file,
-                                   load_and_select_splits)
+                                   load_and_select_splits, load_exclude_pids)
 from ehr2vec.common.saver import Saver
 from ehr2vec.common.utils import Data
 from ehr2vec.data.dataset import HierarchicalMLMDataset, MLMDataset
@@ -75,6 +75,10 @@ class DatasetPreparer:
 
         # 1. Loading tokenized data
         data = self.loader.load_tokenized_data(mode='finetune')
+        if self.cfg.paths.get('exclude_pids', None) is not None:
+            logger.info(f"Pids to exclude: {self.cfg.paths.exclude_pids}")
+            exclude_pids = load_exclude_pids(self.cfg.paths)
+            data = self.utils.process_data(data, self.patient_filter.exclude_pids, args_for_func={'exclude_pids': exclude_pids})
 
         predefined_pids =  'predefined_splits' in self.cfg.paths
         if predefined_pids:
@@ -179,6 +183,11 @@ class DatasetPreparer:
         # 1. Load tokenized data
         data = self.loader.load_tokenized_data(mode='pretrain')
         
+        if self.cfg.paths.get('exclude_pids', None) is not None:
+            logger.info(f"Pids to exclude: {self.cfg.paths.exclude_pids}")
+            exclude_pids = load_exclude_pids(self.cfg.paths)
+            data = self.utils.process_data(data, self.patient_filter.exclude_pids, args_for_func={'exclude_pids': exclude_pids})
+
         predefined_pids =  'predefined_splits' in self.cfg.paths
         if predefined_pids:
             logger.warning("Using predefined splits. Ignoring test_split parameter")

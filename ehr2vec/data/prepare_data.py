@@ -10,7 +10,7 @@ import torch
 
 from ehr2vec.common.config import Config, instantiate, load_config
 from ehr2vec.common.loader import (FeaturesLoader, get_pids_file,
-                                   load_and_select_splits)
+                                   load_and_select_splits, load_exclude_pids)
 from ehr2vec.common.saver import Saver
 from ehr2vec.common.utils import Data
 from ehr2vec.data.dataset import HierarchicalMLMDataset, MLMDataset
@@ -78,11 +78,19 @@ class DatasetPreparer:
         # 1. Loading tokenized data
         data = self.loader.load_tokenized_data(mode='finetune')
 
+        if self.cfg.paths.get('exclude_pids', None) is not None:
+            logger.info(f"Pids to exclude: {self.cfg.paths.exclude_pids}")
+            exclude_pids = load_exclude_pids(self.cfg.paths)
+            data = self.utils.process_data(data, self.patient_filter.exclude_pids, args_for_func={'exclude_pids': exclude_pids})
+
         predefined_pids =  'predefined_splits' in self.cfg.paths
         if predefined_pids:
             logger.warning("Using predefined splits. Ignoring test_split parameter")
             logger.warning("Use original censoring time. Overwrite n_hours parameter.")
-            original_config = load_config(join(self.cfg.paths.predefined_splits, 'finetune_config.yaml'))
+            if os.path.exists(join(self.cfg.paths.predefined_splits, 'finetune_config.yaml')):
+                original_config = load_config(join(self.cfg.paths.predefined_splits, 'finetune_config.yaml'))
+            else:
+                original_config = load_config(join(self.cfg.paths.model_path, 'finetune_config.yaml'))
             self.cfg.outcome.n_hours = original_config.outcome.n_hours
             data = self._select_predefined_pids(data)
             self._load_outcomes_to_data(data)
@@ -118,6 +126,10 @@ class DatasetPreparer:
         data = self.utils.process_data(data, self.data_modifier.censor_data, log_positive_patients_num=True,
                                                args_for_func={'n_hours': self.cfg.outcome.n_hours})
         
+        if not predefined_pids:
+            # 3. Optional: Select Patients By Age
+            if data_cfg.get('min_age') or data_cfg.get('max_age'):
+                data = self.utils.process_data(data, self.patient_filter.select_by_age)
         # 9. Exclude patients with less than k concepts
         data = self.utils.process_data(data, self.patient_filter.exclude_short_sequences, log_positive_patients_num=True)
 
@@ -183,6 +195,11 @@ class DatasetPreparer:
         # 1. Load tokenized data
         data = self.loader.load_tokenized_data(mode='pretrain')
         
+        if self.cfg.paths.get('exclude_pids', None) is not None:
+            logger.info(f"Pids to exclude: {self.cfg.paths.exclude_pids}")
+            exclude_pids = load_exclude_pids(self.cfg.paths)
+            data = self.utils.process_data(data, self.patient_filter.exclude_pids, args_for_func={'exclude_pids': exclude_pids})
+
         predefined_pids =  'predefined_splits' in self.cfg.paths
         if predefined_pids:
             logger.warning("Using predefined splits. Ignoring test_split parameter")

@@ -130,7 +130,7 @@ def log_config(cfg, logger):
 
 def main():
     cfg, run, mount_context, azure_context = initialize_configuration_finetune(config_path, dataset_name=BLOBSTORE)
-
+    
     # create test folder
     date = datetime.now().strftime("%Y%m%d-%H%M")
     test_folder = join(cfg.paths.output_path, f'test_{date}')
@@ -144,21 +144,24 @@ def main():
     cfg = fix_cfg_for_azure(cfg, azure_context)
     cfg.save_to_yaml(join(test_folder, 'evaluate_config.yaml'))
     logger.info(f"Config Paths after fix: {cfg.paths}")
-    
-    
+
     fold_dirs = [fold_folder for fold_folder in os.listdir(finetune_folder) if fold_folder.startswith('fold_')]
     n_splits = len(fold_dirs)
     log_config(cfg, logger)
     cfg.paths.run_name = split(test_folder)[-1]
     dataset_preparer = DatasetPreparer(cfg)
     data = dataset_preparer.prepare_finetune_data()    
-    logger.info(f"Load test pids from {finetune_folder}")
-    test_pids = torch.load(join(finetune_folder, 'test_pids.pt')) 
-    if len(test_pids)!=len(set(test_pids)):
-        logger.warn(f'Test pids contain duplicates. Test pids len {len(test_pids)}, unique pids {len(set(test_pids))}.')
-        logger.info('Removing duplicates')
-        test_pids = list(set(test_pids))
-    test_data = data.select_data_subset_by_pids(test_pids, mode='test')
+    if 'predefined_pids' in cfg.paths:
+        logger.info(f"Load test pids from {cfg.paths.predefined_pids}")
+        test_pids = torch.load(join(cfg.paths.predefined_pids, 'test_pids.pt')) 
+        if len(test_pids)!=len(set(test_pids)):
+            logger.warn(f'Test pids contain duplicates. Test pids len {len(test_pids)}, unique pids {len(set(test_pids))}.')
+            logger.info('Removing duplicates')
+            test_pids = list(set(test_pids))
+        test_data = data.select_data_subset_by_pids(test_pids, mode='test')
+    else:
+        logger.info(f"Use all data for testing.")
+        test_data = data
     save_data(test_data, test_folder)
     cv_test_loop(test_data, finetune_folder, test_folder, n_splits, cfg, logger, run)
     compute_and_save_scores_mean_std(n_splits, test_folder, mode='test', logger=logger)    

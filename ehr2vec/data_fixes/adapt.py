@@ -67,9 +67,9 @@ class BehrtAdapter(BaseAdapter):
         return features
     
 class PLOSAdapter:
-    def __init__(self, threshold_in_days: int=None, visit_threshold_in_days: int = None):
+    def __init__(self, threshold_in_days: int=None):
         self.threshold_in_hours = threshold_in_days*24 if threshold_in_days else None
-        self.visit_threshold_in_hours = visit_threshold_in_days*24 if visit_threshold_in_days else None
+
     def adapt_features(self,features: dict)->dict:
         """Adapt features to behrt embeddings format. Continuous age is converted to integer and segment is stored as position_ids. 
         New segment is created from old segment."""
@@ -90,7 +90,6 @@ class PLOSAdapter:
     
     def get_prolonged_length_of_stay_for_patient(self, patient):
         """Check if any hospital stay was longer than N days"""
-        prolonged_length_of_stay = 0
         segments = np.array(patient['segment'])
         abspos = np.array(patient['abspos'])
         segments_one_hot = Utilities.get_segments_one_hot(segments)
@@ -98,20 +97,8 @@ class PLOSAdapter:
         min_values = np.where(segment_abspos != 0, segment_abspos, np.inf).min(axis=1)
         max_values = np.where(segment_abspos != 0, segment_abspos, -np.inf).max(axis=1)
         diff = max_values - min_values
-        if np.any(diff > self.threshold_in_hours):
-            prolonged_length_of_stay = 1
-        return prolonged_length_of_stay
-    
-    def calculate_segments(self, patient):
-        """Calculate segments from time_differences and visit_threshold_in_days. If using it visit_threshold_in_days should be not None"""
-        if self.visit_threshold_in_hours is None:
-            raise ValueError('visit_threshold_in_days should be not None')
-        # Calculate differences between consecutive timestamps
-        diffs = np.diff(patient['abspos'])
-        # Identify where new segments start (difference greater than stay_days)
-        new_segment_starts = np.insert(diffs > self.visit_threshold_in_hours, 0, 0)  # Insert a 0 at the beginning to keep the array size consistent
-        # Assign segment IDs
-        return np.cumsum(new_segment_starts)
+
+        return (diff > self.threshold_in_hours).any().astype(int)
     
 class DiscreteAbsposAdapter(BaseAdapter):
     @staticmethod

@@ -37,10 +37,7 @@ class BertEHREncoder(BertModel):
                 layer.intermediate.intermediate_act_fn = SwiGLU(config)
                 # layer.output.LayerNorm = RMSNorm(config.hidden_size, eps=config.layer_norm_eps) # We dont use RMSNorm (only speedup, no performance gain)
 
-    def forward(
-        self,
-        batch: dict,
-    ):
+    def forward(self, batch: dict):
         present_keys = [k for k in ['age', 'abspos', 'position_ids', 'dosage', 'unit'] if k in batch]
         position_ids = {key: batch.get(key) for key in  present_keys}
         outputs = super().forward(
@@ -64,10 +61,7 @@ class BertEHRModel(BertEHREncoder):
         else:
             self.forward = self.forward_mlm
             
-    def forward_mlm(
-        self,
-        batch: dict,
-    ):
+    def forward_mlm(self, batch: dict):
         outputs = super().forward(batch)
 
         sequence_output = outputs[0]    # Last hidden state
@@ -80,14 +74,13 @@ class BertEHRModel(BertEHREncoder):
 
         return outputs
 
-    def forward_with_plos(
-            self,
-            batch: dict,):
+    def forward_with_plos(self, batch: dict):
         outputs = self.forward_mlm(batch)
-        sequence_output = outputs[0]    # Last hidden state    
-        pooled_output = self.plos_head.pool(sequence_output)
-        classification_logits = self.plos_head.classifier(pooled_output)
+
+        sequence_output = outputs[0]    # Last hidden state
+        classification_logits = self.plos_head(sequence_output)
         outputs.plos_logits = classification_logits
+        
         plos_loss = self.get_classification_loss(classification_logits, batch['PLOS'])
         outputs.loss += plos_loss
         outputs.plos_loss = plos_loss.detach().item()

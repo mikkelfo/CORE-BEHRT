@@ -61,8 +61,10 @@ class BertEHRModel(BertEHREncoder):
             self.plos_head = FineTuneHead(config)
             self.plos_fct = nn.BCEWithLogitsLoss(pos_weight=config.to_dict().get('pos_weight', None))
             self.forward = self.forward_with_plos
-
-    def forward(
+        else:
+            self.forward = self.forward_mlm
+            
+    def forward_mlm(
         self,
         batch: dict,
     ):
@@ -81,7 +83,7 @@ class BertEHRModel(BertEHREncoder):
     def forward_with_plos(
             self,
             batch: dict,):
-        outputs = self.forward(batch)
+        outputs = self.forward_mlm(batch)
         sequence_output = outputs[0]    # Last hidden state    
         pooled_output = self.plos_head.pool(sequence_output)
         classification_logits = self.plos_head.classifier(pooled_output)

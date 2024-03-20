@@ -30,6 +30,13 @@ class PrecisionAtK:
             return 0
         else:
             return correct.any(0).float().mean().item()
+        
+class LossAccessor:
+    def __init__(self, loss_name):
+        self.loss_name = loss_name
+    
+    def __call__(self, outputs, batch):
+        return outputs.__getattribute__(self.loss_name)
 
 def binary_hit(outputs, batch, threshold=0.5, average=True):
     logits = outputs.logits

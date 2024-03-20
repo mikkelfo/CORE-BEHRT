@@ -55,8 +55,12 @@ class BertEHRModel(BertEHREncoder):
     def __init__(self, config):
         super().__init__(config)
         self.loss_fct = nn.CrossEntropyLoss()
-        
         self.cls = MLMHead(config)
+        if 'prolonged_length_of_stay' in config.to_dict():
+            logger.info("Using prolonged length of stay classification.")
+            self.plos_head = FineTuneHead(config)
+            self.plos_fct = nn.BCEWithLogitsLoss(pos_weight=config.to_dict().get('pos_weight', None))
+            self.forward = self.forward_with_plos
 
     def forward(
         self,
@@ -70,11 +74,31 @@ class BertEHRModel(BertEHREncoder):
 
         if batch.get('target', None) is not None:
             outputs.loss = self.get_loss(logits, batch['target'])
+            outputs.mlm_loss = outputs.loss.detach().item()
 
         return outputs
 
+    def forward_with_plos(
+            self,
+            batch: dict,):
+        outputs = self.forward(batch)
+        sequence_output = outputs[0]    # Last hidden state    
+        pooled_output = self.plos_head.pool(sequence_output)
+        classification_logits = self.plos_head.classifier(pooled_output)
+        outputs.plos_logits = classification_logits
+        plos_loss = self.get_classification_loss(classification_logits, batch['PLOS'])
+        outputs.loss += plos_loss
+        outputs.plos_loss = plos_loss.detach().item()
+        return outputs
+
+
     def get_loss(self, logits, labels):
+        """Calculate loss for masked language model."""
         return self.loss_fct(logits.view(-1, self.config.vocab_size), labels.view(-1))
+
+    def get_classification_loss(self, logits, labels):
+        """Calculate loss for prolonged length of stay classification if applicable."""
+        return self.plos_fct(logits.view(-1), labels.view(-1))
 
 class BertForFineTuning(BertEHRModel):
     def __init__(self, config):

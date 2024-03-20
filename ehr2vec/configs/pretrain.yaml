@@ -44,7 +44,10 @@ model:
   type_vocab_size: 240 #  if discrete_abspos_embeddings: true, give the range of abspos in months
   behrt_embeddings: true
   discrete_abspos_embeddings: false
-
+  plusplus: true
+  abspos_embeddings: false
+  prolonged_length_of_stay: 1 # give in days
+  pool_type: mean
 optimizer:
   lr: 5e-4
   eps: 1e-6
@@ -62,3 +65,9 @@ metrics:
   top10:
     _target_: evaluation.metrics.PrecisionAtK
     topk: 10
+  plos_loss:
+    _target_: evaluation.metrics.LossAccessor
+    loss_name: plos_loss
+  mlm_loss:
+    _target_: evaluation.metrics.LossAccessor
+    loss_name: mlm_loss

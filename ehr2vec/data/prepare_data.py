@@ -17,7 +17,7 @@ from ehr2vec.data.dataset import HierarchicalMLMDataset, MLMDataset
 from ehr2vec.data.filter import CodeTypeFilter, PatientFilter
 from ehr2vec.data.utils import Utilities
 from ehr2vec.data_fixes.adapt import (BaseAdapter, BehrtAdapter,
-                                      DiscreteAbsposAdapter)
+                                      DiscreteAbsposAdapter, PLOSAdapter)
 from ehr2vec.data_fixes.handle import Handler
 from ehr2vec.data_fixes.truncate import Truncator
 
@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)  # Get the logger for this module
 PID_KEY = 'PID'
 VOCABULARY_FILE = 'vocabulary.pt'
 HIERARCHICAL_VOCABULARY_FILE = 'h_vocabulary.pt'
+DEFAULT_PROLONGED_LENGTH_OF_STAY = 7
 
 # TODO: Add option to load test set only!
 class DatasetPreparer:
@@ -216,6 +217,12 @@ class DatasetPreparer:
       
         # Adjust max segment if needed
         self.utils.check_and_adjust_max_segment(data, model_cfg)
+
+        if self.cfg.model.get('prolonged_length_of_stay', False):
+            logger.info('Add prolonged length of stay to features.')
+            threshold_in_days = self.cfg.data.get('prolonged_length_of_stay', DEFAULT_PROLONGED_LENGTH_OF_STAY)
+            # visit_threshold_in_days = self.cfg.data.get('visit_threshold_in_days', DEFAULT_VISIT_THRESHOLD_IN_DAYS)
+            data.features = PLOSAdapter(threshold_in_days=threshold_in_days).adapt_features(data.features)
 
         # 7. Optional: Adapt to BEHRT embeddings
         if self.cfg.model.get('behrt_embeddings'):

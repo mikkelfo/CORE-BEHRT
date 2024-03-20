@@ -1,10 +1,18 @@
 from math import ceil, floor
 from typing import List
 
+import numpy as np
+
+from ehr2vec.common.utils import iter_patients
+from ehr2vec.data.utils import Utilities
+import logging
+
 MIN_ABSPOS_MONTHS = -120 # 10 years into the past
 MAX_ABSPOS_MONTHS = 37 # 3 years into the future
 HOURS_IN_MONTH = 730.001 # 30.42 days
 
+
+logger = logging.getLogger(__name__)
 
 class BaseAdapter:
     @staticmethod
@@ -58,6 +66,40 @@ class BehrtAdapter(BaseAdapter):
         del features['abspos']
         return features
     
+class PLOSAdapter:
+    def __init__(self, threshold_in_days: int=None):
+        self.threshold_in_hours = threshold_in_days*24 if threshold_in_days else None
+
+    def adapt_features(self,features: dict)->dict:
+        """Adapt features to behrt embeddings format. Continuous age is converted to integer and segment is stored as position_ids. 
+        New segment is created from old segment."""
+        features = self.get_prolonged_length_of_stay(features)
+        return features
+
+    def get_prolonged_length_of_stay(self,features: dict)->dict:
+        """Calculate whether any hospital stay, which was longer than N days occured"""
+        
+        prolonged_lengths_of_stay = []
+        logger.info("Examples of plos calculation")
+        for patient in iter_patients(features):
+            prolonged_lengths_of_stay.append(
+                self.get_prolonged_length_of_stay_for_patient(patient))
+        logger.info(f'Prevalence of prolonged length of stay: {sum(prolonged_lengths_of_stay)/len(prolonged_lengths_of_stay)}')
+        features['PLOS'] = prolonged_lengths_of_stay
+        return features
+    
+    def get_prolonged_length_of_stay_for_patient(self, patient):
+        """Check if any hospital stay was longer than N days"""
+        segments = np.array(patient['segment'])
+        abspos = np.array(patient['abspos'])
+        segments_one_hot = Utilities.get_segments_one_hot(segments)
+        segment_abspos = segments_one_hot * abspos
+        min_values = np.where(segment_abspos != 0, segment_abspos, np.inf).min(axis=1)
+        max_values = np.where(segment_abspos != 0, segment_abspos, -np.inf).max(axis=1)
+        diff = max_values - min_values
+
+        return (diff > self.threshold_in_hours).any().astype(int)
+    
 class DiscreteAbsposAdapter(BaseAdapter):
     @staticmethod
     def adapt_features(features: dict)->dict:
@@ -101,3 +143,4 @@ class DiscreteAbsposAdapter(BaseAdapter):
     def hours2months(hours: float)->float:
         """Convert hours to months"""
         return hours/HOURS_IN_MONTH
+    

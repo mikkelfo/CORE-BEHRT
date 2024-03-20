@@ -60,12 +60,12 @@ class Config(dict):
             yaml.dump(config.to_dict(), file)
         
     def update(self, config: 'Config'):
-        """Updates the config with a different config."""
+        """Updates the config with a different config. Update only if key is not present in self."""
         for key, value in config.items():
             if isinstance(value, dict):
                 value = Config(value)
-            setattr(self, key, value)
-            self[key] = value
+            if key not in self:
+                setattr(self, key, value)
 
 def instantiate(instantiate_config, **extra_kwargs):
     """Instantiates a class from a config object."""

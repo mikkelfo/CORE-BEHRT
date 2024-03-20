@@ -84,7 +84,10 @@ class DatasetPreparer:
         if predefined_pids:
             logger.warning("Using predefined splits. Ignoring test_split parameter")
             logger.warning("Use original censoring time. Overwrite n_hours parameter.")
-            original_config = load_config(join(self.cfg.paths.predefined_splits, 'finetune_config.yaml'))
+            if os.path.exists(join(self.cfg.paths.predefined_splits, 'finetune_config.yaml')):
+                original_config = load_config(join(self.cfg.paths.predefined_splits, 'finetune_config.yaml'))
+            else:
+                original_config = load_config(join(self.cfg.paths.model_path, 'finetune_config.yaml'))
             self.cfg.outcome.n_hours = original_config.outcome.n_hours
             data = self._select_predefined_pids(data)
             self._load_outcomes_to_data(data)

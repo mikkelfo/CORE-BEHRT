@@ -151,13 +151,17 @@ def main():
     cfg.paths.run_name = split(test_folder)[-1]
     dataset_preparer = DatasetPreparer(cfg)
     data = dataset_preparer.prepare_finetune_data()    
-    logger.info(f"Load test pids from {finetune_folder}")
-    test_pids = torch.load(join(finetune_folder, 'test_pids.pt')) 
-    if len(test_pids)!=len(set(test_pids)):
-        logger.warn(f'Test pids contain duplicates. Test pids len {len(test_pids)}, unique pids {len(set(test_pids))}.')
-        logger.info('Removing duplicates')
-        test_pids = list(set(test_pids))
-    test_data = data.select_data_subset_by_pids(test_pids, mode='test')
+    if 'predefined_pids' in cfg.paths:
+        logger.info(f"Load test pids from {cfg.paths.predefined_pids}")
+        test_pids = torch.load(join(cfg.paths.predefined_pids, 'test_pids.pt')) 
+        if len(test_pids)!=len(set(test_pids)):
+            logger.warn(f'Test pids contain duplicates. Test pids len {len(test_pids)}, unique pids {len(set(test_pids))}.')
+            logger.info('Removing duplicates')
+            test_pids = list(set(test_pids))
+        test_data = data.select_data_subset_by_pids(test_pids, mode='test')
+    else:
+        logger.info(f"Use all data for testing.")
+        test_data = data
     save_data(test_data, test_folder)
     cv_test_loop(test_data, finetune_folder, test_folder, n_splits, cfg, logger, run)
     compute_and_save_scores_mean_std(n_splits, test_folder, mode='test', logger=logger)    

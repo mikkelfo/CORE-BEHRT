@@ -52,7 +52,8 @@ class Initializer:
             add_config = {**self.cfg.model}
             add_config.update({'pos_weight':get_pos_weight(self.cfg, train_dataset.outcomes),
                             'embedding':Initializer.get_embedding(self.cfg),
-                            'pool_type':self.cfg.model.get('pool_type', 'mean')
+                            'pool_type':self.cfg.model.get('pool_type', 'mean'),
+                            'prolonged_length_of_stay':False,
             })
             model = self.loader.load_model(
                 BertForFineTuning, 

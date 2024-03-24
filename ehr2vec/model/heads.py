@@ -98,16 +98,28 @@ class FineTuneHead(torch.nn.Module):
         self.classifier = torch.nn.Sequential(self.hidden_layer, self.activation, self.cls_layer)
 
 class ClassifierGRU(torch.nn.Module):
-    def __init__(self, config):
+    def __init__(self, config, bidirectional=False):
         super().__init__()
-        self.rnn = torch.nn.GRU(config.hidden_size, config.hidden_size, batch_first=True)
-        self.classifier = torch.nn.Linear(config.hidden_size, 1)
+        self.hidden_size = config.hidden_size
+        self.bidirectional = bidirectional
+        self.rnn = torch.nn.GRU(self.hidden_size, self.hidden_size, batch_first=True, 
+                                bidirectional=bidirectional)
+        # Adjust the input size of the classifier based on the bidirectionality
+        classifier_input_size = self.hidden_size * 2 if bidirectional else self.hidden_size
+        self.classifier = torch.nn.Linear(classifier_input_size, 1)
 
     def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
         # Pass the hidden states through the RNN
         output, _ = self.rnn(hidden_states)
         # Use the last output of the RNN as input to the classifier
-        x = output[:, -1, :]
+        # If bidirectional, we need to concatenate the last output from the forward
+        # pass and the first output from the backward pass
+        if self.bidirectional:
+            forward_output = output[:, -1, :self.hidden_size]  # Last output from the forward pass
+            backward_output = output[:, 0, self.hidden_size:]  # First output from the backward pass
+            x = torch.cat((forward_output, backward_output), dim=-1)
+        else:
+            x = output[:, -1, :]  # Last output for unidirectional
         x = self.classifier(x)
         return x
     
@@ -124,3 +136,4 @@ class ClassifierLSTM(torch.nn.Module):
         x = output[:, -1, :]
         x = self.classifier(x)
         return x
+    

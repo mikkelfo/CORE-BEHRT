@@ -53,7 +53,7 @@ class BertEHRModel(BertEHREncoder):
         super().__init__(config)
         self.loss_fct = nn.CrossEntropyLoss()
         self.cls = MLMHead(config)
-        if 'prolonged_length_of_stay' in config.to_dict():
+        if config.to_dict().get('prolonged_length_of_stay', False):
             logger.info("Using prolonged length of stay classification.")
             self.plos_head = FineTuneHead(config)
             self.plos_fct = nn.BCEWithLogitsLoss(pos_weight=config.to_dict().get('pos_weight', None))

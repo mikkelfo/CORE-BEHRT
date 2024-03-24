@@ -17,9 +17,9 @@ model:
   discrete_abspos_embeddings: false
   #extend_head: 
   # hidden_size: null
-  #cls:
-   # _target_: ehr2vec.model.heads.ClassifierGRU
-
+  cls:
+    _target_: ehr2vec.model.heads.ClassifierGRU
+    bidirectional: true
 data:
   num_patients: 300 #300
   val_split: 0.1

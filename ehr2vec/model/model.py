@@ -65,7 +65,7 @@ class BertEHRModel(BertEHREncoder):
         outputs = super().forward(batch)
 
         sequence_output = outputs[0]    # Last hidden state
-        logits = self.cls(sequence_output)
+        logits = self.cls(sequence_output, batch['attention_mask'])
         outputs.logits = logits
 
         if batch.get('target', None) is not None:
@@ -104,7 +104,7 @@ class BertForFineTuning(BertEHRModel):
             pos_weight = None
 
         self.loss_fct = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-        self.cls = instantiate(config.cls, config=config) if 'cls' in config.to_dict() else FineTuneHead(config)
+        self.cls = FineTuneHead(config)
         logger.info(f"Using {self.cls.__class__.__name__} as classifier.")
         
     def get_loss(self, hidden_states, labels, labels_mask=None):    
@@ -217,14 +217,4 @@ class HierarchicalBertForPretraining(BertEHRModel):
             result.pop(f'tree_matrix_{i}', None)
         result.pop('tree_mask', None)
         return result
-
-
-
-
-
-
-
-
-
-
 

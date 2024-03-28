@@ -51,8 +51,12 @@ class Config(dict):
     
     def to_dict(self):
         """Converts the object to a dictionary, including any attributes."""
-        result = dict(self)  # Start with the underlying dictionary
-        result.update(self.__dict__)  # Add the attributes
+        result = {}
+        for key, value in self.items():
+            if isinstance(value, Config):
+                result[key] = value.to_dict()
+            else:
+                result[key] = value
         return result
     
     def save_to_yaml(config, file_name):

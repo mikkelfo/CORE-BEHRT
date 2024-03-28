@@ -35,7 +35,7 @@ data:
   min_len: 2
   censorer:
    _target_: data_fixes.censor.EQ_Censorer
-  remove_features: ['abspos']
+  # remove_features: ['abspos']
   number_of_train_patients: 10
 
 outcome: 

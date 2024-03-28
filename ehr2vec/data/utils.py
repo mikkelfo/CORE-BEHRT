@@ -284,3 +284,34 @@ class Utilities:
             age_at_censor = age[closest_abspos_index] + time_differences_h[closest_abspos_index] / 24 / 365.25
             ages_at_censor_date.append(age_at_censor)
         return ages_at_censor_date
+    @staticmethod
+    def get_first_non_special_token_index(concepts: List[int], special_tokens: set) -> List[int]:
+        """
+        Get the first non-special token for each patient.
+        """
+        return next((i for i, token in enumerate(concepts) if token not in special_tokens), -1)
+    @staticmethod
+    def calculate_trajectory_lengths(data: Data) -> List[float]:
+        """
+        Calculate the lengths of the trajectories in days for each patient.
+        """
+        trajectory_lengths = []
+        special_tokens = set([data.vocabulary[token] for token in data.vocabulary\
+                               if token.startswith(('[', 'BG_'))])
+        for abspos, concept, censor_date in zip(data.features['abspos'], data.features['age'], data.censor_outcomes):
+            first_concept_index = Utilities.get_first_non_special_token_index(concept, special_tokens)
+            trajectory_length_hours = censor_date - abspos[first_concept_index]
+            trajectory_length_days = trajectory_length_hours / 24 
+            trajectory_lengths.append(trajectory_length_days)
+        return trajectory_lengths
+    
+    @staticmethod
+    def calculate_sequence_lengths(data: Data) -> List[int]:
+        """Calculate the lengths of the sequences for each patient."""
+        sequence_lengths = []
+        special_tokens = set([data.vocabulary[token] for token in data.vocabulary\
+                               if token.startswith(('[', 'BG_'))])
+        for concept in data.features['concept']:
+            non_special_tokens = [token for token in concept if token not in special_tokens]
+            sequence_lengths.append(len(non_special_tokens))
+        return sequence_lengths

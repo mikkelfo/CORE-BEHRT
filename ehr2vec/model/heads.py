@@ -64,7 +64,7 @@ class FineTuneHead(torch.nn.Module):
         if 'extend_head' in config.to_dict():
             self.initialize_extended_head(config)
 
-        pool_type = config.pool_type.lower()
+        self.pool_type = config.pool_type.lower()
         if self.pool_type == 'cls':
             self.pool = self.pool_cls
         elif self.pool_type == 'mean':
@@ -80,7 +80,7 @@ class FineTuneHead(torch.nn.Module):
         elif self.pool_type == 'lstm':
             self.pool = BaseRNN(config, torch.nn.LSTM)
         else:
-            logger.warning(f'Unrecognized pool_type: {pool_type}. Defaulting to CLS pooling.')
+            logger.warning(f'Unrecognized pool_type: {self.pool_type}. Defaulting to CLS pooling.')
             self.pool_type = 'cls' # Default to CLS pooling if pool_type is not recognized
             self.pool = self.pool_cls
 

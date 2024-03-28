@@ -4,6 +4,7 @@ from os.path import join
 import pandas as pd
 import torch
 
+from typing import Dict
 from ehr2vec.common.utils import Data
 
 VOCABULARY_FILE = 'vocabulary.pt'
@@ -42,6 +43,18 @@ class Saver:
             self.run_folder if folder is None else folder, 'patient_nums.csv'), 
                             index_label='Patient Group')
     
+    def save_patient_nums_general(self, data_dic: Dict[str, Data], folder:str=None)->None:
+        """Save patient numbers for arbitrary splits to a csv file"""
+        patient_nums = pd.DataFrame()
+        for key, data in data_dic.items():
+            total = len(data)
+            positive = len([t for t in data.outcomes if not pd.isna(t)])
+            patient_nums[key] = [total, positive]
+        patient_nums.set_index(pd.Index(['total', 'positive']), inplace=True)
+        patient_nums.to_csv(join(
+            self.run_folder if folder is None else folder, 'patient_nums.csv'), 
+                            index_label='Patient Group')
+        
     def save_data(self, data: Data)->None:
         """Save data (features, pids and outcomes (if present) to run_folder)"""
         torch.save(data.features, join(self.run_folder, 'features.pt'))

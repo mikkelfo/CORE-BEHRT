@@ -85,9 +85,13 @@ class DatasetPreparer:
         if predefined_pids:
             logger.warning("Using predefined splits. Ignoring test_split parameter")
             logger.warning("Use original censoring time. Overwrite n_hours parameter.")
+            if not os.path.exists(self.cfg.paths.predefined_splits):
+                raise ValueError(f"Predefined splits folder {self.cfg.paths.predefined_splits} does not exist.")
             if os.path.exists(join(self.cfg.paths.predefined_splits, 'finetune_config.yaml')):
                 original_config = load_config(join(self.cfg.paths.predefined_splits, 'finetune_config.yaml'))
             else:
+                if 'model_path' not in self.cfg.paths:
+                    raise ValueError("Model path must be provided if no finetune_config in predefined splits folder.")
                 original_config = load_config(join(self.cfg.paths.model_path, 'finetune_config.yaml'))
             self.cfg.outcome.n_hours = original_config.outcome.n_hours
             data = self._select_predefined_pids(data)
@@ -148,7 +152,6 @@ class DatasetPreparer:
         if self.cfg.model.get('behrt_embeddings'):
             logger.info('Adapting features for behrt embeddings')
             data.features = BehrtAdapter.adapt_features(data.features)
-
         if self.cfg.model.get('discrete_abspos_embeddings'):
             if self.cfg.model.get('behrt_embeddings'):
                 raise ValueError("Discrete abspos embeddings and behrt embeddings are not compatible.")

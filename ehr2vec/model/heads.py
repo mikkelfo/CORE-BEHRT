@@ -65,19 +65,19 @@ class FineTuneHead(torch.nn.Module):
             self.initialize_extended_head(config)
 
         pool_type = config.pool_type.lower()
-        if pool_type == 'cls':
+        if self.pool_type == 'cls':
             self.pool = self.pool_cls
-        elif pool_type == 'mean':
+        elif self.pool_type == 'mean':
             self.pool = self.pool_mean
-        elif pool_type == 'sum':
+        elif self.pool_type == 'sum':
             self.pool = self.pool_sum
-        elif pool_type == 'max':
+        elif self.pool_type == 'max':
             self.pool = self.pool_max
-        elif pool_type == 'attention':
+        elif self.pool_type == 'attention':
             self.pool = AttentionPool(config.hidden_size)
-        elif pool_type == 'gru':
+        elif self.pool_type == 'gru':
             self.pool = BaseRNN(config, torch.nn.GRU)
-        elif pool_type == 'lstm':
+        elif self.pool_type == 'lstm':
             self.pool = BaseRNN(config, torch.nn.LSTM)
         else:
             logger.warning(f'Unrecognized pool_type: {pool_type}. Defaulting to CLS pooling.')
@@ -86,7 +86,8 @@ class FineTuneHead(torch.nn.Module):
 
     def forward(self, hidden_states: torch.Tensor, attention_mask=None) -> torch.Tensor:
         x = self.pool(hidden_states, attention_mask=attention_mask)
-        x = self.classifier(x)
+        if self.pool_type != 'gru' and self.pool_type != 'lstm':
+            x = self.classifier(x)
         return x
 
     def pool_cls(self, x, attention_mask=None):
@@ -121,7 +122,7 @@ class BaseRNN(torch.nn.Module):
     def __init__(self, config, rnn_type) -> None:
         super().__init__()
         self.hidden_size = config.hidden_size
-        self.bidirectional = config.get('bidirectional', False)
+        self.bidirectional = config.to_dict().get('bidirectional', False)
         self.rnn = rnn_type(self.hidden_size, self.hidden_size, batch_first=True, 
                             bidirectional=self.bidirectional)
         # Adjust the input size of the classifier based on the bidirectionality

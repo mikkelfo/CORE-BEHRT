@@ -8,7 +8,7 @@ from ehr2vec.common.initialize import Initializer, ModelManager
 from ehr2vec.common.loader import load_and_select_splits
 from ehr2vec.common.setup import (DirectoryPreparer, copy_data_config,
                                   copy_pretrain_config, get_args)
-from ehr2vec.common.utils import Data
+from ehr2vec.common.utils import Data, compute_number_of_warmup_steps
 from ehr2vec.data.dataset import BinaryOutcomeDataset
 from ehr2vec.data.prepare_data import DatasetPreparer
 from ehr2vec.data.split import get_n_splits_cv
@@ -30,6 +30,9 @@ config_path = join(dirname(abspath(__file__)), args.config_path)
 def finetune_fold(cfg, train_data:Data, val_data:Data, 
                 fold:int, test_data: Data=None)->None:
     """Finetune model on one fold"""
+    if 'scheduler' in cfg:
+        logger.info('Computing number of warmup steps')
+        compute_number_of_warmup_steps(cfg, len(train_data))
     fold_folder = join(finetune_folder, f'fold_{fold}')
     os.makedirs(fold_folder, exist_ok=True)
     os.makedirs(join(fold_folder, "checkpoints"), exist_ok=True)

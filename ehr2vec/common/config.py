@@ -36,13 +36,13 @@ class Config(dict):
 
     def __delattr__(self, name):
         if name in self:
-            del self[name]
+            dict.__delitem__(self, name)  # Use the parent class's method to avoid recursion
         if hasattr(self, name):
             super(Config, self).__delattr__(name)
 
     def __delitem__(self, name):
         if name in self:
-            del self[name]
+            dict.__delitem__(self, name)  # Use the parent class's method to avoid recursion
         if hasattr(self, name):
             super(Config, self).__delattr__(name)
     

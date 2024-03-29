@@ -65,6 +65,18 @@ def hook_fn(module, input, output):
     for tensor in tensors:
         if torch.isnan(tensor).any().item():
             raise ValueError(f"NaNs in output of {module}")
+        
+def compute_number_of_warmup_steps(cfg, num_patients:int)->None:
+    """Compute number of warmup steps based on number of patients and batch size"""
+    batch_size = cfg.trainer_args.batch_size
+    if 'num_warmup_epochs' in cfg.scheduler:
+        logger.info("Computing number of warmup steps from number of warmup epochs")
+        num_warmup_epochs = cfg.scheduler.num_warmup_epochs
+        num_warmup_steps = int(num_patients / batch_size * num_warmup_epochs)
+        logger.info(f"Number of warmup steps: {num_warmup_steps}")
+        cfg.scheduler.num_warmup_steps = num_warmup_steps
+        del cfg.scheduler.num_warmup_epochs
+
 @dataclass
 class Data:
     features: dict = field(default_factory=dict)

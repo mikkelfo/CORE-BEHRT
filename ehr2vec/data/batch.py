@@ -79,6 +79,10 @@ class Batches:
         all_predefined_pids_set = set()
         for mode, file in split_files.items():
             pids = torch.load(join(self.predefined_splits_dir, file))
+            if not set(pids).issubset(set(self.flattened_pids)):
+                diff = len(set(pids).difference(set(self.flattened_pids)))
+                logger.warning(f"Predefined pids in mode {mode} contain pids that are not in the dataset. {diff}")
+                pids = list(set(pids).intersection(set(self.flattened_pids)))
             assert len(pids)==len(set(pids)), f"Predefined pids for split {mode} contain duplicates."
             all_predefined_pids_set.update(set(pids))
             splits[mode] = Split(pids=pids, mode=mode)

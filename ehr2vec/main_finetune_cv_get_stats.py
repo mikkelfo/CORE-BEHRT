@@ -47,7 +47,12 @@ def save_split_fold(train_data:Data, val_data:Data,
 def process_and_save(data: Data, func: callable, name: str, split:str, folder: str)->tuple:
     tensor_data = torch.tensor(func(data)).float()
     torch.save(tensor_data, join(folder, f'{split}_{name}.pt'))
-    return round(tensor_data.mean().item(), 4), round(tensor_data.std().item(), 4)
+    mean = round(tensor_data.mean().item(), 4) 
+    std = round(tensor_data.std().item(), 4)
+    median = round(tensor_data.median().item(), 4)
+    lower_quartile = round(tensor_data.quantile(0.25).item(), 4)
+    upper_quartile = round(tensor_data.quantile(0.75).item(), 4)
+    return mean, std, median, lower_quartile, upper_quartile
 
 def save_stats(finetune_folder:str, train_val_data:Data, test_data: Data=None)->None:
     """Save basic stats"""
@@ -65,10 +70,9 @@ def save_stats(finetune_folder:str, train_val_data:Data, test_data: Data=None)->
         stats[split] = [*process_and_save(data, Utilities.calculate_ages_at_censor_date, 'age', split, finetune_folder),
                         *process_and_save(data, Utilities.calculate_sequence_lengths, 'sequence_len', split,  finetune_folder),
                         *process_and_save(data, Utilities.calculate_trajectory_lengths, 'trajectory_len', split, finetune_folder)]
-    stats.index = ['age_mean', 'age_std', 
-                   'sequence_len_mean', 'sequence_len_std', 
-                   'trajectory_len_mean', 'trajectory_len_std']
-    stats.to_csv(join(finetune_folder, 'patient_stats.csv'))
+    stat_entities = ['age', 'sequence_len', 'trajectory_len']
+    stats.index = pd.MultiIndex.from_product([stat_entities, ['mean', 'std', 'median', 'lower_quartile', 'upper_quartile']])
+    stats.to_csv(join(finetune_folder, 'patient_stats.csv'), index=True)
 
 def _limit_train_patients(indices_or_pids: list)->list:
     if 'number_of_train_patients' in cfg.data:

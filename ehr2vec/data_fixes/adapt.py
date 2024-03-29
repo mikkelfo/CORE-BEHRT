@@ -63,7 +63,7 @@ class BehrtAdapter(BaseAdapter):
         """Adapt features to behrt embeddings format. Continuous age is converted to integer and segment is stored as position_ids. 
         New segment is created from old segment."""
         features = BaseAdapter.adapt_features(features)
-        # del features['abspos']
+        del features['abspos']
         return features
     
 class PLOSAdapter:

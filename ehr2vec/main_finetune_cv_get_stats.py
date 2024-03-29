@@ -24,7 +24,6 @@ from ehr2vec.evaluation.utils import (
 
 CONFIG_NAME = 'finetune_stats.yaml'
 BLOBSTORE='PHAIR'
-DEAFAULT_VAL_SPLIT = 0.2
 N_SPLITS = 2
 
 args = get_args(CONFIG_NAME)
@@ -122,7 +121,7 @@ if __name__ == '__main__':
     dataset_preparer = DatasetPreparer(cfg)
     data = dataset_preparer.prepare_finetune_data()    
     if 'abspos' not in data.features:
-        raise ValueError('No absolute positions found in data. Check remove features tag in config.')
+        raise ValueError('No absolute positions found in data, needed to calculate stats. Check remove features tag in config and make sure BehrtAdapter is not activated as it removes abspos.')
     logger.info('Splitting data')
 
     if 'predefined_splits' in cfg.paths:

@@ -83,6 +83,7 @@ class FineTuneHead(torch.nn.Module):
             logger.warning(f'Unrecognized pool_type: {self.pool_type}. Defaulting to CLS pooling.')
             self.pool_type = 'cls' # Default to CLS pooling if pool_type is not recognized
             self.pool = self.pool_cls
+        logger.info(f'Using {self.pool_type} pooling for classification.')
 
     def forward(self, hidden_states: torch.Tensor, attention_mask=None) -> torch.Tensor:
         x = self.pool(hidden_states, attention_mask=attention_mask)

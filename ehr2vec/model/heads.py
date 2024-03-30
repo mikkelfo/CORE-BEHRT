@@ -131,7 +131,7 @@ class BaseRNN(torch.nn.Module):
         self.classifier = torch.nn.Linear(classifier_input_size, 1)
 
     def forward(self, hidden_states: torch.Tensor, attention_mask=None) -> torch.Tensor:
-        lengths = attention_mask.sum(dim=1)
+        lengths = attention_mask.sum(dim=1).cpu()
         packed = torch.nn.utils.rnn.pack_padded_sequence(hidden_states, lengths, batch_first=True, enforce_sorted=False)
         # Pass the hidden states through the RßNN
         output, _ = self.rnn(packed)

@@ -6,15 +6,19 @@ sequence lengths, age at censoring, trajectory length (arrays, mean+-std)
 import os
 from os.path import abspath, dirname, join, split
 
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import torch
 
 from ehr2vec.common.azure import save_to_blobstore
+from ehr2vec.common.config import Config
 from ehr2vec.common.initialize import Initializer
 from ehr2vec.common.loader import load_and_select_splits
 from ehr2vec.common.setup import (DirectoryPreparer, copy_data_config,
                                   copy_pretrain_config, get_args)
 from ehr2vec.common.utils import Data
+from ehr2vec.data.filter import PatientFilter
 from ehr2vec.data.prepare_data import DatasetPreparer
 from ehr2vec.data.split import get_n_splits_cv
 from ehr2vec.data.utils import Utilities
@@ -44,8 +48,41 @@ def save_split_fold(train_data:Data, val_data:Data,
     if len(test_data) > 0:
         torch.save(test_data.pids, join(fold_folder, 'test_pids.pt'))
 
+def get_number_of_women(data: Data)->int:
+    temp_cfg = Config({'data':{'gender':'Kvinde'}})
+    patient_filter = PatientFilter(temp_cfg)
+    female_data = patient_filter.select_by_gender(data)
+    return len(female_data)
+
+def save_gender_distribution(data_dict: dict, folder: str)->None:
+    """Save distribution of gender as table"""
+    gender_dist = pd.DataFrame()
+    for split, data in data_dict.items():
+        female_data = data.copy() # copy to avoid changing original data
+        n_women = get_number_of_women(female_data)
+        gender_dist[split] = [n_women, n_women/len(data)]
+    gender_dist.index = ['n_female', 'perc. female']
+    gender_dist.to_csv(join(folder, 'gender_dist.csv'), index=True)
+
+def plot_and_save_hist(tensor_data: torch.Tensor, name: str, split: str, 
+                       folder: str, positive_indices: list=None)->None:
+    fig, ax = plt.subplots()
+    if positive_indices:
+        bins = np.histogram_bin_edges(tensor_data, bins=50)
+        negative_indices = [i for i in range(len(tensor_data)) if i not in positive_indices]
+        ax.hist(tensor_data[negative_indices], bins=bins, color='b', alpha=0.5, label='negative')
+        ax.hist(tensor_data[positive_indices], bins=bins, color='r', alpha=0.5, label='positive')
+        ax.legend()
+    else:
+        ax.hist(tensor_data, bins=50)
+    ax.set_xlabel(name)
+    ax.set_title(f'{split} {name}')
+    fig.savefig(join(folder, f'{split}_{name}.png'), dpi=150, bbox_inches='tight')
+
 def process_and_save(data: Data, func: callable, name: str, split:str, folder: str)->tuple:
     tensor_data = torch.tensor(func(data)).float()
+    positive_indices = [i for i, outcome in enumerate(data.outcomes) if pd.notna(outcome)]
+    plot_and_save_hist(tensor_data, name, split, folder, positive_indices)
     torch.save(tensor_data, join(folder, f'{split}_{name}.pt'))
     mean = round(tensor_data.mean().item(), 4) 
     std = round(tensor_data.std().item(), 4)
@@ -63,7 +100,7 @@ def save_stats(finetune_folder:str, train_val_data:Data, test_data: Data=None)->
         torch.save(test_data.pids, join(finetune_folder, 'test_pids.pt'))
     logger.info("Saving patient numbers")
     dataset_preparer.saver.save_patient_nums_general(data_dict, folder=finetune_folder)
-    
+    save_gender_distribution(data_dict, finetune_folder)
     logger.info("Saving sequence lengths, age at censoring and trajectory lengths")
     stats = pd.DataFrame()
     for split, data in data_dict.items():
@@ -71,7 +108,8 @@ def save_stats(finetune_folder:str, train_val_data:Data, test_data: Data=None)->
                         *process_and_save(data, Utilities.calculate_sequence_lengths, 'sequence_len', split,  finetune_folder),
                         *process_and_save(data, Utilities.calculate_trajectory_lengths, 'trajectory_len', split, finetune_folder)]
     stat_entities = ['age', 'sequence_len', 'trajectory_len']
-    stats.index = pd.MultiIndex.from_product([stat_entities, ['mean', 'std', 'median', 'lower_quartile', 'upper_quartile']])
+    stat_measures = ['mean', 'std', 'median', 'lower_quartile', 'upper_quartile']
+    stats.index = [f'{entity}_{measure}' for entity in stat_entities for measure in stat_measures]
     stats.to_csv(join(finetune_folder, 'patient_stats.csv'), index=True)
 
 def _limit_train_patients(indices_or_pids: list)->list:

@@ -2,9 +2,10 @@ import glob
 import logging
 import os
 import random
+from copy import deepcopy
 from dataclasses import dataclass, field
 from os.path import join
-from typing import Dict, List, Optional, Tuple, Generator
+from typing import Dict, Generator, List, Optional, Tuple
 
 import torch
 from torch.utils.data import IterableDataset
@@ -88,6 +89,17 @@ class Data:
     
     def __len__(self):
         return len(self.pids)
+    
+    def copy(self) -> 'Data':
+        """Create a copy of this Data object"""
+        return Data(
+            features=deepcopy(self.features),
+            pids=deepcopy(self.pids),
+            outcomes=deepcopy(self.outcomes) if self.outcomes is not None else None,
+            censor_outcomes=deepcopy(self.censor_outcomes) if self.censor_outcomes is not None else None,
+            vocabulary=deepcopy(self.vocabulary),
+            mode=self.mode
+        )
 
     def check_lengths(self):
         """Check that all features have the same length"""

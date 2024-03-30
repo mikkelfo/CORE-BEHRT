@@ -79,17 +79,26 @@ def plot_and_save_hist(tensor_data: torch.Tensor, name: str, split: str,
     ax.set_title(f'{split} {name}')
     fig.savefig(join(folder, f'{split}_{name}.png'), dpi=150, bbox_inches='tight')
 
-def process_and_save(data: Data, func: callable, name: str, split:str, folder: str)->tuple:
-    tensor_data = torch.tensor(func(data)).float()
-    positive_indices = [i for i, outcome in enumerate(data.outcomes) if pd.notna(outcome)]
-    plot_and_save_hist(tensor_data, name, split, folder, positive_indices)
-    torch.save(tensor_data, join(folder, f'{split}_{name}.pt'))
-    mean = round(tensor_data.mean().item(), 4) 
+def calculate_statistics(tensor_data: torch.Tensor) -> tuple:
+    """Calculate mean, standard deviation, median, lower and upper quartiles."""
+    mean = round(tensor_data.mean().item(), 4)
     std = round(tensor_data.std().item(), 4)
     median = round(tensor_data.median().item(), 4)
     lower_quartile = round(tensor_data.quantile(0.25).item(), 4)
     upper_quartile = round(tensor_data.quantile(0.75).item(), 4)
     return mean, std, median, lower_quartile, upper_quartile
+
+def process_and_save(data: Data, func: callable, name: str, split:str, folder: str)->tuple:
+    tensor_data = torch.tensor(func(data)).float()
+    positive_indices = [i for i, outcome in enumerate(data.outcomes) if pd.notna(outcome)]
+    
+    plot_and_save_hist(tensor_data, name, split, folder, positive_indices)
+    torch.save(tensor_data, join(folder, f'{split}_{name}.pt'))
+    
+    stats_all = calculate_statistics(tensor_data)
+    stats_pos = calculate_statistics(tensor_data[positive_indices])
+
+    return stats_all, stats_pos
 
 def save_stats(finetune_folder:str, train_val_data:Data, test_data: Data=None)->None:
     """Save basic stats"""
@@ -102,15 +111,31 @@ def save_stats(finetune_folder:str, train_val_data:Data, test_data: Data=None)->
     dataset_preparer.saver.save_patient_nums_general(data_dict, folder=finetune_folder)
     save_gender_distribution(data_dict, finetune_folder)
     logger.info("Saving sequence lengths, age at censoring and trajectory lengths")
-    stats = pd.DataFrame()
+    # Initialize DataFrames for storing statistics
+    stats, positive_stats = {}, {}
+    
+    # List of metric calculation functions and their names
+    metric_functions = [
+        (Utilities.calculate_ages_at_censor_date, 'age'),
+        (Utilities.calculate_sequence_lengths, 'sequence_len'),
+        (Utilities.calculate_trajectory_lengths, 'trajectory_len')
+    ]
+
     for split, data in data_dict.items():
-        stats[split] = [*process_and_save(data, Utilities.calculate_ages_at_censor_date, 'age', split, finetune_folder),
-                        *process_and_save(data, Utilities.calculate_sequence_lengths, 'sequence_len', split,  finetune_folder),
-                        *process_and_save(data, Utilities.calculate_trajectory_lengths, 'trajectory_len', split, finetune_folder)]
-    stat_entities = ['age', 'sequence_len', 'trajectory_len']
-    stat_measures = ['mean', 'std', 'median', 'lower_quartile', 'upper_quartile']
-    stats.index = [f'{entity}_{measure}' for entity in stat_entities for measure in stat_measures]
+        for func, name in metric_functions:
+            all_stats, pos_stats = process_and_save(data, func, name, split, finetune_folder)
+            # Store all data statistics
+            for i, measure in enumerate(['mean', 'std', 'median', 'lower_quartile', 'upper_quartile']):
+                stat_name = f'{name}_{measure}'
+                stats.setdefault(stat_name, {})[split] = all_stats[i]
+                positive_stats.setdefault(stat_name, {})[split] = pos_stats[i] 
+    
+    # Convert dictionaries to DataFrames
+    stats = pd.DataFrame(stats).transpose()
+    positive_stats = pd.DataFrame(positive_stats).transpose()
+    # Save DataFrames to CSV
     stats.to_csv(join(finetune_folder, 'patient_stats.csv'), index=True)
+    positive_stats.to_csv(join(finetune_folder, 'positive_patient_stats.csv'), index=True)
 
 def _limit_train_patients(indices_or_pids: list)->list:
     if 'number_of_train_patients' in cfg.data:

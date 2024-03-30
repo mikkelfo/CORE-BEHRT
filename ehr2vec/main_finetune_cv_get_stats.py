@@ -10,11 +10,13 @@ import pandas as pd
 import torch
 
 from ehr2vec.common.azure import save_to_blobstore
+from ehr2vec.common.config import Config
 from ehr2vec.common.initialize import Initializer
 from ehr2vec.common.loader import load_and_select_splits
 from ehr2vec.common.setup import (DirectoryPreparer, copy_data_config,
                                   copy_pretrain_config, get_args)
 from ehr2vec.common.utils import Data
+from ehr2vec.data.filter import PatientFilter
 from ehr2vec.data.prepare_data import DatasetPreparer
 from ehr2vec.data.split import get_n_splits_cv
 from ehr2vec.data.utils import Utilities
@@ -44,6 +46,21 @@ def save_split_fold(train_data:Data, val_data:Data,
     if len(test_data) > 0:
         torch.save(test_data.pids, join(fold_folder, 'test_pids.pt'))
 
+def get_number_of_women(data: Data)->int:
+    temp_cfg = Config({'data':{'gender':'Kvinde'}})
+    patient_filter = PatientFilter(temp_cfg)
+    female_data = patient_filter.select_by_gender(data)
+    return len(female_data)
+
+def save_gender_distribution(data_dict: dict, folder: str)->None:
+    """Save distribution of gender as table"""
+    gender_dist = pd.DataFrame()
+    for split, data in data_dict.items():
+        n_women = get_number_of_women(data)
+        gender_dist[split] = [n_women, n_women/len(data)]
+    gender_dist.index = ['n_female', 'perc. female']
+    gender_dist.to_csv(join(folder, 'gender_dist.csv'), index=True)
+
 def process_and_save(data: Data, func: callable, name: str, split:str, folder: str)->tuple:
     tensor_data = torch.tensor(func(data)).float()
     torch.save(tensor_data, join(folder, f'{split}_{name}.pt'))
@@ -63,7 +80,7 @@ def save_stats(finetune_folder:str, train_val_data:Data, test_data: Data=None)->
         torch.save(test_data.pids, join(finetune_folder, 'test_pids.pt'))
     logger.info("Saving patient numbers")
     dataset_preparer.saver.save_patient_nums_general(data_dict, folder=finetune_folder)
-    
+    save_gender_distribution(data_dict, finetune_folder)
     logger.info("Saving sequence lengths, age at censoring and trajectory lengths")
     stats = pd.DataFrame()
     for split, data in data_dict.items():
@@ -71,7 +88,8 @@ def save_stats(finetune_folder:str, train_val_data:Data, test_data: Data=None)->
                         *process_and_save(data, Utilities.calculate_sequence_lengths, 'sequence_len', split,  finetune_folder),
                         *process_and_save(data, Utilities.calculate_trajectory_lengths, 'trajectory_len', split, finetune_folder)]
     stat_entities = ['age', 'sequence_len', 'trajectory_len']
-    stats.index = pd.MultiIndex.from_product([stat_entities, ['mean', 'std', 'median', 'lower_quartile', 'upper_quartile']])
+    stat_measures = ['mean', 'std', 'median', 'lower_quartile', 'upper_quartile']
+    stats.index = [f'{entity}_{measure}' for entity in stat_entities for measure in stat_measures]
     stats.to_csv(join(finetune_folder, 'patient_stats.csv'), index=True)
 
 def _limit_train_patients(indices_or_pids: list)->list:

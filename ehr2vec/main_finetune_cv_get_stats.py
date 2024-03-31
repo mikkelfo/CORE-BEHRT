@@ -4,6 +4,7 @@ Number of patients, number of positive patients
 sequence lengths, age at censoring, trajectory length (arrays, mean+-std)
 """
 import os
+import sys
 from os.path import abspath, dirname, join, split
 
 import pandas as pd
@@ -13,7 +14,7 @@ from ehr2vec.common.azure import save_to_blobstore
 from ehr2vec.common.initialize import Initializer
 from ehr2vec.common.loader import load_and_select_splits
 from ehr2vec.common.setup import (DirectoryPreparer, copy_data_config,
-                                  copy_pretrain_config, get_args)
+                                  copy_pretrain_config)
 from ehr2vec.common.utils import Data
 from ehr2vec.data.prepare_data import DatasetPreparer
 from ehr2vec.data.split import get_n_splits_cv
@@ -24,12 +25,15 @@ from ehr2vec.evaluation.utils import (
     check_data_for_overlap, save_data,
     split_into_test_data_and_train_val_indices)
 
-CONFIG_NAME = 'finetune_stats.yaml'
+CONFIG_NAME = 'configs/finetune_stats.yaml'
+if len(sys.argv) > 1:
+    # Use the first argument as the config file name
+    CONFIG_NAME = sys.argv[1]
+
 BLOBSTORE='PHAIR'
 N_SPLITS = 2
 
-args = get_args(CONFIG_NAME)
-config_path = join(dirname(abspath(__file__)), args.config_path)
+config_path = join(dirname(abspath(__file__)), CONFIG_NAME)
 # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
 
@@ -43,6 +47,11 @@ def save_split_fold(train_data:Data, val_data:Data,
     torch.save(val_data.pids, join(fold_folder, 'val_pids.pt'))
     if len(test_data) > 0:
         torch.save(test_data.pids, join(fold_folder, 'test_pids.pt'))
+
+def save_outcomes(data, folder, split):
+    """Save outcomes as binary tensor to pt file."""
+    outcomes = torch.tensor([1 if pd.notna(outcome) else 0 for outcome in data.outcomes]).float()
+    torch.save(outcomes, join(folder, f'{split}_outcomes_binary.pt'))
 
 def process_and_save(data: Data, func: callable, name: str, split:str, folder: str)->tuple:
     tensor_data = torch.tensor(func(data)).float()
@@ -78,6 +87,7 @@ def save_stats(finetune_folder:str, train_val_data:Data, test_data: Data=None)->
     ]
 
     for split, data in data_dict.items():
+        save_outcomes(data, finetune_folder, split)
         for func, name in metric_functions:
             all_stats, pos_stats = process_and_save(data, func, name, split, finetune_folder)
             # Store all data statistics
@@ -152,7 +162,6 @@ if __name__ == '__main__':
         test_pids = torch.load(join(cfg.paths.predefined_splits, 'test_pids.pt')) if os.path.exists(join(cfg.paths.predefined_splits, 'test_pids.pt')) else []
         test_pids = list(set(test_pids))
         test_data = data.select_data_subset_by_pids(test_pids, mode='test')
-        save_data(test_data, finetune_folder)
         N_SPLITS, train_data, val_data  = cv_get_predefined_splits(
             data, cfg.paths.predefined_splits, test_data)
         train_val_pids = train_data.pids + val_data.pids

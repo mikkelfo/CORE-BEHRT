@@ -100,7 +100,25 @@ class Data:
             vocabulary=deepcopy(self.vocabulary),
             mode=self.mode
         )
-
+    @classmethod
+    def load_from_directory(cls, data_dir:str, mode:str)->'Data':
+        """Load data from data_dir."""
+        def load_tensor(filename, required=False):
+            """Helper function to load a tensor if it exists, otherwise return None"""
+            filepath = join(data_dir, filename)
+            if not os.path.exists(filepath):
+                if required:
+                    raise FileNotFoundError(f"{filename} not found in {data_dir}")
+                else:
+                    return None
+            return torch.load(filepath)
+        features = load_tensor(f'{mode}_features.pt', required=True)
+        pids = load_tensor(f'{mode}_pids.pt', required=True)
+        outcomes = load_tensor(f'{mode}_outcomes.pt')
+        censor_outcomes = load_tensor(f'{mode}_censor_outcomes.pt')
+        vocabulary = load_tensor('vocabulary.pt')
+        return cls(features, pids, outcomes, censor_outcomes, vocabulary, mode=mode)
+    
     def check_lengths(self):
         """Check that all features have the same length"""
         for key, values in self.features.items():

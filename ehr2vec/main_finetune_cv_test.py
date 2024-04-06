@@ -24,7 +24,7 @@ config_path = join(dirname(abspath(__file__)), args.config_path)
 # os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
 def test_fold(cfg, finetune_folder: str, test_folder: str, fold:int, test_data: Data=None, run=None, logger=None)->None:
-    """Finetune model on one fold"""
+    """Test model on one fold. Save test results in test folder."""
     fold_folder = join(finetune_folder, f'fold_{fold}')
     logger.info("Saving test pids")
     torch.save(test_data.pids, join(test_folder, 'test_pids.pt'))
@@ -114,12 +114,12 @@ def update_config(cfg:Config, finetune_folder:str)->Config:
     """Update config with pretrain and ft information."""
     finetune_config = load_config(join(finetune_folder, 'finetune_config.yaml'))
     pretrain_config = load_config(join(finetune_folder, 'pretrain_config.yaml'))
-    cfg.data.update(finetune_config.data)
-    cfg.outcome = finetune_config.outcome
+    if 'test_data_dir' not in cfg.paths:
+        cfg.data.update(finetune_config.data)
+        cfg.outcome = finetune_config.outcome
+        cfg.data.update(pretrain_config.data)
     cfg.model = finetune_config.model
     cfg.trainer_args = finetune_config.trainer_args
-
-    cfg.data.update(pretrain_config.data)
     cfg.paths.update(finetune_config.paths)
     cfg.model.update(pretrain_config.model)
     return cfg
@@ -149,19 +149,25 @@ def main():
     n_splits = len(fold_dirs)
     log_config(cfg, logger)
     cfg.paths.run_name = split(test_folder)[-1]
-    dataset_preparer = DatasetPreparer(cfg)
-    data = dataset_preparer.prepare_finetune_data()    
-    if 'predefined_pids' in cfg.paths:
-        logger.info(f"Load test pids from {cfg.paths.predefined_pids}")
-        test_pids = torch.load(join(cfg.paths.predefined_pids, 'test_pids.pt')) 
-        if len(test_pids)!=len(set(test_pids)):
-            logger.warn(f'Test pids contain duplicates. Test pids len {len(test_pids)}, unique pids {len(set(test_pids))}.')
-            logger.info('Removing duplicates')
-            test_pids = list(set(test_pids))
-        test_data = data.select_data_subset_by_pids(test_pids, mode='test')
+    if 'test_data_dir' in cfg.paths:
+        logger.info(f"Load test data from {cfg.paths.test_data_dir}")
+        test_data = Data.load_from_directory(cfg.paths.test_data_dir, mode='test')
     else:
-        logger.info(f"Use all data for testing.")
-        test_data = data
+        logger.info(f"Prepare test data from {cfg.data.test_data_dir}")
+        dataset_preparer = DatasetPreparer(cfg)
+        data = dataset_preparer.prepare_finetune_data()    
+        if 'predefined_pids' in cfg.paths:
+            logger.info(f"Load test pids from {cfg.paths.predefined_pids}")
+            test_pids = torch.load(join(cfg.paths.predefined_pids, 'test_pids.pt')) 
+            if len(test_pids)!=len(set(test_pids)):
+                logger.warn(f'Test pids contain duplicates. Test pids len {len(test_pids)}, unique pids {len(set(test_pids))}.')
+                logger.info('Removing duplicates')
+                test_pids = list(set(test_pids))
+            test_data = data.select_data_subset_by_pids(test_pids, mode='test')
+    
+        else:
+            logger.info(f"Use all data for testing.")
+            test_data = data
     save_data(test_data, test_folder)
     cv_test_loop(test_data, finetune_folder, test_folder, n_splits, cfg, logger, run)
     compute_and_save_scores_mean_std(n_splits, test_folder, mode='test', logger=logger)    

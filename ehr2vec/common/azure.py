@@ -137,7 +137,8 @@ class AzurePathContext:
         """Azure setup for pretraining. Prepend mount folder."""
         if self.azure_env:
             self.cfg.loader.data_dir = self._prepend_mount_point(self.cfg.loader.data_dir)
-            
+            if 'vocabulary' in self.cfg.paths:
+                self.cfg.paths.vocabulary = self._prepend_mount_point(self.cfg.paths.vocabulary)
             if 'predefined_splits_dir' in self.cfg:
                 self.cfg.predefined_splits_dir = self._prepend_mount_point(self.cfg.predefined_splits_dir)
             if 'exclude_pids' in self.cfg and self.cfg['exclude_pids']:

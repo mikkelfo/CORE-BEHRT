@@ -67,8 +67,14 @@ def main_data(config_path):
     
     tokenized_dir_name = cfg.get('tokenized_dir_name','tokenized')
     check_and_clear_directory(cfg, logger, tokenized_dir_name=tokenized_dir_name)
+    
+    vocabulary = None
+    if 'vocabulary' in cfg.paths:
+        logger.info(f'Loading vocabulary from {cfg.paths.vocabulary}')
+        vocabulary = torch.load(cfg.paths.vocabulary) 
+
     logger.info('Tokenizing')
-    tokenizer = EHRTokenizer(config=cfg.tokenizer)
+    tokenizer = EHRTokenizer(config=cfg.tokenizer, vocabulary=vocabulary)
     batch_tokenize = BatchTokenize(pids, tokenizer, cfg, tokenized_dir_name=tokenized_dir_name)
     shutil.copy(config_path, join(cfg.output_dir, tokenized_dir_name,  'data_cfg.yaml'))
     

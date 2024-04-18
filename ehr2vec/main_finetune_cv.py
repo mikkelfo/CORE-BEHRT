@@ -94,13 +94,14 @@ def split_and_finetune(data: Data, train_indices: list, val_indices: list, fold:
     check_data_for_overlap(train_data, val_data, test_data)
     finetune_fold(cfg, train_data, val_data, fold, test_data)
 
-def _limit_train_patients(indices_or_pids: list)->list:
-    if 'number_of_train_patients' in cfg.data:
-        if len(indices_or_pids) >= cfg.data.number_of_train_patients:
-            indices_or_pids = indices_or_pids[:cfg.data.number_of_train_patients]
-            logger.info(f"Number of train patients is limited to {cfg.data.number_of_train_patients}")
+def _limit_patients(indices_or_pids: list, split: str)->list:
+    if f'number_of_{split}_patients' in cfg.data:
+        number_of_patients = cfg.data.get(f'number_of_{split}_patients')
+        if len(indices_or_pids) >= number_of_patients:
+            indices_or_pids = indices_or_pids[:number_of_patients]
+            logger.info(f"Number of {split} patients is limited to {number_of_patients}")
         else:
-            raise ValueError(f"Number of train patients is {len(indices_or_pids)}, but should be at least {cfg.data.number_of_train_patients}")
+            raise ValueError(f"Number of train patients is {len(indices_or_pids)}, but should be at least {number_of_patients}")
     return indices_or_pids
 
 def cv_loop(data: Data, train_val_indices: list, test_data: Data)->None:
@@ -109,7 +110,8 @@ def cv_loop(data: Data, train_val_indices: list, test_data: Data)->None:
         fold += 1
         logger.info(f"Training fold {fold}/{N_SPLITS}")
         logger.info("Splitting data")
-        train_indices = _limit_train_patients(train_indices)
+        train_indices = _limit_patients(train_indices, 'train')
+        val_indices = _limit_patients(val_indices, 'val')
         split_and_finetune(data, train_indices, val_indices, fold, test_data)
 
 def finetune_without_cv(data: Data, train_val_indices:list, test_data: Data=None)->None:
@@ -128,8 +130,12 @@ def cv_loop_predefined_splits(data: Data, predefined_splits_dir: str, test_data:
         fold = int(split(fold_dir)[1].split('_')[1])
         logger.info(f"Training fold {fold}/{len(fold_dirs)}")
         train_data, val_data = load_and_select_splits(fold_dir, data)
-        train_pids = _limit_train_patients(train_data.pids)
-        train_data = data.select_data_subset_by_pids(train_pids, mode='train')
+        train_pids = _limit_patients(train_data.pids, 'train')
+        val_pids = _limit_patients(val_data.pids, 'val')
+        if len(train_pids)<len(train_data.pids):
+            train_data = data.select_data_subset_by_pids(train_pids, mode='train')
+        if len(val_pids)<len(val_data.pids):
+            val_data = data.select_data_subset_by_pids(val_pids, mode='val')
         check_data_for_overlap(train_data, val_data, test_data)
         finetune_fold(cfg, train_data, val_data, fold, test_data)
     return N_SPLITS

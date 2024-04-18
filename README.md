@@ -1,3 +1,5 @@
+# CORE-BEHRT: A Carefully Optimized and Rigorously Evaluated BEHRT
+
 To reproduce the results you can run the main scripts in the following order:
 -   main_data_pretrain/main_data_pretrain_large: produces raw and tokenized features
 -   main_pretrain: pretrain a standard bert model

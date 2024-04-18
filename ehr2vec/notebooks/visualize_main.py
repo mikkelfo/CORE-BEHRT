@@ -1,6 +1,8 @@
 from matplotlib.ticker import ScalarFormatter
 import numpy as np
-
+ALPHA_ADAPTED = 0.55
+ALPHA_UNADAPTED = 0.2
+#ALPHA_UNADAPTED = 0.3
 def normalize_scores(scores, normalization_model=0):
     """Normalize scores by subtracting the first score from all scores."""
     return [(score - scores[normalization_model]) if score is not None else None for score in scores]
@@ -71,7 +73,7 @@ def initialize_plot(models, groups, model_distance, group_gap):
     adjusted_positions = np.array(adjusted_positions) - 1.5 * model_distance
     return adjusted_positions, group_labels, group_label_positions
 
-def plot_data(ax, positions, model_adapted, scores,stds, colors, model_distance, normalization_model = 0):
+def plot_data(ax, positions, model_adapted, scores,stds, colors, model_distance, normalization_model = 0, line_plot=True):
     """Plots the data for each category."""
     for i, (category, color) in enumerate(colors.items()):
         category_scores = scores[category]
@@ -81,14 +83,15 @@ def plot_data(ax, positions, model_adapted, scores,stds, colors, model_distance,
                             category.upper(), color, model_adapted, model_distance, normalization_model)
         else:
             create_scatter_plot(ax, positions+2*model_distance , category_scores, category_stds, category.upper(), color, model_adapted, normalization_model)
-            create_line_plot(ax, positions+2*model_distance , category_scores, color, model_adapted, normalization_model)
+            if line_plot:
+                create_line_plot(ax, positions+2*model_distance , category_scores, color, model_adapted, normalization_model)
 
 def create_bar_plot(ax, positions, scores, stds, label, color, adapted, model_distance, normalization_model = 0):
     """Creates a scatter plot with error bars."""
     scores = normalize_scores(scores, normalization_model)
     for i, (pos, score, std, a) in enumerate(zip(positions, scores, stds, adapted)):
         if score is not None:
-            ax.bar(pos, score, color=color, alpha=.55 if a else .2, width=model_distance, label=label if i == 0 else None)
+            ax.bar(pos, score, color=color, alpha=ALPHA_ADAPTED if a else ALPHA_UNADAPTED, width=model_distance, label=label if i == 0 else None)
 def data_to_axes_fraction(ax, data_x):
     """Convert a data x-coordinate to axes fraction."""
     xlim = ax.get_xlim()
@@ -100,3 +103,20 @@ def add_bracket_with_text(ax, x_center, width, y_pos_bracket, text, fontsize=12,
                 fontsize=14, ha='left', va='bottom', xycoords='axes fraction', 
                 arrowprops=dict(arrowstyle=f'-[, widthB={width}, lengthB=.7', lw=2.0))
     ax.text(x, y_pos_bracket-annotation_distance, text, transform=ax.transAxes, ha='center', va='top', fontsize=fontsize, fontweight='bold', color='black')
+
+def get_scores(model_groups, original_models, scores, inv_model_map):
+    new_scores = {disease: [] for disease in scores.keys()}
+    for group, new_models in model_groups.items():
+        for model in new_models:
+            original_model = inv_model_map[model]
+            model_index = original_models.index(original_model)
+            for key in scores.keys():
+                new_scores[key].append(scores[key][model_index])
+
+    return new_scores
+def rename_tasks(scores: dict, task_rename:dict)-> dict:
+    new_scores = {}
+    for key in scores.keys():
+        new_key = task_rename[key]
+        new_scores[new_key] = scores[key]
+    return new_scores

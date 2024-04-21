@@ -67,7 +67,9 @@ def process_and_save(data: Data, func: callable, name: str, split:str, folder: s
 
 def save_stats(finetune_folder:str, train_val_data:Data, test_data: Data=None)->None:
     """Save basic stats"""
-    data_dict = {'train_val':train_val_data, 'test':test_data}
+    data_dict = {'train_val':train_val_data}
+    if len(test_data) > 0:
+        data_dict['test'] = test_data
     logger.info("Saving pids")
     torch.save(train_val_data.pids, join(finetune_folder, 'train_val_pids.pt'))
     if len(test_data) > 0:

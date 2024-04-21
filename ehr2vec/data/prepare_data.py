@@ -76,6 +76,7 @@ class DatasetPreparer:
 
         # 1. Loading tokenized data
         data = self.loader.load_tokenized_data(mode='finetune')
+        initial_pids = data.pids
         if self.cfg.paths.get('exclude_pids', None) is not None:
             logger.info(f"Pids to exclude: {self.cfg.paths.exclude_pids}")
             exclude_pids = load_exclude_pids(self.cfg.paths)
@@ -170,7 +171,10 @@ class DatasetPreparer:
         # Verify and save
         data.check_lengths()
         data = self.utils.process_data(data, self.saver.save_sequence_lengths)
-
+        
+        excluded_pids = list(set(initial_pids).difference(set(data.pids)))
+        self.saver.save_list(excluded_pids, 'excluded_pids.pt')
+        
         self.saver.save_data(data)
         self._log_features(data)
         return data

@@ -106,7 +106,6 @@ class EHRTrainer:
         self.accumulation_steps: int = self.args['effective_batch_size'] // self.args['batch_size']
         dataloader = self.setup_training()
         self.log(f'Test validation before starting training')
-        self._evaluate(epoch=0, mode='val')
         self.validate_and_log(0, [0], dataloader)
         for epoch in range(self.continue_epoch, self.args['epochs']):
             self._train_epoch(epoch, dataloader)

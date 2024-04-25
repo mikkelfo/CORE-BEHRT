@@ -213,7 +213,7 @@ class DatasetPreparer:
         if not predefined_pids:
             # 4. Optional: Patient Subset Selection
             if data_cfg.get('num_patients'):
-                data = self.utils.process_data(data, self.patient_filter.select_random_subset, args_for_func={'num_patients':data_cfg.num_train_patients})
+                data = self.utils.process_data(data, self.patient_filter.select_random_subset, args_for_func={'num_patients':data_cfg.num_patients})
 
         # 5. Truncation
         logger.info(f"Truncating data to {data_cfg.truncation_len} tokens")

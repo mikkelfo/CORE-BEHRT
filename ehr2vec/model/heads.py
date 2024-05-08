@@ -27,36 +27,6 @@ class MLMHead(torch.nn.Module):
 
         return x
 
-class HMLMHead(MLMHead):
-    def __init__(self, config):
-        super().__init__(config)
-
-        # BertLMPredictionHead
-        self.decoder = torch.nn.Linear(config.hidden_size, config.leaf_size, bias=False)
-        self.bias = torch.nn.Parameter(torch.zeros(config.leaf_size))
-        self.decoder.bias = self.bias
-
-class AttentionPool(torch.nn.Module):
-    def __init__(self, hidden_size):
-        super().__init__()
-        self.query = torch.nn.Parameter(torch.randn(hidden_size))
-        self.key = torch.nn.Linear(hidden_size, hidden_size)
-
-    def forward(self, x, attention_mask=None):
-        # Compute attention scores using a dot product between a learnable query and the keys
-        keys = self.key(x)  # Shape: [batch_size, seq_length, hidden_size]
-        attn_scores = torch.matmul(keys, self.query)  # Shape: [batch_size, seq_length]
-
-        expanded_attention_mask = attention_mask
-        attn_scores[expanded_attention_mask == 0] = 0
-
-        # Apply softmax to get attention weights
-        attn_weights = torch.nn.functional.softmax(attn_scores, dim=1).unsqueeze(-1)  # Shape: [batch_size, seq_length, 1]
-
-        # Compute weighted average
-        weighted_avg = torch.sum(x * attn_weights, dim=1)  # Shape: [batch_size, hidden_size]
-        return weighted_avg
-
 class FineTuneHead(torch.nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -69,12 +39,6 @@ class FineTuneHead(torch.nn.Module):
             self.pool = self.pool_cls
         elif self.pool_type == 'mean':
             self.pool = self.pool_mean
-        elif self.pool_type == 'sum':
-            self.pool = self.pool_sum
-        elif self.pool_type == 'max':
-            self.pool = self.pool_max
-        elif self.pool_type == 'attention':
-            self.pool = AttentionPool(config.hidden_size)
         elif self.pool_type == 'gru':
             self.pool = BaseRNN(config, torch.nn.GRU)
         elif self.pool_type == 'lstm':
@@ -98,14 +62,6 @@ class FineTuneHead(torch.nn.Module):
         sum_embeddings = torch.sum(x * attention_mask.unsqueeze(-1), dim=1)
         sum_mask = attention_mask.sum(dim=1).unsqueeze(-1)
         return sum_embeddings / sum_mask
-
-    def pool_sum(self, x, attention_mask):
-        return torch.sum(x * attention_mask.unsqueeze(-1), dim=1)
-    
-    def pool_max(self, x, attention_mask):
-        expanded_attention_mask = attention_mask.unsqueeze(-1).expand(x.shape)
-        x[expanded_attention_mask == 0] = -1e9
-        return torch.max(x, dim=1).values
     
     def initialize_extended_head(self, config):
         if config.extend_head.get('hidden_size', None) is not None:
@@ -116,9 +72,6 @@ class FineTuneHead(torch.nn.Module):
         self.hidden_layer = torch.nn.Linear(config.hidden_size, intermediate_size)
         self.cls_layer = torch.nn.Linear(intermediate_size, 1)
         self.classifier = torch.nn.Sequential(self.hidden_layer, self.activation, self.cls_layer)
-
-
-
 class BaseRNN(torch.nn.Module):
     def __init__(self, config, rnn_type) -> None:
         super().__init__()

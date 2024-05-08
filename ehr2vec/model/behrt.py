@@ -87,8 +87,6 @@ class BertEmbeddings(nn.Module):
                 lookup_table[pos, idx] = odd_code(pos, idx)
 
         return torch.tensor(lookup_table)
-
-
 class BertModel(Bert.modeling.BertPreTrainedModel):
     def __init__(self, config):
         super(BertModel, self).__init__(config)

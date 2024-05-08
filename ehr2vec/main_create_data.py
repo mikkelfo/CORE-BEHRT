@@ -25,7 +25,7 @@ from ehr2vec.data_fixes.exclude import Excluder
 from ehr2vec.data_fixes.handle import Handler
 from tqdm import tqdm
 
-CONFIG_NAME = 'data_pretrain.yaml'
+CONFIG_NAME = 'create_data.yaml'
 BLOBSTORE = 'PHAIR'
 
 args = get_args(CONFIG_NAME, 'data_pretrain')

@@ -13,7 +13,7 @@ from ehr2vec.common.loader import (FeaturesLoader, get_pids_file,
                                    load_and_select_splits, load_exclude_pids)
 from ehr2vec.common.saver import Saver
 from ehr2vec.common.utils import Data
-from ehr2vec.data.dataset import HierarchicalMLMDataset, MLMDataset
+from ehr2vec.data.dataset import MLMDataset
 from ehr2vec.data.filter import CodeTypeFilter, PatientFilter
 from ehr2vec.data.utils import Utilities
 from ehr2vec.data_fixes.adapt import (BaseAdapter, BehrtAdapter,
@@ -57,20 +57,6 @@ class DatasetPreparer:
         
         return train_dataset, val_dataset
 
-    def prepare_hmlm_dataset(self, val_ratio=0.2):
-        data = self._prepare_mlm_features()
-        train_data, val_data = data.split(val_ratio)
-        tree, tree_matrix, h_vocabulary = self.loader.load_tree()
-        
-        self.saver.save_vocab(h_vocabulary, HIERARCHICAL_VOCABULARY_FILE)
-        train_dataset = HierarchicalMLMDataset(train_data.train_features, train_data.vocabulary, 
-                                            h_vocabulary, tree, tree_matrix, 
-                                            **self.cfg.data.dataset)
-        val_dataset = HierarchicalMLMDataset(val_data.val_features, train_data.vocabulary, 
-                                            h_vocabulary, tree, tree_matrix, 
-                                            **self.cfg.data.dataset)
-        return train_dataset, val_dataset
-    
     def prepare_finetune_data(self) -> Data:
         data_cfg = self.cfg.data
 

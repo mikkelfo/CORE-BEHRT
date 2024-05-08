@@ -14,7 +14,6 @@ from ehr2vec.common.io import PatientHDF5Writer
 from ehr2vec.common.loader import ModelLoader
 from ehr2vec.common.logger import close_handlers
 from ehr2vec.common.setup import DirectoryPreparer, get_args, setup_logger
-from ehr2vec.common.utils import ConcatIterableDataset
 from ehr2vec.data.prepare_data import DatasetPreparer
 from ehr2vec.evaluation.encodings import Forwarder
 from ehr2vec.evaluation.utils import validate_outcomes

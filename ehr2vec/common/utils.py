@@ -66,17 +66,23 @@ def hook_fn(module, input, output):
     for tensor in tensors:
         if torch.isnan(tensor).any().item():
             raise ValueError(f"NaNs in output of {module}")
-        
+
+def convert_epochs_to_steps(cfg, key, num_patients, batch_size)->None:
+    """Convert number of epochs to number of steps based on number of patients and batch size"""
+    logger.info(f"Computing number of steps from {key}")
+    num_epochs = cfg.scheduler[key]
+    num_steps = int(num_patients / batch_size * num_epochs)
+    logger.info(f"Number of steps for {key}: {num_steps}")
+    cfg.scheduler[key.replace('_epochs', '_steps')] = num_steps
+    del cfg.scheduler[key]
+    
+
 def compute_number_of_warmup_steps(cfg, num_patients:int)->None:
     """Compute number of warmup steps based on number of patients and batch size"""
     batch_size = cfg.trainer_args.batch_size
-    if 'num_warmup_epochs' in cfg.scheduler:
-        logger.info("Computing number of warmup steps from number of warmup epochs")
-        num_warmup_epochs = cfg.scheduler.num_warmup_epochs
-        num_warmup_steps = int(num_patients / batch_size * num_warmup_epochs)
-        logger.info(f"Number of warmup steps: {num_warmup_steps}")
-        cfg.scheduler.num_warmup_steps = num_warmup_steps
-        del cfg.scheduler.num_warmup_epochs
+    epochs_keys = [key for key in cfg.scheduler if key.endswith('_epochs')]
+    for key in epochs_keys:
+        convert_epochs_to_steps(cfg, key, num_patients, batch_size)
 
 @dataclass
 class Data:

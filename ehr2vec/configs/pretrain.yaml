@@ -50,8 +50,9 @@ optimizer:
   eps: 1e-6
 
 scheduler:
-  _target_: transformers.get_constant_schedule_with_warmup
+  _target_: transformers.get_linear_schedule_with_warmup
   num_warmup_epochs: 2
+  num_training_epochs: 3
 
 
 metrics:

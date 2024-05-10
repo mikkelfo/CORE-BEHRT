@@ -1,12 +1,12 @@
 env: local
 paths:
   # data_path: 'pretrain_datasets/diagnosis_medication/070623/outputs/data' # inside mounted datastore
-  data_path: "..\\outputs\\features_test"
-  output_path: outputs/pretraining
-  type: med_diag
-  run_name: behrt_test
+  data_path: ../outputs/features
+  output_path: ../outputs/pretraining
+  type: diag
+  run_name: test
   tokenized_dir: tokenized
-  #predefined_splits: outputs/pretraining/behrt_base
+  # predefined_splits: outputs/pretraining/behrt_base
   
 data:
   dataset:
@@ -50,9 +50,8 @@ optimizer:
   eps: 1e-6
 
 scheduler:
-  _target_: transformers.get_linear_schedule_with_warmup
-  num_warmup_steps: 100
-  num_training_steps: 10000
+  _target_: transformers.get_constant_schedule_with_warmup
+  num_warmup_epochs: 2
 
 
 metrics:
@@ -62,9 +61,6 @@ metrics:
   top10:
     _target_: evaluation.metrics.PrecisionAtK
     topk: 10
-  plos_loss:
-    _target_: evaluation.metrics.LossAccessor
-    loss_name: plos_loss
   mlm_loss:
     _target_: evaluation.metrics.LossAccessor
     loss_name: mlm_loss

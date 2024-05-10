@@ -1,10 +1,10 @@
 env: local
 paths:
-  run_name: test
+  run_name: _test
 outcomes_name: "TEST_OUTCOME"
-features_dir: ../outputs/data_icd10
+features_dir: ../outputs/features
 loader:
-  data_dir: ../data/formatted/synthea500_icd10 
+  data_dir: ../data/formatted/synthea500
   concepts: [
     diagnose
   ]
@@ -13,13 +13,13 @@ loader:
 outcomes:
   TEST_OUTCOME: 
     type: [CONCEPT]
-    match: [['J329', 'DN186']]
+    match: [['422650009']]
     exclude: ['DT7432X']
     match_how: contains
     case_sensitive: true
   TEST_CENSOR:
     type: [CONCEPT]
-    match: [['Dj019']]
+    match: [['42265']]
     match_how: startswith
     case_sensitive: false
     

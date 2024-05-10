@@ -6,8 +6,9 @@ from ehr2vec.common.azure import AzurePathContext, save_to_blobstore
 from ehr2vec.common.config import load_config
 from ehr2vec.common.initialize import Initializer
 from ehr2vec.common.loader import (load_checkpoint_and_epoch,
-                           load_model_cfg_from_checkpoint)
+                                   load_model_cfg_from_checkpoint)
 from ehr2vec.common.setup import DirectoryPreparer, copy_data_config, get_args
+from ehr2vec.common.utils import compute_number_of_warmup_steps
 from ehr2vec.data.prepare_data import DatasetPreparer
 from ehr2vec.trainer.trainer import EHRTrainer
 
@@ -28,7 +29,10 @@ def main_train(config_path):
     
     loaded_from_checkpoint = load_model_cfg_from_checkpoint(cfg, 'pretrain_config.yaml') # if we are training from checkpoint, we need to load the old config
     train_dataset, val_dataset = DatasetPreparer(cfg).prepare_mlm_dataset()
-        
+    if 'scheduler' in cfg:
+        logger.info('Computing number of warmup steps')
+        compute_number_of_warmup_steps(cfg, len(train_dataset))
+
     checkpoint, epoch = load_checkpoint_and_epoch(cfg)
     logger.info(f'Continue training from epoch {epoch}')    
     initializer = Initializer(cfg, checkpoint=checkpoint)

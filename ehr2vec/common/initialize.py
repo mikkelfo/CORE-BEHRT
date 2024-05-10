@@ -15,8 +15,7 @@ from ehr2vec.common.setup import DirectoryPreparer
 from ehr2vec.common.utils import hook_fn
 from ehr2vec.data.utils import Utilities
 from ehr2vec.evaluation.utils import get_pos_weight, get_sampler
-from ehr2vec.model.model import (BertEHRModel, BertForFineTuning,
-                                 HierarchicalBertForPretraining)
+from ehr2vec.model.model import BertEHRModel, BertForFineTuning
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
 CHECKPOINTS_DIR = "checkpoints"
@@ -79,21 +78,6 @@ class Initializer:
         elif cfg.model.get('discrete_abspos_embeddings', False):
             return 'discrete_abspos'
         return None
-
-    def initialize_hierachical_pretrain_model(self, train_dataset):
-        if self.checkpoint:
-            logger.info('Loading model from checkpoint')
-            model = self.loader.load_model(HierarchicalBertForPretraining,
-                                                 checkpoint=self.checkpoint,
-                                                 kwargs={'tree_matrix':train_dataset.tree_matrix})
-        else:
-            bertconfig = BertConfig(leaf_size=len(train_dataset.leaf_counts), 
-                                vocab_size=len(train_dataset.vocabulary),
-                                levels=train_dataset.levels,
-                                **self.cfg.model)
-            model = HierarchicalBertForPretraining(
-                bertconfig, tree_matrix=train_dataset.tree_matrix)
-        return model
 
     def initialize_optimizer(self, model):
         """Initialize optimizer from checkpoint or from scratch."""

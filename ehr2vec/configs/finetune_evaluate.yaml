@@ -1,8 +1,8 @@
 env: local
 
 paths:
-  model_path: "outputs/pretraining/behrt_test/finetune_TEST_OUTCOME_censored_4_days_post_TEST_OUTCOME_test"
-  run_name: "test"
+  model_path: "../outputs/pretraining/test/finetune_TEST_OUTCOME_censored_5_days_post_TEST_OUTCOME_test"
+  run_name: "evaluate"
 
 metrics:
   accuracy:
@@ -21,4 +21,4 @@ metrics:
 
 data:
   min_len: 1
-  # test_data_dir: 
+  test_data_dir: "../outputs/pretraining/test/finetune_TEST_OUTCOME_censored_5_days_post_TEST_OUTCOME_test" 

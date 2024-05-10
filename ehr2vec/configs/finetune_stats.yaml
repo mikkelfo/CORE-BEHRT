@@ -1,7 +1,7 @@
 env: local
 paths:
-  pretrain_model_path: "outputs/pretraining/behrt_test"
-  outcome: "../outputs/data_icd10/outcomes/TEST_OUTCOME/TEST_OUTCOME.pt"
+  pretrain_model_path: "../outputs/pretraining/test"
+  outcome: "../outputs/features/outcomes/TEST_OUTCOME/TEST_OUTCOME.pt"
   run_name: "test_stats"
   # tokenized_dir: "tokenized"
   tokenized_file: "tokenized_finetune.pt" # can also be a list

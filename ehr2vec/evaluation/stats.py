@@ -23,9 +23,9 @@ def plot_and_save_hist(tensor_data: torch.Tensor, name: str, split: str,
     if positive_indices:
         bins = np.histogram_bin_edges(tensor_data, bins=50)
         negative_indices = [i for i in range(len(tensor_data)) if i not in positive_indices]
-        ax.hist(tensor_data[negative_indices], bins=bins, color='b', alpha=0.5, 
+        ax.hist(tensor_data[negative_indices].cpu().numpy(), bins=bins, color='b', alpha=0.5, 
                 label='negative', density=density)
-        ax.hist(tensor_data[positive_indices], bins=bins, color='r', alpha=0.5, 
+        ax.hist(tensor_data[positive_indices].cpu().numpy(), bins=bins, color='r', alpha=0.5, 
                 label='positive', density=density)
         ax.legend()
     else:

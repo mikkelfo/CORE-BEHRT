@@ -1,7 +1,6 @@
 import logging
 from typing import Dict
 
-import numpy as np
 import torch
 import torch.nn as nn
 from transformers import BertConfig
@@ -14,8 +13,6 @@ TIME2VEC_AGE_MULTIPLIER = 1e-2
 TIME2VEC_ABSPOS_MULTIPLIER = 1e-4
 TIME2VEC_MIN_CLIP = -100
 TIME2VEC_MAX_CLIP = 100
-AGE_VOCAB_SIZE = 120
-
 class BaseEmbeddings(nn.Module):
     """Base Embeddings class with shared methods"""
 
@@ -64,7 +61,6 @@ class EhrEmbeddings(BaseEmbeddings):
     def initialize_embeddings(self, config: BertConfig)->None:
         logger.info("Initialize Concept/Segment/Age embeddings.")
         self.concept_embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
-        #self.age_embeddings = nn.Embedding(AGE_VOCAB_SIZE, config.hidden_size)
         self.age_embeddings = Time2Vec(1, config.hidden_size, init_scale=TIME2VEC_AGE_MULTIPLIER, clip_min=TIME2VEC_MIN_CLIP, clip_max=TIME2VEC_MAX_CLIP)
         if config.to_dict().get('abspos_embeddings', True):
             logger.info("Initialize time2vec(abspos) embeddings.")
@@ -81,26 +77,26 @@ class EhrEmbeddings(BaseEmbeddings):
         inputs_embeds: torch.Tensor = None,
         **kwargs
     )->torch.Tensor:
-        if inputs_embeds is not None:
-            return inputs_embeds
-
-        embeddings = self.a * self.concept_embeddings(input_ids)
         
-        if token_type_ids is not None:
-            segments_embedded = self.segment_embeddings(token_type_ids)
-            embeddings += self.b * segments_embedded
+        if inputs_embeds is None:
+            embeddings = self.a * self.concept_embeddings(input_ids)
+            
+            if token_type_ids is not None:
+                segments_embedded = self.segment_embeddings(token_type_ids)
+                embeddings += self.b * segments_embedded
 
-        if position_ids is not None:
-            if 'age' in position_ids:
-                ages_embedded = self.age_embeddings(position_ids['age'])
-                embeddings += self.c * ages_embedded
-            if 'abspos' in position_ids:
-                if self.abspos_embeddings is not None:
-                    abspos_embedded = self.abspos_embeddings(position_ids['abspos'])
-                    embeddings += self.d * abspos_embedded
-                
-        embeddings = self.LayerNorm(embeddings)
-        embeddings = self.dropout(embeddings)
+            if position_ids is not None:
+                if 'age' in position_ids:
+                    ages_embedded = self.age_embeddings(position_ids['age'])
+                    embeddings += self.c * ages_embedded
+                if 'abspos' in position_ids:
+                    if self.abspos_embeddings is not None:
+                        abspos_embedded = self.abspos_embeddings(position_ids['abspos'])
+                        embeddings += self.d * abspos_embedded
+                    
+            embeddings = self.LayerNorm(embeddings)
+            embeddings = self.dropout(embeddings)
 
-        return embeddings
-
+            return embeddings
+        else:
+            return inputs_embeds

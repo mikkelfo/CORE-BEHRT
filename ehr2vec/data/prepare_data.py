@@ -16,8 +16,6 @@ from ehr2vec.common.utils import Data
 from ehr2vec.data.dataset import MLMDataset
 from ehr2vec.data.filter import CodeTypeFilter, PatientFilter
 from ehr2vec.data.utils import Utilities
-from ehr2vec.data_fixes.adapt import (BaseAdapter, BehrtAdapter,
-                                      DiscreteAbsposAdapter, PLOSAdapter)
 from ehr2vec.data_fixes.handle import Handler
 from ehr2vec.data_fixes.truncate import Truncator
 
@@ -25,8 +23,6 @@ logger = logging.getLogger(__name__)  # Get the logger for this module
 
 PID_KEY = 'PID'
 VOCABULARY_FILE = 'vocabulary.pt'
-HIERARCHICAL_VOCABULARY_FILE = 'h_vocabulary.pt'
-DEFAULT_PROLONGED_LENGTH_OF_STAY = 7
 
 # TODO: Add option to load test set only!
 class DatasetPreparer:
@@ -123,10 +119,6 @@ class DatasetPreparer:
         if data_cfg.get('num_patients') and not predefined_pids:
             data = self.utils.process_data(data, self.patient_filter.select_random_subset, log_positive_patients_num=True,
                                               args_for_func={'num_patients':data_cfg.num_patients})
-        
-        # 11. Optional: Remove Background Tokens
-        if data_cfg.get("remove_background"):
-            data = self.utils.process_data(data, self.data_modifier.remove_background)
 
         # 12. Truncation
         logger.info(f"Truncating data to {data_cfg.truncation_len} tokens")
@@ -135,24 +127,11 @@ class DatasetPreparer:
         # 13. Normalize segments
         data = self.utils.process_data(data, self.data_modifier.normalize_segments)
 
-        # 14. Optional: Adapt to BEHRT embeddings
-        if self.cfg.model.get('behrt_embeddings'):
-            logger.info('Adapting features for behrt embeddings')
-            data.features = BehrtAdapter.adapt_features(data.features)
-        if self.cfg.model.get('discrete_abspos_embeddings'):
-            if self.cfg.model.get('behrt_embeddings'):
-                raise ValueError("Discrete abspos embeddings and behrt embeddings are not compatible.")
-            logger.info('Adapting features for discrete abspos embeddings')
-            data.features = DiscreteAbsposAdapter.adapt_features(data.features)
-
-        # 15. Optional: Remove any unwanted features
+        # 14. Optional: Remove any unwanted features
         if 'remove_features' in data_cfg:
             for feature in data_cfg.remove_features:
                 logger.info(f"Removing {feature}")
                 data.features.pop(feature, None)
-
-        if 'age' in data.features: # we don't apply time2vec to age anymore
-            data.features['age'] = [BaseAdapter.convert_ages_to_int(ages) for ages in data.features['age']] 
 
         # Verify and save
         data.check_lengths()
@@ -190,10 +169,6 @@ class DatasetPreparer:
             logger.warning("Using predefined splits. Ignoring test_split parameter")
             data = self._select_predefined_pids(data)
 
-        # 2. Optional: Remove background tokens
-        if data_cfg.get('remove_background'):
-            data = self.utils.process_data(data, self.data_modifier.remove_background)
-
         # 3. Exclude short sequences
         data = self.utils.process_data(data, self.patient_filter.exclude_short_sequences)
         if not predefined_pids:
@@ -211,25 +186,6 @@ class DatasetPreparer:
         # Adjust max segment if needed
         self.utils.check_and_adjust_max_segment(data, model_cfg)
 
-        if self.cfg.model.get('prolonged_length_of_stay', False):
-            logger.info('Add prolonged length of stay to features.')
-            threshold_in_days = self.cfg.data.get('prolonged_length_of_stay', DEFAULT_PROLONGED_LENGTH_OF_STAY)
-            # visit_threshold_in_days = self.cfg.data.get('visit_threshold_in_days', DEFAULT_VISIT_THRESHOLD_IN_DAYS)
-            data.features = PLOSAdapter(threshold_in_days=threshold_in_days).adapt_features(data.features)
-
-        # 7. Optional: Adapt to BEHRT embeddings
-        if self.cfg.model.get('behrt_embeddings'):
-            logger.info('Adapting features for behrt embeddings')
-            data.features = BehrtAdapter.adapt_features(data.features)
-
-        if self.cfg.model.get('discrete_abspos_embeddings'):
-            if self.cfg.model.get('behrt_embeddings'):
-                raise ValueError("Discrete abspos embeddings and behrt embeddings are not compatible.")
-            logger.info('Adapting features for discrete abspos embeddings')
-            data.features = DiscreteAbsposAdapter.adapt_features(data.features)
-
-        if 'age' in data.features: # we don't apply time2vec to age anymore
-            data.features['age'] = [BaseAdapter.convert_ages_to_int(ages) for ages in data.features['age']] 
         # Verify and save
         data.check_lengths()
         data = self.utils.process_data(data, self.saver.save_sequence_lengths)
@@ -332,23 +288,6 @@ class DataModifier:
         truncator = Truncator(max_len=truncation_len, 
                               vocabulary=data.vocabulary)
         data.features = truncator(data.features)
-        return data
-
-    @staticmethod
-    def remove_background(data: Data) -> Data:
-        """Remove background tokens from features and the first sep token following it"""
-        background_indices = Utilities.get_background_indices(data)
-        if background_indices:
-            return data
-
-        first_index = min(background_indices)
-        last_index = max(background_indices)
-        for k, token_lists in data.features.items():
-            new_tokens_lists = []
-            for tokens in token_lists:
-                new_tokens = [token for j, token in enumerate(tokens) if (j < first_index) or (j > last_index)]
-                new_tokens_lists.append(new_tokens)
-            data.features[k] = new_tokens_lists 
         return data
 
     def censor_data(self, data: Data, n_hours: float) -> Data:

@@ -68,7 +68,7 @@ def main_encode():
         dataset_preparer = DatasetPreparer(cfg)
         data = dataset_preparer.prepare_finetune_data() 
         
-        output_path_name = _get_output_path_name(dataset, cfg)
+        output_path_name = _get_output_path_name(data, cfg)
         cfg.output_dir = join(output_dir, output_path_name)
         
         if i==0:
@@ -80,13 +80,13 @@ def main_encode():
         else:
             shutil.copyfile(config_path, join(cfg.output_dir, 'encodings_config.yaml'))
             
-        logger.info(f"Store in directory with name: {_get_output_path_name(dataset, cfg)}")
+        logger.info(f"Store in directory with name: {_get_output_path_name(data, cfg)}")
         logger.info('Initializing model')
         model = ModelLoader(cfg).load_model(BertEHREncoder)
 
         forwarder = Forwarder( 
             model=model, 
-            dataset=dataset, 
+            dataset=data, 
             run=run,
             logger=logger,
             writer=PatientHDF5Writer(join(cfg.output_dir, encodings_file_name)),

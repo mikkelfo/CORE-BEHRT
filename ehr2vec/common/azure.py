@@ -193,7 +193,6 @@ class AzurePathContext:
  
         pretrain_data_path = self._remove_mount_folder(pretrain_cfg.paths.data_path)
         
-        self.cfg.data.remove_background = pretrain_cfg.data
         if 'tokenized_dir' not in self.cfg.paths:
             logger.info("Tokenized dir not in config. Adding from pretrain config.")
             self.cfg.paths.tokenized_dir = pretrain_cfg.paths.tokenized_dir

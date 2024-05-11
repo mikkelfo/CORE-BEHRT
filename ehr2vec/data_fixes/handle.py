@@ -1,5 +1,5 @@
 import pandas as pd
-
+from typing import Generator
 
 class Handler:
     def __init__(self, min_age: int = -1, max_age: int = 120):
@@ -54,7 +54,7 @@ class Handler:
         return [converter[segment] for segment in segments]
     
     @staticmethod
-    def _iter_patients(features: dict) -> dict:
+    def _iter_patients(features: dict) -> Generator[dict, None, None]:
         for i in range(len(features['concept'])):
             yield {k: v[i] for k, v in features.items()}
 

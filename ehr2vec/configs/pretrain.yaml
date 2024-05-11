@@ -18,7 +18,6 @@ data:
   num_train_patients: 100
   num_val_patients: 20
   val_ratio: 0.2
-  remove_background: true
   min_len: 2
 
 trainer_args:

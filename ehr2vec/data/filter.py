@@ -8,13 +8,14 @@ from typing import List, Tuple
 from ehr2vec.data.utils import Utilities
 from ehr2vec.data_fixes.exclude import Excluder
 from ehr2vec.common.utils import Data, iter_patients
+from ehr2vec.common.config import Config
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
 
 SPECIAL_CODES = ['[', 'BG_']
 
 class CodeTypeFilter:
-    def __init__(self, cfg):
+    def __init__(self, cfg: Config):
         self.cfg = cfg
         self.utils = Utilities
         self.SPECIAL_CODES = SPECIAL_CODES
@@ -56,7 +57,7 @@ class CodeTypeFilter:
     
 
 class PatientFilter:
-    def __init__(self, cfg) -> None:
+    def __init__(self, cfg: Config) -> None:
         self.cfg = cfg
         self.utils = Utilities
 

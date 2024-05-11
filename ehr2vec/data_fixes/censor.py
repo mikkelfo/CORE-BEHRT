@@ -23,6 +23,7 @@ class Censorer:
             return features, censor_outcomes
 
     def censor(self, features: dict, censor_outcomes: list) -> dict:
+        """Censor the features based on the censor outcomes."""
         censored_features = {key: [] for key in features}
         for i, patient in enumerate(iter_patients(features)):
             censor_timestamp = censor_outcomes[i]

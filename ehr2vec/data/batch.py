@@ -1,16 +1,18 @@
-import os
-import torch
-import random
 import logging
-from tqdm import tqdm
-from os.path import join
+import os
+import random
 from dataclasses import dataclass
+from os.path import join
 from typing import Dict, List, Tuple
 
-from ehr2vec.data.utils import Utilities
+import torch
+from tqdm import tqdm
+
+from ehr2vec.common.config import Config
 from ehr2vec.common.loader import load_assigned_pids, load_exclude_pids
 from ehr2vec.common.logger import TqdmToLogger
 from ehr2vec.common.utils import check_directory_for_features
+from ehr2vec.data.utils import Utilities
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
 PRETRAIN = 'pretrain'
@@ -24,7 +26,7 @@ class Split:
 
 class Batches:
     """Class for splitting batches into pretrain, finetune and test sets"""
-    def __init__(self, cfg, pids: List[List[str]]):
+    def __init__(self, cfg: Config, pids: List[List[str]]):
         """Initializes the class and splits the batches into pretrain, finetune and test sets
         pids should contain all the pids in the dataset, including assigned pids.
         Assigned pids should be a dictionary with the key being the split name and the value being a list of pids"""
@@ -160,15 +162,16 @@ class Batches:
 
     @staticmethod
     def flatten(ls_of_ls: List[List])-> List:
+        """Flattens a list of lists."""
         return [item for sublist in ls_of_ls for item in sublist] 
     @staticmethod
-    def filter_assigned_pids(assigned_pids, pids):
+    def filter_assigned_pids(assigned_pids: Dict[str, List[str]], pids: List[str])->Dict[str, List[str]]:
         """Filters assigned pids by pids."""
         pids_set = set(pids)
         return {split: [pid for pid in pids if pid in pids_set] for split, pids in assigned_pids.items()}
 
 class BatchTokenize:
-    def __init__(self, pids: List[List[str]], tokenizer, cfg, tokenized_dir_name:str='tokenized'):
+    def __init__(self, pids: List[List[str]], tokenizer, cfg: Config, tokenized_dir_name:str='tokenized'):
         self.tokenizer = tokenizer
         self.cfg = cfg
         self.tokenized_dir_name = tokenized_dir_name
@@ -241,12 +244,14 @@ class BatchTokenize:
         return filtered_features, filtered_pids 
     
     def save_tokenized_data(self, encoded: Dict[str, torch.tensor], pids: List[str], mode:str, save_dir:str=None)->None:
+        """Saves the tokenized data to disk."""
         if save_dir is None:
             save_dir = join(self.cfg.output_dir, self.tokenized_dir_name)
         torch.save(encoded, join(save_dir, f'tokenized_{mode}.pt'))
         torch.save(pids, join(save_dir, f'pids_{mode}.pt'))
         
     def get_features_directory(self)->str:
+        """Returns the directory where features are stored."""
         if check_directory_for_features(self.cfg.loader.data_dir):
             return join(self.cfg.loader.data_dir, 'features')
         else:

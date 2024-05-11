@@ -44,15 +44,12 @@ class Initializer:
          #   layer.register_forward_hook(hook_fn)
         return model
         
-    
     def initialize_finetune_model(self, train_dataset):
         if self.checkpoint:
             logger.info('Loading model from checkpoint')
             add_config = {**self.cfg.model}
             add_config.update({'pos_weight':get_pos_weight(self.cfg, train_dataset.outcomes),
-                            'embedding':Initializer.get_embedding(self.cfg),
                             'pool_type':self.cfg.model.get('pool_type', 'mean'),
-                            'prolonged_length_of_stay':False,
             })
             model = self.loader.load_model(
                 BertForFineTuning, 
@@ -70,14 +67,6 @@ class Initializer:
                     pos_weight=get_pos_weight(self.cfg, train_dataset.outcomes),
                     embedding='original_behrt' if self.cfg.model.get('behrt_embeddings', False) else None,
                     pool_type=self.cfg.model.get('pool_type', 'mean')),)
-    
-    @staticmethod
-    def get_embedding(cfg):
-        if cfg.model.get('behrt_embeddings', False):
-            return 'original_behrt'
-        elif cfg.model.get('discrete_abspos_embeddings', False):
-            return 'discrete_abspos'
-        return None
 
     def initialize_optimizer(self, model):
         """Initialize optimizer from checkpoint or from scratch."""
@@ -116,6 +105,7 @@ class Initializer:
         return sampler, self.cfg
 
     def optimizer_state_dic_to_device(self, optimizer_state_dic):
+        """Move optimizer state dict to device."""
         for state in optimizer_state_dic['state'].values():
             for k, v in state.items():
                 if isinstance(v, torch.Tensor):
@@ -133,6 +123,7 @@ class Initializer:
     
 
 class ModelManager:
+    """Manager for initializing model, optimizer and scheduler."""
     def __init__(self, cfg, fold:int=None, model_path:str=None):
         self.cfg = cfg
         self.fold = fold
@@ -177,6 +168,7 @@ class ModelManager:
         return optimizer, sampler, scheduler, cfg
     
     def get_epoch(self):
+        """Get epoch from model_path."""
         if self.model_path is None:
             return 0
         else:

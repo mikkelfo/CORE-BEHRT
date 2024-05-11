@@ -89,6 +89,7 @@ class AzurePathContext:
             self.mount_point = self.mount_context.mount_point
     
     def setup_run_and_mount_context(self)->Tuple:
+        """Setup run and mount context for azure environment."""
         run, mount_context = None, None
         if self.azure_env:
             run, mount_context = setup_azure(self.cfg.paths.run_name, dataset_name=self.dataset_name)
@@ -149,6 +150,7 @@ class AzurePathContext:
         return self.cfg, self.run, self.mount_context
 
     def azure_outcomes_setup(self)->Tuple:
+        """Azure setup for outcomes. Prepend mount folder."""
         if self.azure_env:
             self.cfg.loader.data_dir = self._prepend_mount_point(self.cfg.loader.data_dir)
             self.cfg.features_dir = self._prepend_mount_point(self.cfg.features_dir)
@@ -157,6 +159,7 @@ class AzurePathContext:
         return self.cfg, self.run, self.mount_context
 
     def azure_encode_setup(self)->Tuple:
+        """Azure setup for encoding. Prepend mount folder."""
         if self.azure_env:
             self.cfg.paths.data_path = self._prepend_mount_point(self.cfg.paths.data_path)
             self.cfg.paths.model_path = self._prepend_mount_point(self.cfg.paths.model_path)
@@ -165,6 +168,7 @@ class AzurePathContext:
         return self.cfg, self.run, self.mount_context
 
     def azure_hierarchical_setup(self)->Tuple:
+        """Azure setup for hierarchical encoding. Prepend mount folder."""
         if self.azure_env:
             self.cfg.paths.features = self._prepend_mount_point(self.cfg.paths.features)
             self._handle_outputs_path()
@@ -203,6 +207,7 @@ class AzurePathContext:
         return self.cfg
     
     def _handle_outputs_path(self)->None:
+        """Handle the output path in the configuration."""
         if self.cfg.paths.get('output_path', None) is None:
             self.cfg.paths.output_path = OUTPUTS_DIR
         else:

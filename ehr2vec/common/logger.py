@@ -16,6 +16,7 @@ class TqdmToLogger(object):
        pass
 
 def close_handlers():
+    """Close all logging handlers."""
     for handler in logging.root.handlers[:]:
         handler.close()
     logging.root.handlers = []

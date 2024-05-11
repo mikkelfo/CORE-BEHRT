@@ -16,6 +16,7 @@ class Saver:
         os.makedirs(self.run_folder, exist_ok=True)
     
     def save_sequence_lengths(self, data: Data)->Data:
+        """Save sequence lengths to a file. If outcomes are present, save lengths for positive and negative patients separately."""
         if not data.outcomes:
             sequence_lens = torch.tensor([len(concepts) for concepts in data.features['concept']])
             torch.save(sequence_lens, join(self.run_folder, f'sequences_lengths_{data.mode}.pt'))
@@ -29,6 +30,7 @@ class Saver:
             return data
     
     def save_train_val_pids(self, train_pids: list, val_pids: list)->None:
+        """Save train and val pids to a file."""
         torch.save(train_pids, join(self.run_folder, 'pids_train.pt'))
         torch.save(val_pids, join(self.run_folder, 'pids_val.pt'))
 
@@ -66,7 +68,9 @@ class Saver:
             torch.save(data.censor_outcomes, join(self.run_folder, 'censor_outcomes.pt'))
     
     def save_list(self, list_: list, name: str)->None:
+        """Save a list to a file"""
         torch.save(list_, join(self.run_folder, name))
 
     def save_vocab(self, vocabulary, name: str=VOCABULARY_FILE):
+        """Save vocabulary to a file"""
         torch.save(vocabulary, join(self.run_folder, name))

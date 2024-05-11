@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)  # Get the logger for this module
 CHECKPOINTS_DIR = "checkpoints"
 
 def get_args(default_config_name, default_run_name=None):
+    """Get command line arguments."""
     parser = argparse.ArgumentParser()
     parser.add_argument('--config_path', type=str, default=join('configs', default_config_name))
     parser.add_argument('--run_name', type=str, default=default_run_name if default_run_name else default_config_name.split('.')[0])
@@ -83,11 +84,6 @@ class DirectoryPreparer:
     def prepare_directory_outcomes(self, outcome_dir: str, outcomes_name: str):
         """Creates output directory for outcomes and copies config file"""
         return self.create_directory_and_copy_config(outcome_dir, f'outcome_{outcomes_name}_config.yaml')
-
-    def prepare_directory_hierarchical(self, out_dir: str, hierarchical_name: str = 'hierarchical'):
-        """Creates hierarchical directory and copies config file"""
-        hierarchical_dir = join(out_dir, hierarchical_name)
-        return self.create_directory_and_copy_config(hierarchical_dir, 'h_setup.yaml')
 
     def prepare_embedding_directory(self, cfg: Config):
         """Creates output directory and copies config file"""

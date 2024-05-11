@@ -28,13 +28,13 @@ class ConceptLoader:
         self._verify_paths(concepts)
 
     @staticmethod
-    def _verify_input(concepts: list, data_dir: str):
+    def _verify_input(concepts: list, data_dir: str)-> None:
         assert isinstance(concepts, list) and all([isinstance(c, str) for c in concepts]), 'Concepts must be a list of strings'
         assert isinstance(data_dir, str), 'Data directory must be a string'
         assert len(concepts) > 0, 'Concepts must not be empty'
         assert os.path.exists(data_dir), f'Data directory {data_dir} does not exist'
 
-    def _verify_paths(self, concepts):
+    def _verify_paths(self, concepts)-> None:
         assert len(self.concepts_paths) == len(concepts), f'Found {len(self.concepts_paths)} concept files, expected {len(concepts)}'
         assert all([os.path.splitext(path)[1] in ['.csv', '.parquet'] for path in self.concepts_paths]), 'Concept files must be either .csv or .parquet'
         assert len(self.patients_info_path) == 1, f'Found {len(self.patients_info_path)} patients info files, expected 1'
@@ -53,6 +53,7 @@ class ConceptLoader:
         return concepts, patients_info
 
     def read_file(self, file_path: str) -> pd.DataFrame:
+        """Read csv or parquet file and return a DataFrame"""
         _, file_ext = os.path.splitext(file_path)
         if file_ext == '.csv':
             df = pd.read_csv(file_path)
@@ -73,7 +74,7 @@ class ConceptLoader:
         return df
 
     @staticmethod
-    def _detect_date_columns(df: pd.DataFrame)-> list:
+    def _detect_date_columns(df: pd.DataFrame)-> Iterator[str]:
         for col in df.columns:
             if isinstance(df[col], datetime):
                 continue
@@ -118,7 +119,7 @@ class ConceptLoaderLarge(ConceptLoader):
         return self._handle_datetime_columns(chunks_df)
     
     @staticmethod
-    def _get_iterator(file_path: str, chunksize: int):
+    def _get_iterator(file_path: str, chunksize: int)-> Iterator[pd.DataFrame]:
         _, file_ext = os.path.splitext(file_path)
         if file_ext == '.csv':
             return pd.read_csv(file_path, chunksize=chunksize)

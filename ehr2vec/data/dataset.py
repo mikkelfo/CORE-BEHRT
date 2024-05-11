@@ -42,8 +42,6 @@ class MLMDataset(BaseEHRDataset):
         masked_concepts, target = self.masker.mask_patient_concepts(patient)
         patient["concept"] = masked_concepts
         patient["target"] = target
-        if 'PLOS' in patient: # ! potential slowdown, think about better solution
-            patient["PLOS"] = float(patient["PLOS"])
         return patient
 
     
@@ -64,25 +62,6 @@ class BinaryOutcomeDataset(BaseEHRDataset):
 
         return patient
 
-
-class Time2EventDataset(BaseEHRDataset):
-    """
-    outcomes: absolute position when outcome occured for each patient
-    censoring: absolute position when patient was censored
-    """
-    def __init__(
-        self, features: dict, outcomes: list, censoring: list
-    ):
-        super().__init__(features)
-        self.outcomes = outcomes
-        self.censoring = censoring
-
-    def __getitem__(self, index: int) -> dict:
-        patient = super().__getitem__(index)
-        patient["target"] = self.outcomes[index]- self.censoring[index]
-        
-
-        return patient
 
 
 

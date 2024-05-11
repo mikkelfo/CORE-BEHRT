@@ -13,13 +13,12 @@ from ehr2vec.data.utils import Utilities
 logger = logging.getLogger(__name__)  # Get the logger for this module
 
 VOCABULARY_FILE = 'vocabulary.pt'
-TREE_FILE = 'tree.pt'
-TREE_MATRIX_FILE = 'tree_matrix.pt'
 CHECKPOINT_FOLDER = 'checkpoints'
 VAL_RATIO = 0.2
 
 
 def load_checkpoint_and_epoch(cfg: Config)->Tuple:
+    """Load checkpoint and epoch from config."""
     model_path = cfg.paths.get('model_path', None)
     checkpoint = ModelLoader(cfg).load_checkpoint() if model_path is not None else None
     if checkpoint is not None:
@@ -65,6 +64,7 @@ class FeaturesLoader:
     
     @staticmethod
     def load_features_and_pids(tokenized_data_path: str, tokenized_files: list, tokenized_pids_files: list):
+        """Load features and pids from multiple files."""
         features = {}
         pids = []
         for tokenized_file, tokenized_pids_file in zip(tokenized_files, tokenized_pids_files):
@@ -80,6 +80,7 @@ class FeaturesLoader:
         return features, pids
 
     def load_vocabulary(self, tokenized_data_path: str):
+        """Load vocabulary from file."""
         vocabulary_file_path = join(tokenized_data_path, VOCABULARY_FILE)
         if not os.path.exists(vocabulary_file_path):
             vocabulary_file_path = join(self.path_cfg.data_path, VOCABULARY_FILE)
@@ -87,20 +88,13 @@ class FeaturesLoader:
         return torch.load(vocabulary_file_path)
 
     def load_outcomes(self)->Tuple[dict, dict]:
+        """Load outcomes and censoring timestamps from file. If no censoring timestamps provided, use outcomes as censoring timestamps."""
         logger.info(f'Load outcomes from {self.path_cfg.outcome}')
         censoring_timestamps_path = self.path_cfg.censor if self.path_cfg.get("censor", False) else self.path_cfg.outcome
         logger.info(f'Load censoring_timestamps from {censoring_timestamps_path}')
         outcomes = torch.load(self.path_cfg.outcome)
         censor_outcomes = torch.load(self.path_cfg.censor) if self.path_cfg.get('censor', False) else outcomes   
         return outcomes, censor_outcomes
-
-    def load_tree(self)->Tuple[dict, torch.Tensor, dict]:
-        hierarchical_path = join(self.path_cfg.data_path, 
-                                 self.path_cfg.hierarchical_dir)
-        tree = torch.load(join(hierarchical_path, TREE_FILE))
-        tree_matrix = torch.load(join(hierarchical_path, TREE_MATRIX_FILE))
-        h_vocabulary = torch.load(join(hierarchical_path, VOCABULARY_FILE))
-        return tree, tree_matrix, h_vocabulary 
     
     def load_finetune_data(self, path: str=None, mode: str=None)->Data:
         """Load features for finetuning"""
@@ -133,6 +127,7 @@ class ModelLoader:
         return self.load_state_dict_into_model(model, checkpoint)
     
     def load_state_dict_into_model(self, model: torch.nn.Module, checkpoint: dict)->torch.nn.Module:
+        """Load state dict into model. If embeddings are not loaded, raise an error."""
         load_result = model.load_state_dict(checkpoint['model_state_dict'], strict=False)
         missing_keys = load_result.missing_keys
 

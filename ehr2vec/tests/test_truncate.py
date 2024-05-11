@@ -1,5 +1,5 @@
 import unittest
-from data_fixes.truncate import Truncator
+from ehr2vec.data_fixes.truncate import Truncator
 
 class TestTruncator(unittest.TestCase):
 

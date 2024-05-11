@@ -1,7 +1,7 @@
 import unittest
 import pandas as pd
 from unittest.mock import patch
-from data.concept_loader import ConceptLoader
+from ehr2vec.data.concept_loader import ConceptLoader
 
 class TestConceptLoader(unittest.TestCase):
     @patch('data.concept_loader.ConceptLoader._verify_input', return_value=None)

@@ -1,5 +1,7 @@
 import unittest
-from data_fixes.censor import Censorer, EQ_Censorer
+
+from ehr2vec.data_fixes.censor import Censorer, EQ_Censorer
+
 
 class TestCensorer(unittest.TestCase):
 

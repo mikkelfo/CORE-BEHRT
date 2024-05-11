@@ -1,8 +1,8 @@
 import unittest
 from unittest.mock import patch, MagicMock
 
-from tests.helpers import ConfigMock
-from data.tokenizer import EHRTokenizer
+from ehr2vec.tests.helpers import ConfigMock
+from ehr2vec.data.tokenizer import EHRTokenizer
 
 class TestEHRTokenizer(unittest.TestCase):
     def setUp(self):

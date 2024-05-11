@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime
 from unittest.mock import Mock, MagicMock, patch
 
-from data.utils import Utilities
+from ehr2vec.data.utils import Utilities
 
 class TestUtilities(unittest.TestCase):
     def test_process_datasets(self):

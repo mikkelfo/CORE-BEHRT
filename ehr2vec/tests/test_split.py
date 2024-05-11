@@ -1,6 +1,6 @@
 import unittest
 from itertools import combinations
-from data.split import get_n_splits_cv, get_n_splits_cv_k_over_n
+from ehr2vec.data.split import get_n_splits_cv, get_n_splits_cv_k_over_n
 
 class TestDataObject:
     def __init__(self, pids):

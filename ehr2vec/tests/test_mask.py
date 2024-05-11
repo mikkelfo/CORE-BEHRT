@@ -1,7 +1,7 @@
 import torch
 import unittest
 from unittest.mock import patch
-from data.mask import ConceptMasker
+from ehr2vec.data.mask import ConceptMasker
 
 class TestConceptMasker(unittest.TestCase):
     def setUp(self):

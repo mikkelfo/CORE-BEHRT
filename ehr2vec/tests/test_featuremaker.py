@@ -1,7 +1,9 @@
 import unittest
+
 import pandas as pd
-from data.featuremaker import FeatureMaker
-from tests.helpers import ConfigMock
+
+from ehr2vec.data.featuremaker import FeatureMaker
+from ehr2vec.tests.helpers import ConfigMock
 
 
 class TestFeatureMaker(unittest.TestCase):

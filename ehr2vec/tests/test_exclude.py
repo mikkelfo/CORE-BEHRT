@@ -1,5 +1,5 @@
 import unittest
-from data_fixes.exclude import Excluder
+from ehr2vec.data_fixes.exclude import Excluder
 
 class TestExcluder(unittest.TestCase):
 

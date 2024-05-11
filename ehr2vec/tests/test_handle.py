@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import Mock
-from data_fixes.handle import Handler
+from ehr2vec.data_fixes.handle import Handler
 
 class TestHandler(unittest.TestCase):
     def setUp(self):

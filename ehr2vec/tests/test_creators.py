@@ -2,7 +2,7 @@ import unittest
 from tests.helpers import ConfigMock
 import pandas as pd
 from datetime import datetime
-from data.creators import BaseCreator, AgeCreator, AbsposCreator, SegmentCreator, BackgroundCreator
+from ehr2vec.data.creators import BaseCreator, AgeCreator, AbsposCreator, SegmentCreator, BackgroundCreator
 
 
 class TestBaseCreator(unittest.TestCase):

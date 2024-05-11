@@ -1,5 +1,4 @@
 import unittest
-
 from ehr2vec.common.config import Config
 
 

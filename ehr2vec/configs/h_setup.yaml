@@ -1,7 +1,7 @@
 env: local
 run_name: base_hierarchical
 paths:
-  features: "..\\outputs\\data_icd10"
+  features: "..\\outputs\\features"
   hierarchical_name: hierarchical_filtered
   tokenized_dir: tokenized
 tree:

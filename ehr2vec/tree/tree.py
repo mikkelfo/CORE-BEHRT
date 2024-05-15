@@ -4,24 +4,41 @@ from os.path import join
 
 import pandas as pd
 import torch
-from tqdm import tqdm
-
 from ehr2vec.common.logger import TqdmToLogger
+from tqdm import tqdm
 from ehr2vec.tree.node import Node
+import logging
 
+
+logger = logging.getLogger(__name__)
 
 class TreeBuilder:
     def __init__(self, 
                  counts, 
                  cutoff_level=5,
                  extend_level=5,
-                 files=['data_dumps/sks_dump_diagnose.csv', 'data_dumps/sks_dump_medication.csv'],
-                 filter_database=False,):
-        self.files = files
+                 file_names=['sks_dump_diagnose.csv', 'sks_dump_medication.csv'],
+                 search_directory='.',
+                 filter_database=False):
         self.counts = counts
         self.cutoff_level = cutoff_level
         self.extend_level = extend_level
+        self.files = self.find_files(search_directory, file_names)
         self.filter_database = filter_database
+
+    def find_files(self, search_directory, file_names):
+        """Find files in the search directory with the given file names."""
+        found_files = []
+        # Walk through the directory tree
+        for root, dirs, files in os.walk(search_directory):
+            # Check each file in the directory
+            for file in files:
+                # If the file name is in the list of target file names
+                if file in file_names:
+                    # Append the full path of the file to the found_files list
+                    full_path = os.path.join(root, file)
+                    found_files.append(full_path)
+        return found_files
 
     def build(self):
         tree_codes = self.create_tree_codes()
@@ -38,6 +55,7 @@ class TreeBuilder:
         return tree
 
     def create_tree_codes(self):
+        logger.info(':Create tree codes')
         codes = []
         for file in self.files:
             data_codes = self.get_codes_from_data(file)
@@ -49,7 +67,7 @@ class TreeBuilder:
             database = self.determine_levels_and_codes(database)
             if self.filter_database:
                 database = self._filter_database(database, data_codes)
-            for _, row in database.iterrows():
+            for _, row in tqdm(database.iterrows(), desc=f'Create tree codes from {file}', file=TqdmToLogger(logger)):
                 level = row.level
                 code = row.code
                 if pd.isna(row.code):
@@ -81,6 +99,7 @@ class TreeBuilder:
     @staticmethod
     def determine_levels_and_codes(database:pd.DataFrame)->pd.DataFrame:
         """Takes a DataFrame and returns a DataFrame with levels for each code. Also assigns proper codes for chapters and topics."""
+        logger.info('::Determine levels and codes')
         prev_code = ''
         level = -1
         for i, (code, text) in database.iterrows():
@@ -106,7 +125,7 @@ class TreeBuilder:
     def create_tree(codes):
         root = Node('root')
         parent = root
-        for i in range(len(codes)):
+        for i in tqdm(range(len(codes)), desc=':Create tree', file=TqdmToLogger(logger)):
             level, code = codes[i]
             next_level = codes[i+1][0] if i < len(codes)-1 else level
             dist = next_level - level 
@@ -142,6 +161,7 @@ class TreeBuilder:
         return background
 
     def get_codes_from_data(self, file:str)->dict:
+        """Takes a file and returns a dictionary of codes and counts."""
         if 'diagnose' in file:
             return {code: count for code, count in self.counts.items() if code.startswith('D')}
         elif 'medication' in file:
@@ -151,6 +171,7 @@ class TreeBuilder:
 
     def _filter_database(self, database:pd.DataFrame, data_codes:dict)->pd.DataFrame:
         """Takes a DataFrame and a dictionary of codes and returns a DataFrame with only the codes in the dictionary."""
+        logger.info('::Filter database')
         codes_ls = self._extend_data_codes_by_ancestors(data_codes)
         mask = (database['Kode'].isin(codes_ls)) | (database['Kode'].isna()) | (database['Kode'].str.len()<3)
         database = database[mask].reset_index(drop=True, inplace=False)
@@ -186,10 +207,9 @@ class TreeBuilder:
     @staticmethod
     def augment_database(database:pd.DataFrame, data_codes:dict)->pd.DataFrame:
         """Takes a DataFrame and a dictionary of codes and returns a DataFrame with the codes inserted in the correct position."""
-        
         data_codes = pd.DataFrame(list(data_codes.items()), columns=['Kode', 'Tekst'])
         database = database.reset_index(drop=True, inplace=False)
-        for idx, row in data_codes.iterrows():
+        for idx, row in tqdm(data_codes.iterrows(), desc='::Augment database', file=TqdmToLogger(logger)):
             # Find the correct position in athe original DataFrame where the new row should be inserted
             insert_position = database.index[database['Kode'] > row['Kode']].min()
             # If there is no such position, append the row at the end
@@ -202,11 +222,12 @@ class TreeBuilder:
         return database
     @staticmethod
     def select_codes_outside_database(database: pd.DataFrame, data_codes: dict):
+        """Takes a DataFrame and a dictionary of codes and returns a dictionary of codes that are not in the DataFrame."""
         return {k: v for k, v in data_codes.items() if k not in database['Kode'].to_list()}
     @staticmethod
     def sort_data_codes(data_codes: dict):
+        """Takes a dictionary of codes and returns a sorted dictionary."""
         return dict(sorted(data_codes.items(), key=lambda x: x[0]))
-
 
 
 def get_counts(cfg, logger)-> dict:
@@ -217,9 +238,9 @@ def get_counts(cfg, logger)-> dict:
     inv_vocab = {v: k for k, v in vocabulary.items()}
 
     train_val_files = [
-        join(data_path, 'tokenized', f) 
+        join(data_path, tokenized_dir, f) 
         for f in os.listdir(join(data_path, tokenized_dir)) 
-        if f.startswith(('tokenized_train', 'tokenized_val', 'tokenized_pretrain'))
+        if f.startswith(('tokenized_finetune', 'tokenized_pretrain'))
     ]
     counts = Counter()
     for f in tqdm(train_val_files, desc="Count" ,file=TqdmToLogger(logger)):
@@ -227,4 +248,5 @@ def get_counts(cfg, logger)-> dict:
         counts.update(inv_vocab[code] for codes in tokenized_features['concept'] for code in codes)
 
     return dict(counts)
+
 

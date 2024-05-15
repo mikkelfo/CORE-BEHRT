@@ -1,4 +1,7 @@
 import torch
+import logging
+
+logger = logging.getLogger(__name__)
 
 def flatten(data):
     def _flatten(data):
@@ -40,11 +43,17 @@ class Node:
             child.redist_counts()
 
     def extend_leaves(self, level):
+        """Not all branches end at the same level. Extend leaves to a certain level."""
         if not self.children and level > 0:
             self.add_child(self.name)
         for child in self.children:
             child.extend_leaves(level-1)
     def cutoff_at_level(self, cutoff_level, method='flatten'):
+        """
+        Cutoff tree at a certain level.
+        if method == 'flatten', the tree truncated nodes are put into the parent level.
+        """
+
         if method == 'flatten':
             if not self.children:
                 return self

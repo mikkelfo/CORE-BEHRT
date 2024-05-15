@@ -167,7 +167,10 @@ class AzurePathContext:
     def azure_hierarchical_setup(self)->Tuple:
         if self.azure_env:
             self.cfg.paths.features = self._prepend_mount_point(self.cfg.paths.features)
+            self.cfg.paths.output_path = OUTPUTS_DIR
             self._handle_outputs_path()
+        else:
+            self.cfg.paths.output_path = self.cfg.paths.features
         return self.cfg, self.run, self.mount_context
 
     def add_pretrain_info_to_cfg(self)->Config:

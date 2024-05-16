@@ -62,9 +62,10 @@ class EhrEmbeddings(BaseEmbeddings):
         self.initialize_linear_params(config)
 
     def initialize_embeddings(self, config: BertConfig)->None:
-        logger.info("Initialize Concept/Segment/Age embeddings.")
+        logger.info("Initialize Concept/Segment.")
         self.concept_embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
         #self.age_embeddings = nn.Embedding(AGE_VOCAB_SIZE, config.hidden_size)
+        logger.info("Initialize time2vec(age) embeddings.")
         self.age_embeddings = Time2Vec(1, config.hidden_size, init_scale=TIME2VEC_AGE_MULTIPLIER, clip_min=TIME2VEC_MIN_CLIP, clip_max=TIME2VEC_MAX_CLIP)
         if config.to_dict().get('abspos_embeddings', True):
             logger.info("Initialize time2vec(abspos) embeddings.")

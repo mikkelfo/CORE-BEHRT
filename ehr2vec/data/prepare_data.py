@@ -63,10 +63,10 @@ class DatasetPreparer:
         tree, tree_matrix, h_vocabulary = self.loader.load_tree()
         
         self.saver.save_vocab(h_vocabulary, HIERARCHICAL_VOCABULARY_FILE)
-        train_dataset = HierarchicalMLMDataset(train_data.train_features, train_data.vocabulary, 
+        train_dataset = HierarchicalMLMDataset(train_data.features, train_data.vocabulary, 
                                             h_vocabulary, tree, tree_matrix, 
                                             **self.cfg.data.dataset)
-        val_dataset = HierarchicalMLMDataset(val_data.val_features, train_data.vocabulary, 
+        val_dataset = HierarchicalMLMDataset(val_data.features, train_data.vocabulary, 
                                             h_vocabulary, tree, tree_matrix, 
                                             **self.cfg.data.dataset)
         return train_dataset, val_dataset

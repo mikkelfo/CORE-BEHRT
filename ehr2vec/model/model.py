@@ -69,7 +69,7 @@ class BertEHRModel(BertEHREncoder):
         outputs.logits = logits
 
         if batch.get('target', None) is not None:
-            outputs.loss = self.get_loss(logits, batch['target'])
+            outputs.loss = self.get_loss(logits, batch['target'], batch['attention_mask'])
             outputs.mlm_loss = outputs.loss.detach().item()
 
         return outputs
@@ -87,7 +87,7 @@ class BertEHRModel(BertEHREncoder):
         return outputs
 
 
-    def get_loss(self, logits, labels):
+    def get_loss(self, logits, labels, labels_mask=None):
         """Calculate loss for masked language model."""
         return self.loss_fct(logits.view(-1, self.config.vocab_size), labels.view(-1))
 

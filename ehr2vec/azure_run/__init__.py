@@ -105,7 +105,7 @@ def dataset_save(df: pd.DataFrame, name: str, tags: dict = None, description: st
     _DS_LIST_CACHE = None # Invalidate cache
     return Dataset.Tabular.register_pandas_dataframe(df, datastore(), name, show_progress=False, tags=tags, description=description)
 
-def file_dataset_save(local_path: str, tags: dict = None, description: str = None, datastore_name = "workspaceblobstore", remote_path = "PHAIR"):
+def file_dataset_save(local_path: str, tags: dict = None, description: str = None, datastore_name = "workspaceblobstore", remote_path = "PHAIR", overwrite=False):
     """Save given file dataset (given as txt files in a local directory).
 
     Parameters
@@ -129,7 +129,7 @@ def file_dataset_save(local_path: str, tags: dict = None, description: str = Non
 
     dtst = datastore(name=datastore_name)
 
-    ds = Dataset.File.upload_directory(local_path, (dtst, remote_path))
+    ds = Dataset.File.upload_directory(local_path, (dtst, remote_path), overwrite=overwrite)
     
     # Register
     return ds.register(workspace=workspace(), name=split(remote_path)[1], tags=tags, description=description, create_new_version=True)

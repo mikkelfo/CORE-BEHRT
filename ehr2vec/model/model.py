@@ -5,8 +5,7 @@ import torch.nn as nn
 from transformers import BertModel
 from transformers.models.roformer.modeling_roformer import RoFormerEncoder
 
-from ehr2vec.common.config import instantiate
-from ehr2vec.embeddings.ehr import BehrtEmbeddings, EhrEmbeddings, DiscreteAbsposEmbeddings
+from ehr2vec.embeddings.ehr import EhrEmbeddings
 from ehr2vec.model.activations import SwiGLU
 from ehr2vec.model.heads import FineTuneHead, HMLMHead, MLMHead
 
@@ -15,18 +14,8 @@ logger = logging.getLogger(__name__)
 class BertEHREncoder(BertModel):
     def __init__(self, config):
         super().__init__(config)
-        if not config.to_dict().get('embedding', None):
-            logger.info("No embedding type specified. Using default EHR embedding.")
-            self.embeddings = EhrEmbeddings(config)
-        elif config.embedding == 'original_behrt':
-            logger.info("Using original Behrt embedding.")
-            self.embeddings = BehrtEmbeddings(config)
-        elif config.embedding == 'discrete_abspos':
-            logger.info("Using discrete absolute position embedding.")
-            self.embeddings = DiscreteAbsposEmbeddings(config)
-        else:
-            raise ValueError(f"Unknown embedding type: {config.embedding}")
-
+        self.embeddings = EhrEmbeddings(config)
+        
         # Activate transformer++ recipe
         if config.to_dict().get('plusplus'):
             logger.info("Using Transformer++ recipe.")
@@ -53,15 +42,8 @@ class BertEHRModel(BertEHREncoder):
         super().__init__(config)
         self.loss_fct = nn.CrossEntropyLoss()
         self.cls = MLMHead(config)
-        if config.to_dict().get('prolonged_length_of_stay', False):
-            logger.info("Using prolonged length of stay classification.")
-            self.plos_head = FineTuneHead(config)
-            self.plos_fct = nn.BCEWithLogitsLoss(pos_weight=config.to_dict().get('pos_weight', None))
-            self.forward = self.forward_with_plos
-        else:
-            self.forward = self.forward_mlm
             
-    def forward_mlm(self, batch: dict):
+    def forward(self, batch: dict):
         outputs = super().forward(batch)
 
         sequence_output = outputs[0]    # Last hidden state
@@ -74,26 +56,9 @@ class BertEHRModel(BertEHREncoder):
 
         return outputs
 
-    def forward_with_plos(self, batch: dict):
-        outputs = self.forward_mlm(batch)
-
-        sequence_output = outputs[0]    # Last hidden state
-        classification_logits = self.plos_head(sequence_output)
-        outputs.plos_logits = classification_logits
-        
-        plos_loss = self.get_classification_loss(classification_logits, batch['PLOS'])
-        outputs.loss += plos_loss
-        outputs.plos_loss = plos_loss.detach().item()
-        return outputs
-
-
     def get_loss(self, logits, labels, labels_mask=None):
         """Calculate loss for masked language model."""
         return self.loss_fct(logits.view(-1, self.config.vocab_size), labels.view(-1))
-
-    def get_classification_loss(self, logits, labels):
-        """Calculate loss for prolonged length of stay classification if applicable."""
-        return self.plos_fct(logits.view(-1), labels.view(-1))
 
 class BertForFineTuning(BertEHRModel):
     def __init__(self, config):

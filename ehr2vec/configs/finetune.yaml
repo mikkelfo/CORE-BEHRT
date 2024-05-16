@@ -1,9 +1,9 @@
 env: local
 paths:
-  pretrain_model_path: "outputs/pretraining/behrt_test"
+  pretrain_model_path: "../outputs/pretraining/behrt_test"
   # model_path: "outputs/pretraining/behrt_test/finetune_TEST_OUTCOME_censored_10_hours_pre_TEST_OUTCOME_test"
   #checkpoint_epoch: 1
-  outcome: "../outputs/data_icd10/outcomes/TEST_OUTCOME/TEST_OUTCOME.pt"
+  outcome: "../outputs/features/outcomes/TEST_OUTCOME/TEST_OUTCOME.pt"
   #output_path: "outputs/finetuning"
   run_name: "test"
   #tokenized_dir:"tokenized"

@@ -16,8 +16,7 @@ from ehr2vec.common.utils import Data
 from ehr2vec.data.dataset import HierarchicalMLMDataset, MLMDataset
 from ehr2vec.data.filter import CodeTypeFilter, PatientFilter
 from ehr2vec.data.utils import Utilities
-from ehr2vec.data_fixes.adapt import (BaseAdapter, BehrtAdapter,
-                                      DiscreteAbsposAdapter, PLOSAdapter)
+
 from ehr2vec.data_fixes.handle import Handler
 from ehr2vec.data_fixes.truncate import Truncator
 
@@ -149,24 +148,11 @@ class DatasetPreparer:
         # 13. Normalize segments
         data = self.utils.process_data(data, self.data_modifier.normalize_segments)
 
-        # 14. Optional: Adapt to BEHRT embeddings
-        if self.cfg.model.get('behrt_embeddings'):
-            logger.info('Adapting features for behrt embeddings')
-            data.features = BehrtAdapter.adapt_features(data.features)
-        if self.cfg.model.get('discrete_abspos_embeddings'):
-            if self.cfg.model.get('behrt_embeddings'):
-                raise ValueError("Discrete abspos embeddings and behrt embeddings are not compatible.")
-            logger.info('Adapting features for discrete abspos embeddings')
-            data.features = DiscreteAbsposAdapter.adapt_features(data.features)
-
         # 15. Optional: Remove any unwanted features
         if 'remove_features' in data_cfg:
             for feature in data_cfg.remove_features:
                 logger.info(f"Removing {feature}")
                 data.features.pop(feature, None)
-
-        if 'age' in data.features: # we don't apply time2vec to age anymore
-            data.features['age'] = [BaseAdapter.convert_ages_to_int(ages) for ages in data.features['age']] 
 
         # Verify and save
         data.check_lengths()
@@ -225,26 +211,7 @@ class DatasetPreparer:
         # Adjust max segment if needed
         self.utils.check_and_adjust_max_segment(data, model_cfg)
 
-        if self.cfg.model.get('prolonged_length_of_stay', False):
-            logger.info('Add prolonged length of stay to features.')
-            threshold_in_days = self.cfg.data.get('prolonged_length_of_stay', DEFAULT_PROLONGED_LENGTH_OF_STAY)
-            # visit_threshold_in_days = self.cfg.data.get('visit_threshold_in_days', DEFAULT_VISIT_THRESHOLD_IN_DAYS)
-            data.features = PLOSAdapter(threshold_in_days=threshold_in_days).adapt_features(data.features)
-
-        # 7. Optional: Adapt to BEHRT embeddings
-        if self.cfg.model.get('behrt_embeddings'):
-            logger.info('Adapting features for behrt embeddings')
-            data.features = BehrtAdapter.adapt_features(data.features)
-
-        if self.cfg.model.get('discrete_abspos_embeddings'):
-            if self.cfg.model.get('behrt_embeddings'):
-                raise ValueError("Discrete abspos embeddings and behrt embeddings are not compatible.")
-            logger.info('Adapting features for discrete abspos embeddings')
-            data.features = DiscreteAbsposAdapter.adapt_features(data.features)
-
-        if 'age' in data.features: # we don't apply time2vec to age anymore
-            data.features['age'] = [BaseAdapter.convert_ages_to_int(ages) for ages in data.features['age']] 
-        # Verify and save
+       # Verify and save
         data.check_lengths()
         data = self.utils.process_data(data, self.saver.save_sequence_lengths)
 

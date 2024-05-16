@@ -1,8 +1,8 @@
 env: local
 paths:
   # data_path: 'pretrain_datasets/diagnosis_medication/070623/outputs/data' # inside mounted datastore
-  data_path: "..\\outputs\\features_test"
-  output_path: outputs/pretraining
+  data_path: "..\\outputs\\features"
+  output_path: ../outputs/pretraining
   type: med_diag
   run_name: behrt_test
   tokenized_dir: tokenized
@@ -42,12 +42,8 @@ model:
   num_attention_heads: 3
   intermediate_size: 64
   type_vocab_size: 240 #  if discrete_abspos_embeddings: true, give the range of abspos in months
-  behrt_embeddings: true
-  discrete_abspos_embeddings: false
   plusplus: true
   abspos_embeddings: false
-  prolonged_length_of_stay: 1 # give in days
-  pool_type: mean
 optimizer:
   lr: 5e-4
   eps: 1e-6
@@ -65,9 +61,6 @@ metrics:
   top10:
     _target_: evaluation.metrics.PrecisionAtK
     topk: 10
-  plos_loss:
-    _target_: evaluation.metrics.LossAccessor
-    loss_name: plos_loss
   mlm_loss:
     _target_: evaluation.metrics.LossAccessor
     loss_name: mlm_loss

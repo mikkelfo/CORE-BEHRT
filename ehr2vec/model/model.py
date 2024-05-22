@@ -17,14 +17,11 @@ class BertEHREncoder(BertModel):
         self.embeddings = EhrEmbeddings(config)
         
         # Activate transformer++ recipe
-        if config.to_dict().get('plusplus'):
-            logger.info("Using Transformer++ recipe.")
-            config.rotary_value = False
-            self.encoder = RoFormerEncoder(config)
+        config.rotary_value = False
+        self.encoder = RoFormerEncoder(config)
 
-            for layer in self.encoder.layer:
-                layer.intermediate.intermediate_act_fn = SwiGLU(config)
-                # layer.output.LayerNorm = RMSNorm(config.hidden_size, eps=config.layer_norm_eps) # We dont use RMSNorm (only speedup, no performance gain)
+        for layer in self.encoder.layer:
+            layer.intermediate.intermediate_act_fn = SwiGLU(config)
 
     def forward(self, batch: dict):
         present_keys = [k for k in ['age', 'abspos', 'position_ids', 'dosage', 'unit'] if k in batch]
@@ -42,18 +39,16 @@ class BertEHRModel(BertEHREncoder):
         super().__init__(config)
         self.loss_fct = nn.CrossEntropyLoss()
         self.cls = MLMHead(config)
-        self.forward = self.forward_mlm
             
-    def forward_mlm(self, batch: dict):
+    def forward(self, batch: dict):
         outputs = super().forward(batch)
 
         sequence_output = outputs[0]    # Last hidden state
         logits = self.cls(sequence_output, batch['attention_mask'])
         outputs.logits = logits
 
-        if batch.get('target', None) is not None:
+        if batch.get('target') is not None:
             outputs.loss = self.get_loss(logits, batch['target'])
-            outputs.mlm_loss = outputs.loss.detach().item()
 
         return outputs
 
@@ -61,22 +56,14 @@ class BertEHRModel(BertEHREncoder):
         """Calculate loss for masked language model."""
         return self.loss_fct(logits.view(-1, self.config.vocab_size), labels.view(-1))
 
-    def get_classification_loss(self, logits, labels):
-        """Calculate loss for prolonged length of stay classification if applicable."""
-        return self.plos_fct(logits.view(-1), labels.view(-1))
 
 class BertForFineTuning(BertEHRModel):
     def __init__(self, config):
         super().__init__(config)
-        if config.pos_weight:
-            pos_weight = torch.tensor(config.pos_weight)
-        else:
-            pos_weight = None
 
-        self.loss_fct = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+        self.loss_fct = nn.BCEWithLogitsLoss()
         self.cls = FineTuneHead(config)
-        logger.info(f"Using {self.cls.__class__.__name__} as classifier.")
         
-    def get_loss(self, hidden_states, labels, labels_mask=None):    
+    def get_loss(self, hidden_states, labels):    
         return self.loss_fct(hidden_states.view(-1), labels.view(-1))
 

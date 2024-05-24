@@ -248,7 +248,7 @@ class DataModifier:
         censorer_cfg = self.cfg.data.get('censorer', {'_target_': 'data_fixes.censor.Censorer'})
         censorer = instantiate(censorer_cfg, vocabulary=data.vocabulary, n_hours=n_hours)
         logger.info(f"Censoring data {n_hours} hours after outcome with {censorer.__class__.__name__}")
-        data.features, data.censor_outcomes = censorer(data.features, data.censor_outcomes, exclude=False)
+        data.features = censorer(data.features, data.censor_outcomes, exclude=False)
         return data
 
     @staticmethod

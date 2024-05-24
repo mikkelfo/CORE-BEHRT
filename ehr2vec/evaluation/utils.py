@@ -6,13 +6,12 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 import torch
-from sklearn.utils import resample
 from torch.utils.data import WeightedRandomSampler
 
 from ehr2vec.common.config import get_function
 from ehr2vec.common.utils import Data
 
-    
+
 def validate_outcomes(all_outcomes, cfg):
     for outcome in cfg.outcomes:
         cfg.outcome = cfg.outcomes[outcome]

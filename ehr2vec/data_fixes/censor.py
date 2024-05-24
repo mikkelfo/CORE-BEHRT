@@ -3,24 +3,18 @@ import pandas as pd
 from typing import List, Union
 
 from ehr2vec.common.utils import iter_patients
-from ehr2vec.data_fixes.exclude import Excluder
 
 
 class Censorer:
-    def __init__(self, n_hours: int, min_len: int = 3, vocabulary:dict=None) -> None:
+    def __init__(self, n_hours: int, vocabulary:dict=None) -> None:
         """Censor the features based on the event timestamp.
         n_hours if positive, censor all items that occur n_hours after event."""
         self.n_hours = n_hours
         self.vocabulary = vocabulary
-        self.excluder = Excluder(min_len=min_len, vocabulary=vocabulary)
 
-    def __call__(self, features: dict, censor_outcomes: list, exclude: bool = True) -> tuple:
-        features = self.censor(features, censor_outcomes)
-        if exclude:
-            features, _, kept_indices = self.excluder(features, None)
-            return features, kept_indices
-        else:
-            return features, censor_outcomes
+    def __call__(self, features: dict, censor_outcomes: list) -> tuple:
+        return self.censor(features, censor_outcomes)
+        
 
     def censor(self, features: dict, censor_outcomes: list) -> dict:
         """Censor the features based on the censor outcomes."""

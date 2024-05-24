@@ -26,7 +26,6 @@ class Time2Vec(torch.nn.Module):
 
         if self.clip_min is not None or self.clip_max is not None:
             linear_1 = torch.clamp(linear_1, self.clip_min, self.clip_max)
-            #linear_2 = torch.clamp(linear_2, self.clip_min, self.clip_max)
         
         periodic = self.f(linear_2 + self.phi)
 

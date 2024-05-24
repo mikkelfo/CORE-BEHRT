@@ -1,4 +1,3 @@
-import logging
 import os
 from datetime import datetime
 from os.path import join
@@ -13,70 +12,7 @@ from torch.utils.data import WeightedRandomSampler
 from ehr2vec.common.config import get_function
 from ehr2vec.common.utils import Data
 
-logger = logging.getLogger(__name__)
-
-def get_mean_std(Results_dic:dict)->dict:
-    """Takes a nested dict with methods as outer dict and metrics as inner dict which contains lists os metrics,
-    and computes mean \pm std for each list."""
-    Results_mean_std = {}
-
-    for method in Results_dic.keys():
-        Results_mean_std[method] = {}
-        for metric in Results_dic[method].keys():
-            mean = np.mean(np.array(Results_dic[method][metric]))
-            std = np.std(np.array(Results_dic[method][metric]))
-            Results_mean_std[method][metric] = f'{mean:.3f} ± {std:.3f}'
-    return Results_mean_std
-
-class Oversampler:
-    def __init__(self, ratio=1.0, random_state=None):
-        """
-        Initialize the oversampler.
-        
-        Parameters:
-        - ratio: float (default=1.0)
-            Ratio of the number of samples in the minority class after resampling 
-            relative to the majority class. Must be between 0 and 1.
-        - random_state: int (default=None)
-            Random seed for reproducibility.
-        """
-        assert 0 <= ratio <= 1, "Ratio must be between 0 and 1."
-        self.ratio = ratio
-        self.random_state = random_state
-        
-    def fit_resample(self, X, y):
-        """
-        Oversample the minority class based on the specified ratio.
-        """
-        # Identify majority and minority classes
-        majority_class = np.bincount(y).argmax()
-        minority_class = 1 - majority_class
-        
-        X_majority, X_minority = X[y == majority_class], X[y == minority_class]
-        y_majority, y_minority = y[y == majority_class], y[y == minority_class]
-        
-        # Calculate the number of samples after oversampling
-        n_samples = int(X_majority.shape[0] * self.ratio)
-        
-        # Oversample minority class
-        X_minority_oversampled, y_minority_oversampled = resample(
-            X_minority, y_minority, 
-            replace=True, 
-            n_samples=n_samples,
-            random_state=self.random_state
-        )
-        
-        # Combine with majority class
-        X_resampled = np.vstack((X_majority, X_minority_oversampled))
-        y_resampled = np.hstack((y_majority, y_minority_oversampled))
-        
-        return X_resampled, y_resampled
     
-def sample(X, y, n_samples=None, fraction=None):
-    n_samples = n_samples if n_samples else int(X.shape[0] * fraction)
-    indices = np.random.choice(X.shape[0], size=n_samples, replace=False)
-    return X[indices], y[indices]
-
 def validate_outcomes(all_outcomes, cfg):
     for outcome in cfg.outcomes:
         cfg.outcome = cfg.outcomes[outcome]
@@ -114,27 +50,15 @@ def get_pos_weight(cfg, outcomes):
         return sum(pd.isna(outcomes)) / sum(pd.notna(outcomes))
     else:
         return None
-    
-def evaluate_predictions(y_val:np.ndarray, pred_probas:np.ndarray, metrics:list, threshold:float=.5):
-    results = {}
-    logger.info("Evaluate")
-    pred = np.where(pred_probas>threshold, 1, 0)
-    for metric in metrics:
-        score = metric(y_val, pred_probas if metric.__name__.endswith('auc') else pred)
-        logger.info(f"{metric.__name__}: {score}")
-        results[metric.__name__] = score
-    return results
 
 def compute_and_save_scores_mean_std(n_splits:int, finetune_folder: str, mode='val')->None:
     """Compute mean and std of test/val scores. And save to finetune folder."""
-    logger.info(f"Compute mean and std of {mode} scores")
     scores = []
     for fold in range(1, n_splits+1):
         fold_checkpoints_folder = join(finetune_folder, f'fold_{fold}', 'checkpoints')
         last_epoch = max([int(f.split("_")[-2].split("epoch")[-1]) for f in os.listdir(fold_checkpoints_folder) if f.startswith('checkpoint_epoch')])
         table_path = join(fold_checkpoints_folder, f'{mode}_scores_{last_epoch}.csv')
         if not os.path.exists(table_path):
-            logger.warning(f"File {table_path} not found. Skipping fold {fold}.")
             continue
         fold_scores = pd.read_csv(join(fold_checkpoints_folder, f'{mode}_scores_{last_epoch}.csv'))
         scores.append(fold_scores)
@@ -155,7 +79,6 @@ def check_data_for_overlap(train_data: Data, val_data: Data, test_data: Data=Non
 
 def check_predefined_pids(data :Data, cfg)->None:
     if 'predefined_splits' in cfg.paths:
-        logger.warning("Using predefined splits. Ignoring test_split parameter")
         all_predefined_pids = torch.load(join(cfg.paths.predefined_splits, 'pids.pt'))
         if not set(all_predefined_pids).issubset(set(data.pids)):
             difference = len(set(all_predefined_pids).difference(set(data.pids)))
@@ -191,4 +114,4 @@ def save_data(data: Data, folder:str)->None:
         if data.censor_outcomes is not None:
             torch.save(data.censor_outcomes, join(folder, f'{data.mode}_censor_outcomes.pt'))
     else:
-        logger.warning(f"No data to save in {data.mode}")
+        raise Warning(f"Data is empty for {data}")

@@ -1,6 +1,3 @@
-import logging
-
-import torch
 import torch.nn as nn
 from transformers import BertModel
 from transformers.models.roformer.modeling_roformer import RoFormerEncoder
@@ -10,7 +7,6 @@ from ehr2vec.model.activations import SwiGLU
 from ehr2vec.model.heads import FineTuneHead, MLMHead
 
 
-logger = logging.getLogger(__name__)
 class BertEHREncoder(BertModel):
     def __init__(self, config):
         super().__init__(config)
@@ -19,17 +15,15 @@ class BertEHREncoder(BertModel):
         # Activate transformer++ recipe
         config.rotary_value = False
         self.encoder = RoFormerEncoder(config)
-
         for layer in self.encoder.layer:
             layer.intermediate.intermediate_act_fn = SwiGLU(config)
 
     def forward(self, batch: dict):
-        present_keys = [k for k in ['age', 'abspos', 'position_ids', 'dosage', 'unit'] if k in batch]
-        position_ids = {key: batch.get(key) for key in  present_keys}
+        position_ids = {key: batch[key] for key in ['age', 'abspos']}
         outputs = super().forward(
             input_ids=batch['concept'],
-            attention_mask=batch.get('attention_mask', None),
-            token_type_ids=batch.get('segment', None),
+            attention_mask=batch['attention_mask'],
+            token_type_ids=batch['segment'],
             position_ids=position_ids,
         )
         return outputs

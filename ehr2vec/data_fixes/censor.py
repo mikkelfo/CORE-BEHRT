@@ -93,7 +93,6 @@ class Censorer:
 
 
 class EQ_Censorer(Censorer):
-        
     def __call__(self, features: dict, censor_outcomes: list, exclude: bool = True) -> dict:
         censor_outcomes = self.get_censor_outcomes_for_negatives(censor_outcomes)
         return super().__call__(features, censor_outcomes, exclude)

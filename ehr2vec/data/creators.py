@@ -70,16 +70,11 @@ class BackgroundCreator(BaseCreator):
             'CONCEPT': itertools.chain.from_iterable(
                 [(self.prepend_token + col + '_' +patients_info[col].astype(str)).tolist() for col in self.config.background])
         }
-
-        if 'segment' in self.config:
-            background['SEGMENT'] = 0
-
-        if 'age' in self.config:
-            background['AGE'] = -1
-
-        if 'abspos' in self.config:
-            abspos = Utilities.get_abspos_from_origin_point(patients_info['BIRTHDATE'], self.config.abspos)
-            background['ABSPOS'] = abspos.to_list() * len(self.config.background)
+        # Set defaults for background sentence
+        background['SEGMENT'] = 0
+        background['AGE'] = -1
+        abspos = Utilities.get_abspos_from_origin_point(patients_info['BIRTHDATE'], self.config.abspos)
+        background['ABSPOS'] = abspos.to_list() * len(self.config.background)
 
         # Prepend background to concepts
         background = pd.DataFrame(background)

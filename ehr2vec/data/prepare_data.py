@@ -88,24 +88,24 @@ class DatasetPreparer:
             # 4. Loading and processing outcomes
             outcomes, censor_outcomes = self.loader.load_outcomes()
             logger.info("Assigning outcomes to data")
-            data = self.utils.process_data(data, self._retrieve_and_assign_outcomes, log_positive_patients_num=True,
+            data = self.utils.process_data(data, self._retrieve_and_assign_outcomes,
                                             args_for_func={'outcomes': outcomes, 'censor_outcomes': censor_outcomes})
 
             # 5. Optional: select patients of interest
             if data_cfg.get("select_censored"):
-                data = self.utils.process_data(data, self.patient_filter.select_censored, log_positive_patients_num=True)
+                data = self.utils.process_data(data, self.patient_filter.select_censored)
 
             # 6. Optional: Filter patients with outcome before censoring
             if self.cfg.outcome.type != self.cfg.outcome.get('censor_type', None):
-                data = self.utils.process_data(data, self.patient_filter.filter_outcome_before_censor, log_positive_patients_num=True) # !Timeframe (earlier instance of outcome)
+                data = self.utils.process_data(data, self.patient_filter.filter_outcome_before_censor) # !Timeframe (earlier instance of outcome)
 
             # 7. Optional: Filter code types
             if data_cfg.get('code_types'):
                 data = self.utils.process_data(data, self.code_type_filter.filter)
-                data = self.utils.process_data(data, self.patient_filter.exclude_short_sequences, log_positive_patients_num=True)
+                data = self.utils.process_data(data, self.patient_filter.exclude_short_sequences)
 
         # 8. Data censoring
-        data = self.utils.process_data(data, self.data_modifier.censor_data, log_positive_patients_num=True,
+        data = self.utils.process_data(data, self.data_modifier.censor_data,
                                                args_for_func={'n_hours': self.cfg.outcome.n_hours})
         if not predefined_pids:
             # 3. Optional: Select Patients By Age
@@ -113,11 +113,11 @@ class DatasetPreparer:
                 data = self.utils.process_data(data, self.patient_filter.select_by_age)
         
         # 9. Exclude patients with less than k concepts
-        data = self.utils.process_data(data, self.patient_filter.exclude_short_sequences, log_positive_patients_num=True)
+        data = self.utils.process_data(data, self.patient_filter.exclude_short_sequences)
 
         # 10. Optional: Patient selection
         if data_cfg.get('num_patients') and not predefined_pids:
-            data = self.utils.process_data(data, self.patient_filter.select_random_subset, log_positive_patients_num=True,
+            data = self.utils.process_data(data, self.patient_filter.select_random_subset,
                                               args_for_func={'num_patients':data_cfg.num_patients})
 
         # 12. Truncation
@@ -193,13 +193,6 @@ class DatasetPreparer:
         self.saver.save_data(data)
         self._log_features(data)
         return data
-    
-    def prepare_onehot_features(self)->Tuple[np.ndarray, np.ndarray, Dict]:
-        """Use ft features and map them onto one hot vectors with binary outcomes"""
-        data = self.loader.load_finetune_data()
-        token2index, new_vocab = self.utils.get_token_to_index_map(data.vocabulary)
-        X, y = OneHotEncoder.encode(data, token2index)
-        return X, y, new_vocab
 
     def _retrieve_and_assign_outcomes(self, data: Data, outcomes: Dict, censor_outcomes: Dict)->Data:
         """Retrieve outcomes and assign them to the data instance"""
@@ -238,46 +231,6 @@ class DatasetPreparer:
         logger.info("Example features: ")
         for k, v in data.features.items():
             logger.info(f"{k}: {v[0]}")
-
-class OneHotEncoder:
-    @staticmethod
-    def encode(data:Data, token2index: dict) -> Tuple[np.ndarray, np.ndarray]:
-        # ! Potentially map gender onto one index?
-        """Encode features to one hot and age at the time of last event"""
-        AGE_INDEX = 0
-         # Initialize arrays
-        num_samples = len(data)
-        num_features = len(token2index) + 1 # +1 for age
-
-        X, y = OneHotEncoder.initialize_Xy(num_samples, num_features)
-        keys_array = np.array(list(token2index.keys())) # Create an array of keys for faster lookup
-        token2index_map = np.vectorize(token2index.get) # Vectorized function to map tokens to indices
-
-        for sample, (concepts, outcome) in enumerate(zip(data.features['concept'], data.outcomes)):
-            y[sample] = OneHotEncoder.encode_outcome(outcome)
-            X[sample, AGE_INDEX] = data.features['age'][sample][-1]   
-            OneHotEncoder.encode_concepts(concepts, token2index_map, keys_array, X, sample)
-        return X, y
-
-    @staticmethod
-    def encode_outcome(outcome) -> int:
-        return int(pd.notna(outcome))
-
-    @staticmethod
-    def encode_concepts(concepts: List[int], token2index_map: np.vectorize, 
-                        keys_array: np.ndarray, X:np.ndarray, sample: int) -> None:
-        concepts = np.array(concepts)
-        unique_concepts = np.unique(concepts)
-        valid_concepts_mask = np.isin(unique_concepts, keys_array) # Only keep concepts that are in the token2index map
-        filtered_concepts = unique_concepts[valid_concepts_mask]
-        concept_indices = token2index_map(filtered_concepts) + 1
-        X[sample, concept_indices] = 1
-
-    @staticmethod
-    def initialize_Xy(num_samples: int, num_features: int)->Tuple[np.ndarray, np.ndarray]:
-        X = np.zeros((num_samples, num_features), dtype=np.int16)
-        y = np.zeros(num_samples, dtype=np.int16)
-        return X, y
     
 class DataModifier:
     def __init__(self, cfg) -> None:

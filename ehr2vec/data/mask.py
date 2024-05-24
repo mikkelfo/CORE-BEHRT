@@ -1,8 +1,5 @@
 import torch
-import logging
-from typing import Dict, Tuple
-
-logger = logging.getLogger(__name__)  # Get the logger for this module
+from typing import Tuple
 
 
 class ConceptMasker:
@@ -22,50 +19,28 @@ class ConceptMasker:
         self.select_ratio = select_ratio # Select ratio of tokens to consider in the loss
         self.masking_ratio = masking_ratio
         self.replace_ratio = replace_ratio
-        
-        assert self.select_ratio <= 1.0, "Select ratio should not exceed 1.0"
-        assert self.masking_ratio + self.replace_ratio <= 1.0, "Masking ratio + replace ratio should not exceed 1.0"
-        logger.info(f"Select ratio: {self.select_ratio}, masking ratio: {self.masking_ratio}, replace ratio: {self.replace_ratio},\
-                    unchanged ratio: {1.0 - self.masking_ratio - self.replace_ratio}")
 
-    def mask_patient_concepts(self, patient: dict)->Tuple[torch.Tensor, torch.Tensor]:
-        concepts, target = self._initialize_masked_concepts_and_target(patient)
+    def mask_patient_concepts(self, concepts: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        target = concepts.clone()
+        probability_vector = torch.full(target.shape, self.select_ratio)
 
-        # Apply special token mask and create MLM mask
-        selected_indices, selected_concepts, adj_rng = self._get_concepts_eligible_for_censoring_and_mask(concepts)
+        # Ignore special tokens
+        special_token_mask = concepts < self.n_special_tokens
+        probability_vector.masked_fill_(special_token_mask, value=0.0)
 
-        # Operation masks (self.masking_ratio: mask, self.replace_ratio: replace with random word,  keep rest)
-        rng_mask = adj_rng < self.masking_ratio
-        selected_concepts = torch.where(rng_mask, self.vocabulary["[MASK]"], selected_concepts)  # Replace with [MASK]
+        # Get MLM mask
+        selected_indices = torch.bernoulli(probability_vector).bool()
+        target[~selected_indices] = -100  # Ignore loss for non-selected tokens
 
-        if self.replace_ratio > 0.0:
-            # Replace with random word
-            rng_replace = (self.masking_ratio <= adj_rng) & (adj_rng < self.masking_ratio + self.replace_ratio)
-            selected_concepts = torch.where(rng_replace,
-                torch.randint(
-                    self.n_special_tokens, len(self.vocabulary), (len(selected_concepts),)
-                ),
-                selected_concepts,
-            ) 
+        # Replace with [MASK]
+        indices_mask = torch.bernoulli(torch.full(target.shape, self.masking_ratio)).bool() & selected_indices
+        concepts[indices_mask] = self.vocabulary["[MASK]"]
 
-        # Update outputs (nonzero for double masking)
-        target[selected_indices] = concepts[selected_indices]  # Set "true" token
-        concepts[selected_indices] = selected_concepts  # Sets new concepts
+        # Replace with random word
+        replace_ratio = self.replace_ratio / (1 - self.masking_ratio) # Account for already masked tokens
+        indices_replace = torch.bernoulli(torch.full(target.shape, replace_ratio)).bool() & selected_indices & ~indices_mask
+        random_words = torch.randint(self.n_special_tokens, len(self.vocabulary), target.shape, dtype=torch.long)
+        concepts[indices_replace] = random_words[indices_replace]
 
         return concepts, target
-    
-    @staticmethod
-    def _initialize_masked_concepts_and_target(patient: Dict[str, list])->Tuple[torch.Tensor, torch.Tensor]:
-        concepts = patient["concept"]
-        target = torch.ones(len(concepts), dtype=torch.long) * -100
-        return concepts, target
-    
-    def _get_concepts_eligible_for_censoring_and_mask(self, concepts: torch.Tensor)->Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        eligible_mask = concepts >= self.n_special_tokens
-        rng = torch.rand(eligible_mask.sum())  # Random number for each token
-        masked = rng < self.select_ratio  # Mask tokens with probability masked_ratio
-        adj_rng = rng[masked].div(self.select_ratio) # Fix ratio to 0-1 interval
-        selected_indices = eligible_mask.nonzero()[:, 0][masked]
-        selected_concepts = concepts[selected_indices]
-        return selected_indices, selected_concepts, adj_rng
 

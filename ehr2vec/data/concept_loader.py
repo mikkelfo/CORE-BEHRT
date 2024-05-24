@@ -1,43 +1,23 @@
 import os
 import glob
-import os
 import random
-from datetime import datetime
-from typing import Iterator, Tuple
-
 import dateutil
 import pandas as pd
 import pyarrow.parquet as pq
+from datetime import datetime
+from typing import Iterator, Tuple
 
 CONCEPT_FORMAT = 'concept.*'
 PATIENTS_INFO_FORMAT = 'patients_info.*'
-random.seed(42)
 
 class ConceptLoader:
     """Load concepts and patient data"""
     def __init__(self, concepts=['diagnose', 'medication'], data_dir: str = 'formatted_data'):
-        # First verify input types
-        self._verify_input(concepts, data_dir)
-
         # Create paths to relevant files
         concepts_paths = glob.glob(os.path.join(data_dir, CONCEPT_FORMAT))
         self.concepts_paths = [path for path in concepts_paths if os.path.basename(path).split('.')[1] in concepts]
 
         self.patients_info_path = glob.glob(os.path.join(data_dir, PATIENTS_INFO_FORMAT))
-
-        self._verify_paths(concepts)
-
-    @staticmethod
-    def _verify_input(concepts: list, data_dir: str)-> None:
-        assert isinstance(concepts, list) and all([isinstance(c, str) for c in concepts]), 'Concepts must be a list of strings'
-        assert isinstance(data_dir, str), 'Data directory must be a string'
-        assert len(concepts) > 0, 'Concepts must not be empty'
-        assert os.path.exists(data_dir), f'Data directory {data_dir} does not exist'
-
-    def _verify_paths(self, concepts)-> None:
-        assert len(self.concepts_paths) == len(concepts), f'Found {len(self.concepts_paths)} concept files, expected {len(concepts)}'
-        assert all([os.path.splitext(path)[1] in ['.csv', '.parquet'] for path in self.concepts_paths]), 'Concept files must be either .csv or .parquet'
-        assert len(self.patients_info_path) == 1, f'Found {len(self.patients_info_path)} patients info files, expected 1'
 
     def __call__(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
         return self.process()
@@ -48,7 +28,7 @@ class ConceptLoader:
         concepts = concepts.sort_values('TIMESTAMP')
 
         """ Process patients info """
-        patients_info = self.read_file(self.patients_info_path[0])#.drop_duplicates()
+        patients_info = self.read_file(self.patients_info_path[0])
 
         return concepts, patients_info
 
@@ -59,9 +39,6 @@ class ConceptLoader:
             df = pd.read_csv(file_path)
         elif file_ext == '.parquet':
             df = pd.read_parquet(file_path)
-
-        if "patients_info" in file_path:
-            assert len(df.PID) == len(df.PID.unique()), f"Found {len(df.PID) - len(df.PID.unique())} duplicate patient IDs in patients info file"
 
         return self._handle_datetime_columns(df)
 
@@ -88,17 +65,14 @@ class ConceptLoader:
 
 class ConceptLoaderLarge(ConceptLoader):
     """Load concepts and patient data in chunks"""
-    def __init__(self, concepts: list = ['diagnosis', 'medication'], data_dir: str = 'formatted_data', **kwargs):
+    def __init__(self, concepts: list = ['diagnosis', 'medication'], data_dir: str = 'formatted_data', chunksize=10000, batchsize=100000):
         super().__init__(concepts, data_dir)
-
-        self.chunksize = kwargs.get('chunksize', 10000)     # Concepts chunk size
-        self.batch_size = kwargs.get('batch_size', 100000)  # Patients per batch
 
     def __call__(self) -> Iterator[Tuple[pd.DataFrame, pd.DataFrame]]:
         return self.process()
     
     def process(self) -> Iterator[Tuple[pd.DataFrame, pd.DataFrame]]:
-        patients_info = self.read_file(self.patients_info_path[0])#.drop_duplicates()
+        patients_info = self.read_file(self.patients_info_path[0])
         patient_ids = patients_info['PID'].unique()
         random.seed(42)
         random.shuffle(patient_ids)
@@ -125,8 +99,6 @@ class ConceptLoaderLarge(ConceptLoader):
             return pd.read_csv(file_path, chunksize=chunksize)
         elif file_ext == 'parquet':
             return ParquetIterator(file_path, chunksize)
-        else:
-            raise ValueError(f'File path must be .csv or .parquet, was {file_ext}')
     
     @staticmethod
     def get_patient_batch(patient_ids: list, batch_size: int)-> Iterator[list]:

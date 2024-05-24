@@ -23,19 +23,11 @@ ORIGIN_POINT = {'year': 2020, 'month': 1, 'day': 26, 'hour': 0, 'minute': 0, 'se
 
 class Utilities:
     @classmethod
-    def process_data(cls, data: Data, func: callable, log_positive_patients_num: bool = False, args_for_func: Dict={})->Dict:
+    def process_data(cls, data: Data, func: callable, args_for_func: Dict={})->Dict:
         """Apply a function to all datasets in a dictionary"""
         data = func(data, **args_for_func)
-        cls.log_patient_nums(func.__name__, data)
-        if log_positive_patients_num:
-            cls.log_pos_patients_num(data)
 
         return data
-
-    @staticmethod
-    def log_patient_nums(operation:str, data: Data)->None:
-        logger.info(f"After applying {operation}:")
-        logger.info(f"{len(data.pids)} patients")
 
     @staticmethod
     def select_and_order_outcomes_for_patients(all_outcomes: Dict, pids: List, outcome: Union[str, dict]) -> List:
@@ -92,17 +84,6 @@ class Utilities:
             model_cfg.type_vocab_size = max_segment+1
 
     @staticmethod
-    def get_token_to_index_map(vocabulary:dict)->Tuple[dict]:
-        """
-        Creates a new mapping from vocbulary values to new integers excluding special tokens
-        """
-        filtered_tokens = [v for k, v in vocabulary.items() if not k.startswith('[')]
-        token2index = {token: i for i, token in enumerate(filtered_tokens)}        
-        new_vocab = {k: token2index[v] for k, v in vocabulary.items() if v in token2index}
-
-        return token2index, new_vocab
-
-    @staticmethod
     def get_gender_token(vocabulary: dict, gender_key: str)->int:
         """Get the token from the vocabulary corresponding to the gender provided in the config"""
         # Determine the gender category
@@ -124,34 +105,6 @@ class Utilities:
         raise ValueError(f"None of BG_GENDER_+{BG_GENDER_KEYS[gender_category]} found in vocabulary.")
 
     @staticmethod
-    def get_background_indices(data: Data)->List[int]:
-        """Get the length of the background sentence"""
-        background_tokens = set([v for k, v in data.vocabulary.items() if k.startswith('BG_')])
-        if len(background_tokens)==0:
-            logger.warning("No background tokens found in vocabulary")
-            return []
-
-        example_concepts = data.features['concept'][0] # Assume that all patients have the same background length
-        background_indices = [i for i, concept in enumerate(example_concepts) if concept in background_tokens]
-
-        if data.vocabulary['[SEP]'] in example_concepts:
-            background_indices.append(max(background_indices)+1)
-
-        return background_indices
-
-    @staticmethod
-    def code_starts_with(code: int, prefixes: tuple)->bool:
-        """Check if the code starts with any of the given prefixes."""
-        return code.startswith(prefixes)
-
-    @staticmethod
-    def log_pos_patients_num(data: Data)->None:
-        num_positive_patiens = len([t for t in data.outcomes if not pd.isna(t)])
-        if num_positive_patiens < MIN_POSITIVES[data.mode]:
-            raise ValueError(f"Number of positive patients is less than {MIN_POSITIVES[data.mode]}: {num_positive_patiens}")
-        logger.info(f"Positive {data.mode} patients: {num_positive_patiens}")
-
-    @staticmethod
     def get_last_checkpoint_epoch(checkpoint_folder: str)->int:
         """Returns the epoch of the last checkpoint."""
         # Regular expression to match the pattern retry_XXX
@@ -168,24 +121,6 @@ class Utilities:
             raise ValueError("No checkpoint found in folder {}".format(checkpoint_folder))
 
         return max_epoch
-
-    @staticmethod
-    def split_train_val(features: Dict[str, List], pids: List, val_ratio: float = 0.2)->Tuple[Dict, List, Dict, List]:
-        """Split features and pids into train and val sets.
-        Returns:
-            train_features: A dictionary of lists of features for training
-            train_pids: A list of patient IDs for training
-            val_features: A dictionary of lists of features for validation
-            val_pids: A list of patient IDs for validation
-        """
-        val_size = int(len(features['concept']) * val_ratio)
-        train_size = len(features['concept']) - val_size
-        train_features = {k: v[:train_size] for k, v in features.items()}
-        val_features = {k: v[train_size:] for k, v in features.items()}
-        train_pids = pids[:train_size]
-        val_pids = pids[train_size:]
-
-        return train_features, train_pids, val_features, val_pids
 
     @staticmethod
     def filter_and_order_outcomes(outcomes_dic:Dict[str, Dict], pids: List):
@@ -242,28 +177,6 @@ class Utilities:
         for key, value in feats.items():
             selected_feats[key] = [value[idx] for idx in indices_to_keep]
         return selected_feats, select_pids
-    
-    @staticmethod
-    def get_segments_one_hot(segments):
-        """
-        One-hot encode the segments.
-        Example: 
-        segments = [1, 2, 3, 1, 2, 3]
-        one_hot_matrix = [[1, 0, 0, 1, 0, 0],
-                          [0, 1, 0, 0, 1, 0],
-                          [0, 0, 1, 0, 0, 1]]
-        """
-        # Identify unique segments and create a mapping from segment to row index
-        unique_segments, inverse_indices = np.unique(segments, return_inverse=True)
-        # Create a zero matrix
-        one_hot_matrix = np.zeros((len(unique_segments), len(segments)), dtype=int)
-        # Row indices for one-hot encoding, using the mapping
-        row_indices = inverse_indices
-        # Column indices for one-hot encoding
-        col_indices = np.arange(len(segments))
-        # Use advanced indexing to set the appropriate elements to 1
-        one_hot_matrix[row_indices, col_indices] = 1
-        return one_hot_matrix
 
     @staticmethod
     def calculate_ages_at_censor_date(data: Data) -> List[int]:
@@ -284,34 +197,4 @@ class Utilities:
             age_at_censor = age[closest_abspos_index] + time_differences_h[closest_abspos_index] / 24 / 365.25
             ages_at_censor_date.append(age_at_censor)
         return ages_at_censor_date
-    @staticmethod
-    def get_first_non_special_token_index(concepts: List[int], special_tokens: set) -> List[int]:
-        """
-        Get the first non-special token for each patient.
-        """
-        return next((i for i, token in enumerate(concepts) if token not in special_tokens), -1)
-    @staticmethod
-    def calculate_trajectory_lengths(data: Data) -> List[float]:
-        """
-        Calculate the lengths of the trajectories in days for each patient.
-        """
-        trajectory_lengths = []
-        special_tokens = set([data.vocabulary[token] for token in data.vocabulary\
-                               if token.startswith(('[', 'BG_'))])
-        for abspos, concept, censor_date in zip(data.features['abspos'], data.features['age'], data.censor_outcomes):
-            first_concept_index = Utilities.get_first_non_special_token_index(concept, special_tokens)
-            trajectory_length_hours = censor_date - abspos[first_concept_index]
-            trajectory_length_days = trajectory_length_hours / 24 
-            trajectory_lengths.append(trajectory_length_days)
-        return trajectory_lengths
-    
-    @staticmethod
-    def calculate_sequence_lengths(data: Data) -> List[int]:
-        """Calculate the lengths of the sequences for each patient."""
-        sequence_lengths = []
-        special_tokens = set([data.vocabulary[token] for token in data.vocabulary\
-                               if token.startswith(('[', 'BG_'))])
-        for concept in data.features['concept']:
-            non_special_tokens = [token for token in concept if token not in special_tokens]
-            sequence_lengths.append(len(non_special_tokens))
-        return sequence_lengths
+

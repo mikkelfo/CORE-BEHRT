@@ -28,7 +28,6 @@ trainer_args:
   sampler: null
   gradient_clip: 
     clip_value: 1.0
-  mixed_precision: false
   shuffle: true
   early_stopping: null # num_epochs or null/false
 

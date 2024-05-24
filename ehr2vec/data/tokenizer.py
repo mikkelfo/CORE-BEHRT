@@ -20,15 +20,13 @@ class EHRTokenizer:
             self.new_vocab = False
             self.vocabulary = vocabulary
         self.truncation = config.get('truncation', None)
-        self.padding = config.get('padding', False)
         self.cutoffs = config.get('cutoffs', None)
         
-    def __call__(self, features: dict, padding=None, truncation=None)->BatchEncoding:
-        padding = self.padding if padding is None else padding
+    def __call__(self, features: dict, truncation=None)->BatchEncoding:
         truncation = self.truncation if truncation is None else truncation
-        return self.batch_encode(features, padding, truncation)
+        return self.batch_encode(features, truncation)
 
-    def batch_encode(self, features: dict, padding=True, truncation=512)->BatchEncoding:
+    def batch_encode(self, features: dict, truncation=512)->BatchEncoding:
         data = {key: [] for key in features}
         data['attention_mask'] = []
 
@@ -46,11 +44,7 @@ class EHRTokenizer:
             for key, value in patient.items():
                 data[key].append(value)
 
-        if padding:
-            longest_seq = max([len(s) for s in data['concept']])            # Find longest sequence
-            data = self.pad(data, max_len=longest_seq)                      # Pad sequences to max_len
-
-        return BatchEncoding(data, tensor_type='pt' if padding else None)
+        return BatchEncoding(data)
 
     def encode(self, concepts: list)->list:
         """Encode concepts to vocabulary ids"""

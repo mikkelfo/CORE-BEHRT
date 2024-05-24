@@ -28,19 +28,15 @@ class FineTuneHead(torch.nn.Module):
     def __init__(self, config):
         super().__init__()
         self.classifier = torch.nn.Linear(config.hidden_size, 1)
-        self.pool = BiGRU(config)
+        self.pool = BiGRU(config.hidden_size)
 
     def forward(self, hidden_states: torch.Tensor, attention_mask=None) -> torch.Tensor:
-        x = self.pool(hidden_states, attention_mask=attention_mask)
-        if self.pool_type != 'gru' and self.pool_type != 'lstm':
-            x = self.classifier(x)
-        return x
+        return self.pool(hidden_states, attention_mask=attention_mask)
 
 class BiGRU(torch.nn.Module):
-    def __init__(self, config):
+    def __init__(self, hidden_size):
         super().__init__()
-        self.hidden_size = config.hidden_size
-        self.bidirectional = config.to_dict().get('bidirectional', False)
+        self.hidden_size = hidden_size
         self.rnn = torch.nn.GRU(self.hidden_size, self.hidden_size, batch_first=True, 
                             bidirectional=True)
         # Adjust the input size of the classifier based on the bidirectionality
@@ -64,4 +60,4 @@ class BiGRU(torch.nn.Module):
         x = torch.cat((forward_output, backward_output), dim=-1)
         x = self.classifier(x)
         return x
-    
+

@@ -21,7 +21,7 @@ To correctly prepare your data for processing, execute the scripts in the follow
 
 1. **Data Format**
    - **Required Data Format:**
-     - **Patient Data**: Ensure the file `patient_format.csv` contains columns for `PID`, `DATE_OF_BIRTH`, `DATE_OF_DEATH`, `RACE`, `GENDER`, and other relevant background features.
+     - **Patient Data**: Ensure the file `patients_info.csv` contains columns for `PID`, `DATE_OF_BIRTH` and other relevant background features (such as `RACE` or `GENDER`).
      - **Event Data**: The files `concept.{code_type}.csv` should include `TIMESTAMP`, `PID`, `ADMISSION_ID`, and `CONCEPT`.
    - Use the preprocessing tools available at [ehr_preprocess](https://github.com/kirilklein/ehr_preprocess.git) to convert your raw data into the required format.
 
@@ -36,13 +36,6 @@ To correctly prepare your data for processing, execute the scripts in the follow
 
 4. **Model Fine-tuning**
    - `main_finetune_cv`: Performs 5-fold cross-validation + evaluation on a holdout-set.
-
-
-### Hierarchical Model Training
-To run the hierarchical version of the model, use the following scripts:
-
-- `setup_hierarchical`: Utilizes features from `main_create_data` to construct a feature tree and generate hierarchical features.
-- `main_h_pretrain`: Trains a BERT model with a hierarchical loss function.
 
 ### Evaluation and Visualization
 To evaluate the model performance:

@@ -1,6 +1,5 @@
 import torch
 import random
-import logging
 import pandas as pd
 from os.path import join
 from typing import List, Tuple
@@ -10,7 +9,6 @@ from ehr2vec.data_fixes.exclude import Excluder
 from ehr2vec.common.utils import Data, iter_patients
 from ehr2vec.common.config import Config
 
-logger = logging.getLogger(__name__)  # Get the logger for this module
 
 SPECIAL_CODES = ['[', 'BG_']
 
@@ -23,8 +21,7 @@ class CodeTypeFilter:
     def filter(self, data: Data) -> Data:
         """Filter code types, e.g. keep only diagnoses. Remove patients with not sufficient data left."""
         keep_codes = self._combine_to_tuple(self.SPECIAL_CODES, self.cfg.data.code_types)
-        keep_tokens = set([token for code, token in data.vocabulary.items() if self.utils.code_starts_with(code, keep_codes)])
-        logger.info(f"Keep only codes starting with: {keep_codes}")
+        keep_tokens = set([token for code, token in data.vocabulary.items() if code.startswith(keep_codes)])
         for patient_index, patient in enumerate(iter_patients(data.features)):
             self._filter_patient(data, patient, keep_tokens, patient_index)
         data.vocabulary = self._filter_vocabulary(data.vocabulary, keep_tokens)
@@ -141,10 +138,7 @@ class PatientFilter:
     @staticmethod
     def exclude_pids(data: Data, exclude_pids: List[str]) -> Data:
         """Exclude pids from data."""
-        logger.info(f"Excluding {len(exclude_pids)} pids")
-        logger.info(f"Pids before exclusion: {len(data.pids)}")
         current_pids = data.pids
         data = data.select_data_subset_by_pids(list(set(current_pids).difference(set(exclude_pids))), mode=data.mode)
-        logger.info(f"Pids after exclusion: {len(data.pids)}")
         return data
 

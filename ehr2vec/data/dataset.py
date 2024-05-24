@@ -1,18 +1,14 @@
-import logging
-
-import pandas as pd
 import torch
+import pandas as pd
 from ehr2vec.data.mask import ConceptMasker
 from torch.utils.data import Dataset
 
-logger = logging.getLogger(__name__)  # Get the logger for this module
-
 
 class BaseEHRDataset(Dataset):
-    def __init__(self, features:dict):
+    def __init__(self, features: dict):
         self.features = features
 
-    def _getpatient(self, index)->dict:
+    def _getpatient(self, index) -> dict:
         return {
             key: torch.as_tensor(values[index]) for key, values in self.features.items()
         }
@@ -39,7 +35,7 @@ class MLMDataset(BaseEHRDataset):
 
     def __getitem__(self, index: int)->dict:
         patient = super().__getitem__(index)
-        masked_concepts, target = self.masker.mask_patient_concepts(patient)
+        masked_concepts, target = self.masker.mask_patient_concepts(patient["concept"])
         patient["concept"] = masked_concepts
         patient["target"] = target
         return patient
@@ -51,8 +47,7 @@ class BinaryOutcomeDataset(BaseEHRDataset):
     outcomes is a list of the outcome timestamps to predict
     """
 
-    def __init__(
-        self, features: dict, outcomes: list):
+    def __init__(self, features: dict, outcomes: list):
         super().__init__(features)
         self.outcomes = outcomes
         

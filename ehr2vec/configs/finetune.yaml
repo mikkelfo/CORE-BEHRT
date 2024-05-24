@@ -59,7 +59,6 @@ trainer_args:
   info: true
   gradient_clip: 
     clip_value: 1.0
-  mixed_precision: false
   shuffle: true
   checkpoint_frequency: 1
   early_stopping: 20

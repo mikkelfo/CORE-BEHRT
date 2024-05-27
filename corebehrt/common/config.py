@@ -5,21 +5,21 @@ import yaml
 class Config(dict):
     """Config class that allows for dot notation."""
     def __init__(self, dictionary=None):
-        super(Config, self).__init__()
+        super().__init__()
         if dictionary:
             for key, value in dictionary.items():
-                if isinstance(value, dict):
-                    value = Config(value)
-                elif isinstance(value, str):
-                    value = self.str_to_num(value)
-                self[key] = value
-                setattr(self, key, value)
+                self.set_value(key, value)
+
+    def set_value(self, key, value):
+        if isinstance(value, dict):
+            value = Config(value)
+        elif isinstance(value, str):
+            value = self.str_to_num(value)
+        self[key] = value
+        setattr(self, key, value)
 
     def __setattr__(self, key, value):
-        if isinstance(value, str):
-            value = self.str_to_num(value)
-        super(Config, self).__setattr__(key, value)
-        super(Config, self).__setitem__(key, value)
+        self.set_value(key, value)
 
     def str_to_num(self, s):
         """Converts a string to a float or int if possible."""
@@ -29,22 +29,16 @@ class Config(dict):
             return s
 
     def __setitem__(self, key, value):
-        if isinstance(value, str):
-            value = self.str_to_num(value)
-        super(Config, self).__setitem__(key, value)
-        super(Config, self).__setattr__(key, value)
+        self.set_value(key, value)
 
     def __delattr__(self, name):
-        if name in self:
-            dict.__delitem__(self, name)  # Use the parent class's method to avoid recursion
-        if hasattr(self, name):
-            super(Config, self).__delattr__(name)
+        self.__delitem__(name)
 
     def __delitem__(self, name):
         if name in self:
             dict.__delitem__(self, name)  # Use the parent class's method to avoid recursion
         if hasattr(self, name):
-            super(Config, self).__delattr__(name)
+            super().__delattr__(name)
     
     def yaml_repr(self, dumper):
         return dumper.represent_dict(self.to_dict())
@@ -59,9 +53,9 @@ class Config(dict):
                 result[key] = value
         return result
     
-    def save_to_yaml(config, file_name):
+    def save_to_yaml(self, file_name):
         with open(file_name, 'w') as file:
-            yaml.dump(config.to_dict(), file)
+            yaml.dump(self.to_dict(), file)
         
     def update(self, config: 'Config'):
         """Updates the config with a different config. Update only if key is not present in self."""
@@ -81,13 +75,6 @@ def instantiate(instantiate_config, **extra_kwargs):
     kwargs.update(extra_kwargs)
     instance = class_(**kwargs)
     return instance
-
-def get_function(config):
-    """Gets a function from a config object."""
-    module_path, function_name = config._target_.rsplit(".", 1)
-    module = importlib.import_module(module_path)
-    function = getattr(module, function_name)
-    return function
 
 def load_config(config_file):
     """Loads a yaml config file."""

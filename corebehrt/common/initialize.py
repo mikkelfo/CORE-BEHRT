@@ -14,7 +14,7 @@ from corebehrt.common.loader import ModelLoader, load_model_cfg_from_checkpoint
 from corebehrt.common.setup import DirectoryPreparer
 from corebehrt.common.utils import hook_fn
 from corebehrt.data.utils import Utilities
-from corebehrt.evaluation.utils import get_pos_weight, get_sampler
+from corebehrt.evaluation.utils import get_sampler
 from corebehrt.model.model import BertEHRModel, BertForFineTuning
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
@@ -48,9 +48,6 @@ class Initializer:
         if self.checkpoint:
             logger.info('Loading model from checkpoint')
             add_config = {**self.cfg.model}
-            add_config.update({'pos_weight':get_pos_weight(self.cfg, train_dataset.outcomes),
-                            'pool_type':self.cfg.model.get('pool_type', 'mean'),
-            })
             model = self.loader.load_model(
                 BertForFineTuning, 
                 checkpoint=self.checkpoint, 
@@ -60,13 +57,6 @@ class Initializer:
             return model
         else:
             raise NotImplementedError('Fine-tuning from scratch is not supported.')
-            logger.info('Initializing new model')
-            return BertForFineTuning(
-                BertConfig(
-                    **self.cfg.model,
-                    pos_weight=get_pos_weight(self.cfg, train_dataset.outcomes),
-                    embedding='original_behrt' if self.cfg.model.get('behrt_embeddings', False) else None,
-                    pool_type=self.cfg.model.get('pool_type', 'mean')),)
 
     def initialize_optimizer(self, model):
         """Initialize optimizer from checkpoint or from scratch."""

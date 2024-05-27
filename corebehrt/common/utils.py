@@ -62,18 +62,6 @@ def split_path(path_str: str) -> list:
             break
     return directories[::-1]  # Reverse the list to get original order
 
-def hook_fn(module, input, output):
-    """Hook function to check for NaNs in output of a module."""
-    if isinstance(output, torch.Tensor):
-        tensors = [output]
-    else:
-        # Assuming output is tuple, list or named tuple
-        tensors = [tensor for tensor in output if isinstance(tensor, torch.Tensor)]
-
-    for tensor in tensors:
-        if torch.isnan(tensor).any().item():
-            raise ValueError(f"NaNs in output of {module}")
-
 def convert_epochs_to_steps(cfg: Config, key: str, num_patients: int, batch_size: int)->None:
     """Convert number of epochs to number of steps based on number of patients and batch size"""
     logger.info(f"Computing number of steps from {key}")

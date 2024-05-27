@@ -42,7 +42,6 @@ model:
   type_vocab_size: 240 #  if discrete_abspos_embeddings: true, give the range of abspos in months
   plusplus: true
   abspos_embeddings: false
-  pool_type: mean
 optimizer:
   lr: 5e-4
   eps: 1e-6

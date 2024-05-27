@@ -42,12 +42,6 @@ def get_sampler(cfg, train_dataset, outcomes):
 def inverse_sqrt(x):
     return 1/np.sqrt(x)
 
-def get_pos_weight(cfg, outcomes):
-    if cfg.trainer_args.get('pos_weight', False):
-        return sum(pd.isna(outcomes)) / sum(pd.notna(outcomes))
-    else:
-        return None
-
 def compute_and_save_scores_mean_std(n_splits:int, finetune_folder: str, mode='val')->None:
     """Compute mean and std of test/val scores. And save to finetune folder."""
     scores = []

@@ -12,7 +12,6 @@ paths:
   #redefined_splits: outputs\pretraining\behrt_test\finetune_TEST_OUTCOME_censored_4_days_post_TEST_OUTCOME_test
   #exclude_pids: outputs\pretraining\behrt_test\finetune_TEST_OUTCOME_censored_4_days_post_TEST_OUTCOME_test\test_pids.pt
 model:
-  pool_type: "cls"
   #extend_head: 
   # hidden_size: null
   cls:
@@ -51,7 +50,6 @@ trainer_args:
   sample_weight_function:
     _target_: evaluation.utils.inverse_sqrt # function to calculate sample weights
   sample_weight_multiplier: 1 # adjust the sampling weight of the positive class (1 is balanced)
-  pos_weight: null # weight for positive class in the loss
   batch_size: 8
   val_batch_size: 16
   effective_batch_size: 16

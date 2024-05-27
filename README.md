@@ -1,7 +1,7 @@
 # CORE-BEHRT: A Carefully Optimized and Rigorously Evaluated BEHRT
 
 ## Overview
-CORE-BEHRT aims to provide a robust framework for reproducing state-of-the-art results in EHR data analysis using a BEHRT-like model. Follow the steps below to reproduce the results.
+This branch contains a core version (with only the essentials) of the CORE-BEHRT paper.
 
 ## Prerequisites
 Before you begin, ensure you have the necessary dependencies installed. This project may require:
@@ -36,11 +36,4 @@ To correctly prepare your data for processing, execute the scripts in the follow
 
 4. **Model Fine-tuning**
    - `main_finetune_cv`: Performs 5-fold cross-validation + evaluation on a holdout-set.
-
-### Evaluation and Visualization
-To evaluate the model performance:
-- `main_finetune_cv_get_stats`: Get basic statistics on patient sequences in train/val and test set.
-- `main_finetune_cv_test`: Test models trained in CV on a dataset of your choice.
-- `main_encode_censored_patients`: Encodes sequences using a trained model, specifically censored on a predetermined event.
-- `main_encode_concepts`: Save encodings of concepts.
 

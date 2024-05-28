@@ -1,5 +1,6 @@
 import pandas as pd
 from typing import Generator
+from corebehrt.common.utils import iter_patients
 
 class Handler:
     def __init__(self, min_age: int = -1, max_age: int = 120):
@@ -12,7 +13,7 @@ class Handler:
     def handle(self, features: dict) -> dict:
         """Handle the features, including: incorrect ages, nans, and segments."""
         handled_patients = {k: [] for k in features}
-        for patient in self._iter_patients(features):
+        for patient in iter_patients(features):
             patient = self.handle_incorrect_ages(patient, min_age=self.min_age, max_age=self.max_age)
 
             patient = self.handle_nans(patient)
@@ -52,9 +53,4 @@ class Handler:
         converter = {k: v for (k,v) in zip(segment_set, correct_segments)}
 
         return [converter[segment] for segment in segments]
-    
-    @staticmethod
-    def _iter_patients(features: dict) -> Generator[dict, None, None]:
-        for i in range(len(features['concept'])):
-            yield {k: v[i] for k, v in features.items()}
 

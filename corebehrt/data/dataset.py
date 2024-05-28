@@ -1,7 +1,7 @@
 import torch
 import pandas as pd
-from corebehrt.data.mask import ConceptMasker
 from torch.utils.data import Dataset
+from corebehrt.data.mask import ConceptMasker
 
 
 class BaseEHRDataset(Dataset):

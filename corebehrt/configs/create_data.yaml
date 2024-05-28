@@ -24,9 +24,8 @@ features:
   background: ['GENDER']
 
 tokenizer:
-  sep_tokens: false
+  sep_tokens: true
   cls_token: true
-  padding: false
   truncation: null
   #cutoffs:
    # D: 3 # diagnosis

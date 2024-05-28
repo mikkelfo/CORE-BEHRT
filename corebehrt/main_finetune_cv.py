@@ -12,8 +12,7 @@ from corebehrt.common.utils import Data, compute_number_of_warmup_steps
 from corebehrt.data.dataset import BinaryOutcomeDataset
 from corebehrt.data.prepare_data import DatasetPreparer
 from corebehrt.data.split import get_n_splits_cv
-from corebehrt.evaluation.utils import (
-    check_data_for_overlap, compute_and_save_scores_mean_std, save_data,
+from corebehrt.evaluation.utils import (compute_and_save_scores_mean_std, save_data,
     split_into_test_data_and_train_val_indices)
 from corebehrt.trainer.trainer import EHRTrainer
 
@@ -91,7 +90,6 @@ def finetune_fold(cfg, train_data:Data, val_data:Data,
 def split_and_finetune(data: Data, train_indices: list, val_indices: list, fold: int, test_data: Data=None):
     train_data = data.select_data_subset_by_indices(train_indices, mode='train')
     val_data = data.select_data_subset_by_indices(val_indices, mode='val')
-    check_data_for_overlap(train_data, val_data, test_data)
     finetune_fold(cfg, train_data, val_data, fold, test_data)
 
 def _limit_patients(indices_or_pids: list, split: str)->list:
@@ -136,7 +134,6 @@ def cv_loop_predefined_splits(data: Data, predefined_splits_dir: str, test_data:
             train_data = data.select_data_subset_by_pids(train_pids, mode='train')
         if len(val_pids)<len(val_data.pids):
             val_data = data.select_data_subset_by_pids(val_pids, mode='val')
-        check_data_for_overlap(train_data, val_data, test_data)
         finetune_fold(cfg, train_data, val_data, fold, test_data)
     return N_SPLITS
 

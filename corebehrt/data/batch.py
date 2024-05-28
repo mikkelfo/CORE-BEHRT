@@ -175,12 +175,11 @@ class BatchTokenize:
         self.tokenizer = tokenizer
         self.cfg = cfg
         self.tokenized_dir_name = tokenized_dir_name
-        self.create_tokenized_directory()
-        self.pid2fileid = self.map_pids_to_file_ids(pids)
-
-    def create_tokenized_directory(self)->None:
-        """Creates the directory for storing tokenized data."""
+        # Create the tokenized directory
         os.makedirs(join(self.cfg.output_dir, self.tokenized_dir_name), exist_ok=True)
+
+        self.pid2fileid = self.map_pids_to_file_ids(pids)
+        
     @staticmethod
     def map_pids_to_file_ids(pids: List[List[str]])->Dict[str, int]:
         """Maps PIDs to file IDs."""

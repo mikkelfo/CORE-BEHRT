@@ -59,14 +59,6 @@ class Utilities:
                                      origin_point: Dict[str, int])->Union[pd.Series, List[float]]:
         """Get the absolute position in hours from the origin point"""
         origin_point = datetime(**origin_point)
-        abspos = Utilities.get_relative_timestamps_in_hours(timestamps, origin_point)
-
-        return abspos
-
-    @staticmethod
-    def get_relative_timestamps_in_hours(timestamps:Union[pd.Series, List[datetime]], 
-                                         origin_point: datetime)->Union[pd.Series, List[float]]:
-        """Get the relative position in hours from the origin point"""
         if isinstance(timestamps, pd.Series):
             return (timestamps - origin_point).dt.total_seconds() / 60 / 60
         elif isinstance(timestamps, list):
@@ -92,8 +84,7 @@ class Utilities:
             if gender_key in keys:
                 gender_category = category
                 break
-
-        if gender_category is None:
+        else:   # If gender_key is not found in any category
             raise ValueError(f"Unknown gender {gender_key}, please select one of {BG_GENDER_KEYS}")
 
         # Check the vocabulary for a matching token
@@ -109,62 +100,10 @@ class Utilities:
         """Returns the epoch of the last checkpoint."""
         # Regular expression to match the pattern retry_XXX
         pattern = re.compile(r"checkpoint_epoch(\d+)_end\.pt$")
-        max_epoch = None
-        for filename in os.listdir(checkpoint_folder):
-            match = pattern.match(filename)
-            if match:
-                epoch = int(match.group(1))
-                if max_epoch is None or epoch > max_epoch:
-                    max_epoch = epoch
-        # Return the folder with the maximum retry number
-        if max_epoch is None:
+        epochs = [int(pattern.match(filename)) for filename in os.listdir(checkpoint_folder)]
+        if not epochs:
             raise ValueError("No checkpoint found in folder {}".format(checkpoint_folder))
-
-        return max_epoch
-
-    @staticmethod
-    def filter_and_order_outcomes(outcomes_dic:Dict[str, Dict], pids: List):
-        """outcomes_dic: groups of outcomes, every group contains another dictionary with pids and outcomes"""
-        ordered_outcomes = {}
-        for _, outcomes_group in outcomes_dic.items():
-            for outcome_name, _ in outcomes_group.items():
-                if outcome_name =='PID':
-                    continue
-                outcome_temp = Utilities.select_and_order_outcomes_for_patients(
-                    all_outcomes=outcomes_group, pids = pids, outcome=outcome_name)
-                assert len(outcome_temp)==len(pids), "Pids and outcomes do not have the same number of patients"
-                ordered_outcomes[outcome_name] = outcome_temp
-
-        del outcome_temp
-        return ordered_outcomes
-
-    @staticmethod
-    def iter_patients(data) -> Generator[dict, dict, dict]:
-        """Iterate over patients in a features dict."""
-        for i in range(len(data.features["concept"])):
-            yield {key: values[i] for key, values in data.features.items()}, {key: values[i] for key, values in data.outcomes.items()}
-
-    @staticmethod
-    def censor(patient: dict, event_timestamp: float) -> dict:
-        """Censor the patient's features based on the event timestamp."""
-        if not pd.isna(event_timestamp):
-            # Extract absolute positions and concepts for non-masked items
-            absolute_positions = patient["abspos"]
-            concepts = patient["concept"]
-            # Determine which items to censor based on the event timestamp and background flags
-            censor_flags = Utilities._generate_censor_flags(absolute_positions, event_timestamp)
-        
-            for key, value in patient.items():
-                patient[key] = [item for index, item in enumerate(value) if censor_flags[index]]
-
-        return patient
-
-    @staticmethod
-    def _generate_censor_flags(absolute_positions: List[float], event_timestamp: float) -> List[bool]:
-        """Generate flags indicating which items to censor."""
-        return [
-            position - event_timestamp <= 0 for position in absolute_positions
-        ]
+        return max(epochs)
 
     @staticmethod
     def select_and_reorder_feats_and_pids(feats: Dict[str, List], pids: List[str], select_pids: List[str])->Tuple[Dict[str, List], List[str]]:

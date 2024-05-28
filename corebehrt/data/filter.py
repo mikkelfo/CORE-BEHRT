@@ -15,7 +15,6 @@ SPECIAL_CODES = ['[', 'BG_']
 class CodeTypeFilter:
     def __init__(self, cfg: Config):
         self.cfg = cfg
-        self.utils = Utilities
         self.SPECIAL_CODES = SPECIAL_CODES
 
     def filter(self, data: Data) -> Data:
@@ -34,8 +33,7 @@ class CodeTypeFilter:
         concepts = patient['concept']
         keep_entries = {i: token for i, token in enumerate(concepts) if token in keep_tokens}
         for k, v in patient.items():
-            filtered_list = [v[i] for i in keep_entries]
-            data.features[k][patient_index] = filtered_list
+            data.features[k][patient_index] = [v[i] for i in keep_entries]
 
     def _filter_vocabulary(self, vocabulary: dict, keep_tokens: set) -> dict:
         """Filter vocabulary in place by removing tokens that are not in keep_tokens"""
@@ -56,23 +54,13 @@ class CodeTypeFilter:
 class PatientFilter:
     def __init__(self, cfg: Config) -> None:
         self.cfg = cfg
-        self.utils = Utilities
-
-    def exclude_pretrain_patients(self, data: Data)->Data:
-        """Exclude patients from pretraining set."""
-        pretrain_pids = set()
-        for mode in ['train', 'val']:
-            pretrain_pids.update(set(torch.load(join(self.cfg.paths.pretrain_model_path, f'pids_{mode}.pt'))))
-        kept_indices = [i for i, pid in enumerate(data.pids) if pid not in pretrain_pids]
-        return self.select_entries(data, kept_indices)
 
     def filter_outcome_before_censor(self, data: Data) -> Data:
         """Filter patients with outcome before censoring and missing censoring when outcome present."""
         kept_indices = []
         for i, (outcome, censor) in enumerate(zip(data.outcomes, data.censor_outcomes)):
-            if pd.isna(censor):
-                if pd.isna(outcome):
-                    kept_indices.append(i)
+            if pd.isna(censor) and pd.isna(outcome):
+                kept_indices.append(i)
             elif pd.isna(outcome) or outcome >= (censor + self.cfg.outcome.n_hours):
                 kept_indices.append(i)
         return self.select_entries(data, kept_indices)
@@ -99,14 +87,14 @@ class PatientFilter:
         max_age = self.cfg.data.get('max_age', 120)
 
         # Calculate ages at censor date for all patients
-        ages_at_censor_date = self.utils.calculate_ages_at_censor_date(data)
+        ages_at_censor_date = Utilities.calculate_ages_at_censor_date(data)
         kept_indices = [i for i, age in enumerate(ages_at_censor_date) 
                 if min_age <= age <= max_age]
         return self.select_entries(data, kept_indices)
 
     def select_by_gender(self, data: Data) -> Data:
         """Select only patients of a certain gender"""
-        gender_token = self.utils.get_gender_token(data.vocabulary, self.cfg.data.gender)
+        gender_token = Utilities.get_gender_token(data.vocabulary, self.cfg.data.gender)
         kept_indices = [i for i, concepts in enumerate(data.features['concept']) if gender_token in set(concepts)]
         return self.select_entries(data, kept_indices)
     

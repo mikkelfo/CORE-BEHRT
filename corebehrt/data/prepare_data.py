@@ -28,7 +28,6 @@ VOCABULARY_FILE = 'vocabulary.pt'
 class DatasetPreparer:
     def __init__(self, cfg: Config):
         self.cfg = cfg
-        self.utils = Utilities
         self.loader = FeaturesLoader(cfg)
         
         run_folder = join(self.cfg.paths.output_path, self.cfg.paths.run_name)
@@ -62,7 +61,7 @@ class DatasetPreparer:
         if self.cfg.paths.get('exclude_pids', None) is not None:
             logger.info(f"Pids to exclude: {self.cfg.paths.exclude_pids}")
             exclude_pids = load_exclude_pids(self.cfg.paths)
-            data = self.utils.process_data(data, self.patient_filter.exclude_pids, args_for_func={'exclude_pids': exclude_pids})
+            data = Utilities.process_data(data, self.patient_filter.exclude_pids, args_for_func={'exclude_pids': exclude_pids})
 
         predefined_pids =  'predefined_splits' in self.cfg.paths
         if predefined_pids:
@@ -83,49 +82,49 @@ class DatasetPreparer:
         if not predefined_pids:        
             # 2. Optional: Select gender group
             if data_cfg.get('gender'):
-                data = self.utils.process_data(data, self.patient_filter.select_by_gender)
+                data = Utilities.process_data(data, self.patient_filter.select_by_gender)
             
             # 4. Loading and processing outcomes
             outcomes, censor_outcomes = self.loader.load_outcomes()
             logger.info("Assigning outcomes to data")
-            data = self.utils.process_data(data, self._retrieve_and_assign_outcomes,
+            data = Utilities.process_data(data, self._retrieve_and_assign_outcomes,
                                             args_for_func={'outcomes': outcomes, 'censor_outcomes': censor_outcomes})
 
             # 5. Optional: select patients of interest
             if data_cfg.get("select_censored"):
-                data = self.utils.process_data(data, self.patient_filter.select_censored)
+                data = Utilities.process_data(data, self.patient_filter.select_censored)
 
             # 6. Optional: Filter patients with outcome before censoring
             if self.cfg.outcome.type != self.cfg.outcome.get('censor_type', None):
-                data = self.utils.process_data(data, self.patient_filter.filter_outcome_before_censor) # !Timeframe (earlier instance of outcome)
+                data = Utilities.process_data(data, self.patient_filter.filter_outcome_before_censor) # !Timeframe (earlier instance of outcome)
 
             # 7. Optional: Filter code types
             if data_cfg.get('code_types'):
-                data = self.utils.process_data(data, self.code_type_filter.filter)
-                data = self.utils.process_data(data, self.patient_filter.exclude_short_sequences)
+                data = Utilities.process_data(data, self.code_type_filter.filter)
+                data = Utilities.process_data(data, self.patient_filter.exclude_short_sequences)
 
         # 8. Data censoring
-        data = self.utils.process_data(data, self.data_modifier.censor_data,
+        data = Utilities.process_data(data, self.data_modifier.censor_data,
                                                args_for_func={'n_hours': self.cfg.outcome.n_hours})
         if not predefined_pids:
             # 3. Optional: Select Patients By Age
             if data_cfg.get('min_age') or data_cfg.get('max_age'):
-                data = self.utils.process_data(data, self.patient_filter.select_by_age)
+                data = Utilities.process_data(data, self.patient_filter.select_by_age)
         
         # 9. Exclude patients with less than k concepts
-        data = self.utils.process_data(data, self.patient_filter.exclude_short_sequences)
+        data = Utilities.process_data(data, self.patient_filter.exclude_short_sequences)
 
         # 10. Optional: Patient selection
         if data_cfg.get('num_patients') and not predefined_pids:
-            data = self.utils.process_data(data, self.patient_filter.select_random_subset,
+            data = Utilities.process_data(data, self.patient_filter.select_random_subset,
                                               args_for_func={'num_patients':data_cfg.num_patients})
 
         # 12. Truncation
         logger.info(f"Truncating data to {data_cfg.truncation_len} tokens")
-        data = self.utils.process_data(data, self.data_modifier.truncate, args_for_func={'truncation_len': data_cfg.truncation_len})
+        data = Utilities.process_data(data, self.data_modifier.truncate, args_for_func={'truncation_len': data_cfg.truncation_len})
 
         # 13. Normalize segments
-        data = self.utils.process_data(data, self.data_modifier.normalize_segments)
+        data = Utilities.process_data(data, self.data_modifier.normalize_segments)
 
         # 14. Optional: Remove any unwanted features
         if 'remove_features' in data_cfg:
@@ -135,7 +134,7 @@ class DatasetPreparer:
 
         # Verify and save
         data.check_lengths()
-        data = self.utils.process_data(data, self.saver.save_sequence_lengths)
+        data = Utilities.process_data(data, self.saver.save_sequence_lengths)
         
         excluded_pids = list(set(initial_pids).difference(set(data.pids)))
         self.saver.save_list(excluded_pids, 'excluded_pids.pt')
@@ -162,7 +161,7 @@ class DatasetPreparer:
         if self.cfg.paths.get('exclude_pids', None) is not None:
             logger.info(f"Pids to exclude: {self.cfg.paths.exclude_pids}")
             exclude_pids = load_exclude_pids(self.cfg.paths)
-            data = self.utils.process_data(data, self.patient_filter.exclude_pids, args_for_func={'exclude_pids': exclude_pids})
+            data = Utilities.process_data(data, self.patient_filter.exclude_pids, args_for_func={'exclude_pids': exclude_pids})
 
         predefined_pids =  'predefined_splits' in self.cfg.paths
         if predefined_pids:
@@ -170,25 +169,25 @@ class DatasetPreparer:
             data = self._select_predefined_pids(data)
 
         # 3. Exclude short sequences
-        data = self.utils.process_data(data, self.patient_filter.exclude_short_sequences)
+        data = Utilities.process_data(data, self.patient_filter.exclude_short_sequences)
         if not predefined_pids:
             # 4. Optional: Patient Subset Selection
             if data_cfg.get('num_patients'):
-                data = self.utils.process_data(data, self.patient_filter.select_random_subset, args_for_func={'num_patients':data_cfg.num_patients})
+                data = Utilities.process_data(data, self.patient_filter.select_random_subset, args_for_func={'num_patients':data_cfg.num_patients})
 
         # 5. Truncation
         logger.info(f"Truncating data to {data_cfg.truncation_len} tokens")
-        data = self.utils.process_data(data, self.data_modifier.truncate, args_for_func={'truncation_len': data_cfg.truncation_len})
+        data = Utilities.process_data(data, self.data_modifier.truncate, args_for_func={'truncation_len': data_cfg.truncation_len})
 
         # 6. Normalize segments
-        data = self.utils.process_data(data, self.data_modifier.normalize_segments)
+        data = Utilities.process_data(data, self.data_modifier.normalize_segments)
       
         # Adjust max segment if needed
-        self.utils.check_and_adjust_max_segment(data, model_cfg)
+        Utilities.check_and_adjust_max_segment(data, model_cfg)
 
         # Verify and save
         data.check_lengths()
-        data = self.utils.process_data(data, self.saver.save_sequence_lengths)
+        data = Utilities.process_data(data, self.saver.save_sequence_lengths)
 
         self.saver.save_data(data)
         self._log_features(data)
@@ -196,9 +195,9 @@ class DatasetPreparer:
 
     def _retrieve_and_assign_outcomes(self, data: Data, outcomes: Dict, censor_outcomes: Dict)->Data:
         """Retrieve outcomes and assign them to the data instance"""
-        data.outcomes = self.utils.select_and_order_outcomes_for_patients(outcomes, data.pids, self.cfg.outcome.type)
+        data.outcomes = Utilities.select_and_order_outcomes_for_patients(outcomes, data.pids, self.cfg.outcome.type)
         if self.cfg.outcome.get('censor_type') is not None:
-            data.censor_outcomes = self.utils.select_and_order_outcomes_for_patients(censor_outcomes, data.pids, self.cfg.outcome.censor_type)
+            data.censor_outcomes = Utilities.select_and_order_outcomes_for_patients(censor_outcomes, data.pids, self.cfg.outcome.censor_type)
         else:
             data.censor_outcomes = [None]*len(outcomes)
         return data

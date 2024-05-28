@@ -1,6 +1,6 @@
 import pandas as pd
 
-""" Currently unused - Inferring is doing during formatting """
+""" Inferring is doing during ehr_preprocess """
 class Inferrer:
     def __init__(self, functions: list = ['SEGMENT', 'TIMESTAMP']):
         function_dict = {

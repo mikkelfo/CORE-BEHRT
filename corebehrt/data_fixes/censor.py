@@ -6,15 +6,14 @@ from corebehrt.common.utils import iter_patients
 
 
 class Censorer:
-    def __init__(self, n_hours: int, vocabulary:dict=None) -> None:
+    def __init__(self, n_hours: int, vocabulary: dict) -> None:
         """Censor the features based on the event timestamp.
         n_hours if positive, censor all items that occur n_hours after event."""
         self.n_hours = n_hours
         self.vocabulary = vocabulary
 
-    def __call__(self, features: dict, censor_outcomes: list) -> tuple:
+    def __call__(self, features: dict, censor_outcomes: list) -> dict:
         return self.censor(features, censor_outcomes)
-        
 
     def censor(self, features: dict, censor_outcomes: list) -> dict:
         """Censor the features based on the censor outcomes."""

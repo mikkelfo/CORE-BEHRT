@@ -1,23 +1,14 @@
 import os
-from datetime import datetime
-from os.path import join
-from typing import Tuple
-
+import torch
 import numpy as np
 import pandas as pd
-import torch
+from typing import Tuple
+from os.path import join
+from datetime import datetime
+
 from torch.utils.data import WeightedRandomSampler
 
 from corebehrt.common.utils import Data
-
-
-def validate_outcomes(all_outcomes, cfg):
-    for outcome in cfg.outcomes:
-        cfg.outcome = cfg.outcomes[outcome]
-        if cfg.outcome.type:
-            assert cfg.outcome.type in all_outcomes, f"Outcome {cfg.outcome.type} not found in outcomes."
-        if cfg.outcome.get('censor_type', False):
-            assert cfg.outcome.censor_type in all_outcomes, f"Censor type {cfg.outcome.censor_type} not found in outcomes."
 
 def get_sampler(cfg, train_dataset, outcomes):
     """Get sampler for training data.
@@ -27,9 +18,7 @@ def get_sampler(cfg, train_dataset, outcomes):
         labels = pd.Series(outcomes).notna().astype(int)
         value_counts = labels.value_counts()
         label_weight = inverse_sqrt(value_counts)
-        label_weight[1] *= cfg.trainer_args.get('sample_weight_multiplier', 1.0) 
         weights = labels.map(label_weight).values
-        # Adjust the weight for the positive class (1) using the sample_weight
         sampler = WeightedRandomSampler(
             weights=weights,
             num_samples=len(train_dataset),
@@ -57,23 +46,6 @@ def compute_and_save_scores_mean_std(n_splits:int, finetune_folder: str, mode='v
     scores_mean_std = scores.groupby('metric')['value'].agg(['mean', 'std'])
     date = datetime.now().strftime("%Y%m%d-%H%M")
     scores_mean_std.to_csv(join(finetune_folder, f'{mode}_scores_mean_std_{date}.csv'))
-
-def check_data_for_overlap(train_data: Data, val_data: Data, test_data: Data=None)->None:
-    """Check that there is no overlap between train, val and test data"""
-    train_pids = set(train_data.pids)
-    val_pids = set(val_data.pids)
-    assert len(train_pids.intersection(val_pids)) == 0, "Train and val data overlap"
-    if test_data is not None:
-        test_pids = set(test_data.pids) if len(test_data) > 0 else set()
-        assert len(train_pids.intersection(test_pids)) == 0, "Train and test data overlap"
-        assert len(val_pids.intersection(test_pids)) == 0, "Val and test data overlap"
-
-def check_predefined_pids(data :Data, cfg)->None:
-    if 'predefined_splits' in cfg.paths:
-        all_predefined_pids = torch.load(join(cfg.paths.predefined_splits, 'pids.pt'))
-        if not set(all_predefined_pids).issubset(set(data.pids)):
-            difference = len(set(all_predefined_pids).difference(set(data.pids)))
-            raise ValueError(f"Pids in the predefined splits must be a subset of data.pids. There are {difference} pids in the data that are not in the predefined splits")
 
 def split_test_set(indices:list, test_split:float)->Tuple[list, list]:
     """Split intro test and train_val indices"""

@@ -12,7 +12,6 @@ from corebehrt.common.azure import AzurePathContext
 from corebehrt.common.config import Config, instantiate, load_config
 from corebehrt.common.loader import ModelLoader, load_model_cfg_from_checkpoint
 from corebehrt.common.setup import DirectoryPreparer
-from corebehrt.common.utils import hook_fn
 from corebehrt.data.utils import Utilities
 from corebehrt.evaluation.utils import get_sampler
 from corebehrt.model.model import BertEHRModel, BertForFineTuning
@@ -39,9 +38,6 @@ class Initializer:
             logger.info('Initializing new model')
             vocab_size = len(train_dataset.vocabulary)
             model = BertEHRModel(BertConfig( **self.cfg.model, vocab_size=vocab_size,))
-        # ! Uncomment if instabilities occur.
-        #for layer in model.modules():
-         #   layer.register_forward_hook(hook_fn)
         return model
         
     def initialize_finetune_model(self, train_dataset):

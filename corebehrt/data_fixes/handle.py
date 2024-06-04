@@ -1,5 +1,4 @@
 import pandas as pd
-from typing import Generator
 from corebehrt.common.utils import iter_patients
 
 class Handler:

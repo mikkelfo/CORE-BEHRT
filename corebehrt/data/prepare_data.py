@@ -4,7 +4,6 @@ import os
 from os.path import join
 from typing import Dict, List, Tuple, Union
 
-import numpy as np
 import pandas as pd
 import torch
 

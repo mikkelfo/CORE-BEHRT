@@ -9,7 +9,6 @@ from typing import Dict, Generator, List, Optional, Tuple
 
 import pandas as pd
 import torch
-from torch.utils.data import IterableDataset
 
 from corebehrt.common.config import Config
 

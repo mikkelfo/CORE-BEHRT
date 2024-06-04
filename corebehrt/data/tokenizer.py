@@ -1,8 +1,8 @@
 import torch
 from transformers import BatchEncoding
 
-from corebehrt.data_fixes.handle import Handler
 from corebehrt.common.utils import iter_patients
+
 
 class EHRTokenizer:
     def __init__(self, config, vocabulary=None):
@@ -21,11 +21,10 @@ class EHRTokenizer:
             self.vocabulary = vocabulary
         self.cutoffs = config.get('cutoffs')
         
-    def __call__(self, features: dict, truncation=None)->BatchEncoding:
-        truncation = self.truncation if truncation is None else truncation
-        return self.batch_encode(features, truncation)
+    def __call__(self, features: dict)->BatchEncoding:
+        return self.batch_encode(features)
 
-    def batch_encode(self, features: dict, truncation=512)->BatchEncoding:
+    def batch_encode(self, features: dict)->BatchEncoding:
         data = {key: [] for key in features}
         data['attention_mask'] = []
 

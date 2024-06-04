@@ -4,7 +4,7 @@ import numpy as np
 import logging
 import pandas as pd
 from datetime import datetime
-from typing import Dict, List, Tuple, Union, Generator
+from typing import Dict, List, Tuple, Union
 
 from corebehrt.common.config import Config
 from corebehrt.common.utils import Data

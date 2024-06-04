@@ -8,7 +8,6 @@ from os.path import join
 from typing import Dict, Generator, List, Optional, Tuple
 
 import torch
-from torch.utils.data import IterableDataset
 
 logger = logging.getLogger(__name__)  # Get the logger for this module
 
@@ -162,14 +161,3 @@ class Data:
         random.shuffle(indices)
         split_index = int(len(indices)*(1-split))
         return indices[:split_index], indices[split_index:]
-
-class ConcatIterableDataset(IterableDataset):
-    def __init__(self, datasets):
-        self.datasets = datasets
-        self.pids = [pid for dataset in datasets for pid in dataset.pids]
-        self.file_ids = [file_id for dataset in datasets for file_id in dataset.file_ids]
-    def __iter__(self):
-        for dataset in self.datasets:
-            yield from dataset
-    def __len__(self):
-        return sum([len(dataset) for dataset in self.datasets])

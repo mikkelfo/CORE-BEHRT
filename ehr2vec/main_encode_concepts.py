@@ -11,7 +11,6 @@ from ehr2vec.common.azure import AzurePathContext, save_to_blobstore
 from ehr2vec.common.config import load_config
 from ehr2vec.common.loader import ModelLoader
 from ehr2vec.common.setup import get_args, DirectoryPreparer 
-from ehr2vec.common.utils import ConcatIterableDataset
 from ehr2vec.common.io import ConceptHDF5Writer
 from ehr2vec.data.dataset import BaseEHRDataset
 from ehr2vec.evaluation.encodings import Forwarder
@@ -61,10 +60,8 @@ def get_dataset(cfg):
     pids = retrieve_relevant_pids(all_outcomes, cfg)
     train_dataset = BaseEHRDataset(cfg.paths.data_path, 'train', pids)
     val_dataset = BaseEHRDataset(cfg.paths.data_path, 'val',  pids=pids)
-    if isinstance(train_dataset, type(None)) or isinstance(val_dataset, type(None)):
-        return train_dataset if train_dataset is not None else val_dataset
-    else:
-        return ConcatIterableDataset([train_dataset, val_dataset])
+    return train_dataset if train_dataset is not None else val_dataset
+
         
 def retrieve_relevant_pids(all_outcomes, cfg):
     pids = []

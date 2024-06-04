@@ -14,7 +14,6 @@ from ehr2vec.common.io import PatientHDF5Writer
 from ehr2vec.common.loader import ModelLoader
 from ehr2vec.common.logger import close_handlers
 from ehr2vec.common.setup import DirectoryPreparer, get_args, setup_logger
-from ehr2vec.common.utils import ConcatIterableDataset
 from ehr2vec.data.prepare_data import DatasetPreparer
 from ehr2vec.evaluation.encodings import Forwarder
 from ehr2vec.evaluation.utils import validate_outcomes
@@ -67,7 +66,7 @@ def main_encode():
         logger.info(f"Censoring {cfg.outcome.n_hours} hours after {cfg.outcome.censor_type}")
         logger.info("Creating datasets")
         dataset_preparer = DatasetPreparer(cfg)
-        data = dataset_preparer.prepare_finetune_data() 
+        dataset = dataset_preparer.prepare_finetune_data() 
         
         output_path_name = _get_output_path_name(dataset, cfg)
         cfg.output_dir = join(output_dir, output_path_name)

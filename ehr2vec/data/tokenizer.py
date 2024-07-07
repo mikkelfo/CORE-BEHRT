@@ -58,14 +58,19 @@ class EHRTokenizer:
             concepts = self.limit_concepts_length(concepts) # Truncate concepts to max_concept_length
         if self.new_vocab:
             for concept in concepts:
-                if concept not in self.vocabulary:
+                if concept not in self.vocabulary and not concept.startswith('VAL_'):
                     self.vocabulary[concept] = len(self.vocabulary)
 
-            encoded_sequence = [self.vocabulary.get(concept, self.vocabulary['[UNK]']) for concept in concepts]
+            encoded_sequence = [self._encode(concept) for concept in concepts]
         else:
             encoded_sequence = [self.vocabulary.get(concept, self.find_closest_ancestor(concept)) for concept in concepts]
         return encoded_sequence
     
+    def _encode(self, concept):
+        if concept.startswith('VAL_'):
+            return -float(concept[4:]) - 1e-8   # Reserve negative values for value concepts (we transform it during embedding)
+        return self.vocabulary.get(concept, self.vocabulary['[UNK]'])
+
     def find_closest_ancestor(self, concept)->int:
         """Find closest ancestor of concept in vocabulary"""
         while concept not in self.vocabulary and len(concept)>0:

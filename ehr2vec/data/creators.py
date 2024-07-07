@@ -85,3 +85,12 @@ class BackgroundCreator(BaseCreator):
         background = pd.DataFrame(background)
         return pd.concat([background, concepts])
 
+class ValueCreator(BaseCreator):
+    feature = id = 'values'
+    def create(self, concepts: pd.DataFrame, patients_info: pd.DataFrame)-> pd.DataFrame:
+        # Create value concepts
+        values = concepts[concepts['VALUE'].notna()].copy()
+        values.groupby('CONCEPT')['VALUE'].transform(lambda x: (x - x.min()) / (x.max() - x.min())) # Normalize values to [0, 1] within concept
+        values['CONCEPT'] = 'VAL_' + values['VALUE'].astype(str)
+
+        return pd.concat([concepts, values])

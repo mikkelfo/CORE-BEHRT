@@ -91,6 +91,8 @@ class ValueCreator(BaseCreator):
         # Create value concepts
         values = concepts[concepts['VALUE'].notna()].copy()
         values.groupby('CONCEPT')['VALUE'].transform(lambda x: (x - x.min()) / (x.max() - x.min())) # Normalize values to [0, 1] within concept
+        # Convert to int and bin them
+        values['VALUE'] = (values['VALUE'] * 100).astype(int)
         values['CONCEPT'] = 'VAL_' + values['VALUE'].astype(str)
 
         return pd.concat([concepts, values])

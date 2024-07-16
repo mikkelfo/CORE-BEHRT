@@ -64,8 +64,6 @@ class EhrEmbeddings(BaseEmbeddings):
     def initialize_embeddings(self, config: BertConfig)->None:
         logger.info("Initialize Concept/Segment/Age embeddings.")
         self.concept_embeddings = nn.Embedding(config.vocab_size, config.hidden_size)
-        self.value_embeddings = nn.Linear(1, config.hidden_size)
-        self.normalize = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
         #self.age_embeddings = nn.Embedding(AGE_VOCAB_SIZE, config.hidden_size)
         self.age_embeddings = Time2Vec(1, config.hidden_size, init_scale=TIME2VEC_AGE_MULTIPLIER, clip_min=TIME2VEC_MIN_CLIP, clip_max=TIME2VEC_MAX_CLIP)
         if config.to_dict().get('abspos_embeddings', True):
@@ -85,24 +83,8 @@ class EhrEmbeddings(BaseEmbeddings):
     )->torch.Tensor:
         if inputs_embeds is not None:
             return inputs_embeds
-
-        # Create placeholder to populate after embedding categorical and continuous separately
-        embeddings = torch.zeros(*input_ids.shape, self.hidden_size, device=input_ids.device)
         
-        # Separate concepts and values (and revert negative tokenizer hack)
-        concept_mask = input_ids >= 0
-        concept_ids = input_ids[concept_mask]
-        value_ids = input_ids[~concept_mask]
-        value_ids = -value_ids - 1e-8 # Revert tokenizer hack of negative values
-
-        # Embed concepts and values
-        concept_embeddings = self.a * self.concept_embeddings(concept_ids.long())
-        value_embeddings = self.a * self.value_embeddings(value_ids.unsqueeze(1))
-
-        # Populate embeddings with concept and value embeddings
-        embeddings[concept_mask] = concept_embeddings
-        embeddings[~concept_mask] = value_embeddings
-        embeddings = self.normalize(embeddings)
+        embeddings = self.a * self.concept_embeddings(input_ids)
         
         if token_type_ids is not None:
             segments_embedded = self.segment_embeddings(token_type_ids)

@@ -204,6 +204,16 @@ class DatasetPreparer:
             logger.warning("Using predefined splits. Ignoring test_split parameter")
             data = self._select_predefined_pids(data)
 
+        # CUTOFF: Loading and processing outcomes
+        outcomes, censor_outcomes = self.loader.load_outcomes()
+        logger.info("Assigning outcomes to data")
+        data = self.utils.process_data(data, self._retrieve_and_assign_outcomes, log_positive_patients_num=True,
+                                        args_for_func={'outcomes': outcomes, 'censor_outcomes': censor_outcomes})
+        
+        # CUTOFF: Data censoring
+        data = self.utils.process_data(data, self.data_modifier.censor_data, log_positive_patients_num=True,
+                                        args_for_func={'n_hours': self.cfg.outcome.n_hours})
+
         # 2. Optional: Remove background tokens
         if data_cfg.get('remove_background'):
             data = self.utils.process_data(data, self.data_modifier.remove_background)

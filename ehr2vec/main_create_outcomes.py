@@ -2,6 +2,7 @@
 import os
 from collections import defaultdict
 from os.path import join
+from datetime import datetime
 
 import torch
 from ehr2vec.common.azure import AzurePathContext, save_to_blobstore
@@ -25,9 +26,11 @@ def process_data(loader, cfg, features_cfg, logger):
     for (concept_batch, patient_batch) in tqdm(loader(), desc='Batch Process Data', file=TqdmToLogger(logger)):
         check_patient_counts(concept_batch, patient_batch, logger)
         pids = concept_batch.PID.unique()
-        outcomes = OutcomeMaker(cfg, features_cfg)(concept_batch, patient_batch, pids)
-        for key, value in outcomes.items():
-            all_outcomes[key].extend(value)
+        #outcomes = OutcomeMaker(cfg, features_cfg)(concept_batch, patient_batch, pids)
+        static2020 = (datetime(2020, 1, 1) - datetime(2020, 1, 26)).total_seconds() / 60 / 60
+        all_outcomes['STATIC2020'].extend([static2020] * len(pids))
+        #for key, value in outcomes.items():
+        #    all_outcomes[key].extend(value)
     return all_outcomes
 
 def main_data(config_path):

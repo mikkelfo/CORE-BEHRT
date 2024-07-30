@@ -188,7 +188,7 @@ class BatchTokenize:
         self.batch_tokenize(splits[PRETRAIN])
         self.tokenizer.freeze_vocabulary()
         self.save_vocabulary()
-        self.batch_tokenize(splits[FINETUNE])
+        #self.batch_tokenize(splits[FINETUNE])
         if TEST in splits and len(splits[TEST].pids) > 0:
             self.batch_tokenize(splits[TEST])
     

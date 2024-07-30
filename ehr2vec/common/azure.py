@@ -107,6 +107,8 @@ class AzurePathContext:
                 self.cfg.paths.predefined_splits = self._prepend_mount_point(self.cfg.paths.predefined_splits)
             if self.cfg.paths.get('model_path', None) is not None:
                 self.cfg.paths.model_path = self._prepend_mount_point(self.cfg.paths.model_path)
+            if self.cfg.paths.get('outcome') is not None:
+                self.cfg.paths.outcome = self._prepend_mount_point(self.cfg.paths.outcome)
             self._handle_outputs_path()
         return self.cfg, self.run, self.mount_context
     

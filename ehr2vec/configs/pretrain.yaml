@@ -7,8 +7,16 @@ paths:
   run_name: behrt_test
   tokenized_dir: tokenized
   #predefined_splits: outputs/pretraining/behrt_base
+  outcome: outcomes/STATIC2020/STATIC2020.pt  
+
+outcome:
+  censor_type: STATIC2020
+  n_hours: 0
+  type: STATIC2020
   
 data:
+  censorer:
+    _target_: data_fixes.censor.EQ_Censorer
   dataset:
     select_ratio: 1.
     masking_ratio: .8

@@ -1,3 +1,7 @@
+This GitHub is outdated and is only relevant for reproducing the CORE-BEHRT results. 
+
+Please refer to [BONSAI](https://github.com/FGA-DIKU/BONSAI/tree/main) or contact the authors for the modern implementation of this
+
 # CORE-BEHRT: A Carefully Optimized and Rigorously Evaluated BEHRT
 
 ## Overview
